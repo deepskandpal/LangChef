@@ -1,0 +1,18 @@
+FROM node:18-alpine
+
+WORKDIR /app/frontend
+
+# Copy package.json and package-lock.json
+COPY frontend/package*.json ./
+
+# Install dependencies and react-scripts globally
+RUN npm install && npm install -g react-scripts
+
+# Copy the frontend code
+COPY frontend/ ./
+
+# Expose the port
+EXPOSE 3000
+
+# Command to run the application
+CMD ["npm", "start"] 
