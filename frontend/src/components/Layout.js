@@ -31,6 +31,7 @@ import {
 } from '@mui/icons-material';
 import { Link, useLocation } from 'react-router-dom';
 import { useThemeContext } from '../contexts/ThemeContext';
+import UserProfile from './UserProfile';
 
 const drawerWidth = 240;
 
@@ -94,6 +95,7 @@ function Layout() {
               {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
             </IconButton>
           </Tooltip>
+          <UserProfile />
         </Toolbar>
       </AppBar>
       <Drawer

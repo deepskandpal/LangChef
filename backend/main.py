@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
 
-from .api.routes import prompts, datasets, experiments, traces, metrics
+from .api.routes import prompts, datasets, experiments, traces, metrics, auth
 from .config import settings
 
 # Configure logging
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
-    title="LLM Workflow Platform API",
+    title="langchef API",
     description="API for managing LLM workflows, prompts, datasets, and experiments",
     version="0.1.0",
     docs_url="/docs",
@@ -37,11 +37,12 @@ app.include_router(datasets.router, prefix="/api/datasets", tags=["datasets"])
 app.include_router(experiments.router, prefix="/api/experiments", tags=["experiments"])
 app.include_router(traces.router, prefix="/api/traces", tags=["traces"])
 app.include_router(metrics.router, prefix="/api/metrics", tags=["metrics"])
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 
 @app.get("/", tags=["root"])
 async def root():
     """Root endpoint."""
-    return {"message": "Welcome to the LLM Workflow Platform API"}
+    return {"message": "Welcome to the langchef API"}
 
 @app.get("/health", tags=["health"])
 async def health_check():

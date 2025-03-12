@@ -9,11 +9,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
-COPY backend/requirements.txt .
+# Install uv
+RUN pip install --no-cache-dir uv
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy pyproject.toml and uv.lock
+COPY backend/pyproject.toml backend/uv.lock ./
+
+# Create a README.md file (required by hatchling)
+RUN echo "# LLM Workflow Platform Backend" > README.md
+
+# Create virtual environment and install dependencies using uv
+RUN uv venv .venv
+ENV PATH="/app/.venv/bin:$PATH"
+RUN uv pip install --no-cache -e .
 
 # Copy the backend code
 COPY backend /app/backend

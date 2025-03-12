@@ -1,0 +1,15 @@
+[uv]
+# Use the pyproject.toml file for dependencies
+use-pyproject = true
+
+# Use a lockfile for reproducible builds
+use-lockfile = true
+
+# Exclude development dependencies by default
+exclude-dev = true
+
+# Use a virtual environment
+use-venv = true
+
+# Use a cache for faster installs
+use-cache = true 

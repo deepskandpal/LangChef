@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
-    title="LLM Workflow Platform API Test",
-    description="Test API for the LLM Workflow Platform",
+    title="langchef API Test",
+    description="Test API for langchef",
     version="0.1.0",
 )
 
@@ -28,7 +28,7 @@ app.add_middleware(
 @app.get("/", tags=["root"])
 async def root():
     """Root endpoint."""
-    return {"message": "Welcome to the LLM Workflow Platform API Test"}
+    return {"message": "Welcome to the langchef API Test"}
 
 @app.get("/health", tags=["health"])
 async def health_check():

@@ -1,9 +1,10 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { Box } from '@mui/material';
 
 // Layout components
 import Layout from './components/Layout';
+import ProtectedRoute from './components/ProtectedRoute';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -16,27 +17,39 @@ import ExperimentDetail from './pages/ExperimentDetail';
 import Playground from './pages/Playground';
 import Traces from './pages/Traces';
 import TraceDetail from './pages/TraceDetail';
+import Login from './pages/Login';
 import NotFound from './pages/NotFound';
+
+// Context providers
+import { AuthProvider } from './contexts/AuthContext';
 
 function App() {
   return (
-    <Box sx={{ display: 'flex' }}>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="prompts" element={<Prompts />} />
-          <Route path="prompts/:id" element={<PromptDetail />} />
-          <Route path="datasets" element={<Datasets />} />
-          <Route path="datasets/:id" element={<DatasetDetail />} />
-          <Route path="experiments" element={<Experiments />} />
-          <Route path="experiments/:id" element={<ExperimentDetail />} />
-          <Route path="playground" element={<Playground />} />
-          <Route path="traces" element={<Traces />} />
-          <Route path="traces/:id" element={<TraceDetail />} />
-          <Route path="*" element={<NotFound />} />
-        </Route>
-      </Routes>
-    </Box>
+    <AuthProvider>
+      <Box sx={{ display: 'flex' }}>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/login" element={<Login />} />
+          
+          {/* Protected routes */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<Layout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="prompts" element={<Prompts />} />
+              <Route path="prompts/:id" element={<PromptDetail />} />
+              <Route path="datasets" element={<Datasets />} />
+              <Route path="datasets/:id" element={<DatasetDetail />} />
+              <Route path="experiments" element={<Experiments />} />
+              <Route path="experiments/:id" element={<ExperimentDetail />} />
+              <Route path="playground" element={<Playground />} />
+              <Route path="traces" element={<Traces />} />
+              <Route path="traces/:id" element={<TraceDetail />} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
+          </Route>
+        </Routes>
+      </Box>
+    </AuthProvider>
   );
 }
 

@@ -1,4 +1,4 @@
-# LLM Workflow Platform
+# langchef
 
 An end-to-end LLM workflow platform for prompt engineering, dataset management, experimentation, and evaluation.
 
@@ -26,31 +26,38 @@ The platform consists of two main components:
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.11+
 - Node.js 14+
 - PostgreSQL
+- [uv](https://github.com/astral-sh/uv) package manager
 
 ### Installation
 
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/llm-workflow-platform.git
-cd llm-workflow-platform
+git clone https://github.com/yourusername/langchef.git
+cd langchef
 ```
 
 2. Set up the backend:
 
 ```bash
-cd llm_workflow_platform/backend
-pip install -r requirements.txt
+cd langchef/backend
+# Install uv if you don't have it
+pip install uv
+
+# Create a virtual environment and install dependencies
+uv venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install -e .
 ```
 
 3. Set up the database:
 
 ```bash
 # Create a PostgreSQL database
-createdb llm_workflow
+createdb langchef
 
 # Run migrations
 alembic upgrade head
@@ -66,7 +73,7 @@ npm install
 5. Create a `.env` file in the backend directory with the following variables:
 
 ```
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/llm_workflow
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/langchef
 SECRET_KEY=your-secret-key-for-jwt
 OPENAI_API_KEY=your-openai-api-key
 ```
@@ -76,18 +83,26 @@ OPENAI_API_KEY=your-openai-api-key
 1. Start the backend:
 
 ```bash
-cd llm_workflow_platform/backend
+cd langchef/backend
 uvicorn main:app --reload
 ```
 
 2. Start the frontend:
 
 ```bash
-cd llm_workflow_platform/frontend
+cd langchef/frontend
 npm start
 ```
 
 3. Access the application at http://localhost:3000
+
+### Using Docker
+
+You can also run the application using Docker:
+
+```bash
+docker-compose up -d
+```
 
 ## Usage
 
@@ -126,4 +141,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgements
 
 - Inspired by [Langfuse](https://github.com/langfuse/langfuse)
-- Built with FastAPI, React, and Material-UI 
+- Built with FastAPI, React, and Material-UI and Cursor 

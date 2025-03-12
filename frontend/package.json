@@ -1,5 +1,5 @@
 {
-  "name": "llm-workflow-platform-frontend",
+  "name": "langchef-frontend",
   "version": "0.1.0",
   "private": true,
   "dependencies": {

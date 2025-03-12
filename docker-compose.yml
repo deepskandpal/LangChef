@@ -3,13 +3,13 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15
-    container_name: llm_workflow_db
+    container_name: langchef_db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: llm_workflow
+      POSTGRES_DB: langchef
     ports:
-      - "5433:5432"
+      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,16 +22,16 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile.dev
-    container_name: llm_workflow_backend
+    container_name: langchef_backend
     volumes:
       - ./backend:/app/backend
     ports:
-      - "8000:8000"
+      - "8001:8000"
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/llm_workflow
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/langchef
       - HOST=0.0.0.0
       - PORT=8000
       - DEBUG=true
@@ -39,17 +39,17 @@ services:
 
   frontend:
     image: node:18-alpine
-    container_name: llm_workflow_frontend
+    container_name: langchef_frontend
     working_dir: /app
     volumes:
       - ./frontend:/app
     ports:
-      - "3000:3000"
+      - "3001:3000"
     depends_on:
       - backend
     environment:
       - NODE_ENV=development
-      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_API_URL=http://localhost:8001
     command: sh -c "cd /app && npm install && npm start"
 
 volumes:

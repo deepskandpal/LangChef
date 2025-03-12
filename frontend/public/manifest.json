@@ -1,6 +1,6 @@
 {
-  "short_name": "LLM Workflow",
-  "name": "LLM Workflow Platform",
+  "short_name": "langchef",
+  "name": "langchef",
   "icons": [
     {
       "src": "favicon.ico",
