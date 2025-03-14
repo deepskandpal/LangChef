@@ -25,6 +25,7 @@ import {
 import { Line, Bar, Pie } from 'react-chartjs-2';
 import { metricsApi } from '../services/api';
 import { Refresh as RefreshIcon } from '@mui/icons-material';
+import { useAuth } from '../contexts/AuthContext';
 
 // Register ChartJS components
 ChartJS.register(
@@ -40,6 +41,7 @@ ChartJS.register(
 );
 
 const Dashboard = () => {
+  const { user, sessionExpiry } = useAuth();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
   const [error, setError] = useState(null);
@@ -179,6 +181,19 @@ const Dashboard = () => {
       {error && (
         <Paper sx={{ p: 2, mb: 3, bgcolor: 'warning.light' }}>
           <Typography color="warning.dark">{error}</Typography>
+        </Paper>
+      )}
+      
+      {/* Session information */}
+      {sessionExpiry && (
+        <Paper sx={{ p: 2, mb: 3, bgcolor: 'info.light' }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+            Session Info: 
+            <span style={{ marginLeft: '8px', fontWeight: 'normal' }}>
+              {user?.username || 'Unknown user'} • 
+              Expires: {new Date(sessionExpiry).toLocaleString()}
+            </span>
+          </Typography>
         </Paper>
       )}
       

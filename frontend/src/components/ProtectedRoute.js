@@ -1,14 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { Spinner, Alert, Button } from 'react-bootstrap';
+import { Spinner, Alert, Button, Badge } from 'react-bootstrap';
 import { useAuth } from '../contexts/AuthContext';
 
 const ProtectedRoute = () => {
-  const { isAuthenticated, loading, awsSSOState, user, error, login } = useAuth();
+  const { 
+    isAuthenticated, 
+    loading, 
+    awsSSOState, 
+    user, 
+    error, 
+    login, 
+    refreshSession,
+    sessionExpiry
+  } = useAuth();
   const location = useLocation();
   const [authRetryCount, setAuthRetryCount] = useState(0);
   const [showRetryOption, setShowRetryOption] = useState(false);
   const [authError, setAuthError] = useState(null);
+  const [timeRemaining, setTimeRemaining] = useState('');
+  const [timerId, setTimerId] = useState(null);
   
   // Added comprehensive logging for debug purposes
   useEffect(() => {
@@ -20,9 +31,10 @@ const ProtectedRoute = () => {
       hasUser: !!user,
       user: user ? `${user.username} (${user.email})` : 'none',
       error,
-      retryCount: authRetryCount
+      retryCount: authRetryCount,
+      sessionExpiry: sessionExpiry ? new Date(sessionExpiry).toISOString() : null
     });
-  }, [isAuthenticated, loading, awsSSOState, user, location.pathname, error, authRetryCount]);
+  }, [isAuthenticated, loading, awsSSOState, user, location.pathname, error, authRetryCount, sessionExpiry]);
 
   // Show retry option after 30 seconds if still in polling state
   useEffect(() => {
@@ -39,6 +51,54 @@ const ProtectedRoute = () => {
       if (timer) clearTimeout(timer);
     };
   }, [awsSSOState, showRetryOption]);
+
+  // Update time remaining for AWS SSO authentication
+  useEffect(() => {
+    if (!awsSSOState) {
+      if (timerId) {
+        clearInterval(timerId);
+        setTimerId(null);
+      }
+      return;
+    }
+    
+    // Function to update time remaining
+    const updateTimeRemaining = () => {
+      if (!awsSSOState) return;
+      
+      // Calculate remaining time
+      const expiryTime = new Date(awsSSOState.expiresAt);
+      const now = new Date();
+      const remainingMinutes = Math.max(0, Math.round((expiryTime - now) / 60000));
+      const remainingSeconds = Math.max(0, Math.round((expiryTime - now) / 1000) % 60);
+      
+      // Format time remaining
+      let formattedTime = "";
+      if (remainingMinutes > 0) {
+        formattedTime = `${remainingMinutes} minute${remainingMinutes !== 1 ? 's' : ''}`;
+        if (remainingSeconds > 0) {
+          formattedTime += ` and ${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''}`;
+        }
+      } else if (remainingSeconds > 0) {
+        formattedTime = `${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''}`;
+      } else {
+        formattedTime = "less than a second";
+      }
+      
+      setTimeRemaining(formattedTime);
+    };
+    
+    // Update immediately
+    updateTimeRemaining();
+    
+    // Set up interval for regular updates
+    const timer = setInterval(updateTimeRemaining, 1000);
+    setTimerId(timer);
+    
+    return () => {
+      clearInterval(timer);
+    };
+  }, [awsSSOState]);
 
   // Handle error updates
   useEffect(() => {
@@ -67,6 +127,39 @@ const ProtectedRoute = () => {
     }
   };
 
+  // Handler for manual session refresh
+  const handleManualRefresh = async () => {
+    setAuthError(null);
+    
+    try {
+      const success = await refreshSession();
+      
+      if (success) {
+        // Show success message briefly
+        setAuthError({
+          type: 'success',
+          message: 'Session refreshed successfully.'
+        });
+        
+        // Clear the message after 3 seconds
+        setTimeout(() => {
+          setAuthError(null);
+        }, 3000);
+      } else {
+        setAuthError({
+          type: 'warning',
+          message: 'Failed to refresh session. Please try again or log out and back in.'
+        });
+      }
+    } catch (err) {
+      console.error("Error refreshing session:", err);
+      setAuthError({
+        type: 'danger',
+        message: 'An error occurred while refreshing your session.'
+      });
+    }
+  };
+
   // Helper to open the verification URI in a new window
   const openVerificationPage = () => {
     if (awsSSOState && awsSSOState.verification_uri_complete) {
@@ -88,28 +181,8 @@ const ProtectedRoute = () => {
   }
 
   // If authentication is in progress (polling for AWS SSO token), show loading indicator
-  // but maintain the current URL to prevent navigation issues
   if (awsSSOState) {
     console.log('ProtectedRoute - AWS SSO authentication in progress');
-    
-    // Calculate remaining time
-    const expiryTime = new Date(awsSSOState.expiresAt);
-    const now = new Date();
-    const remainingMinutes = Math.max(0, Math.round((expiryTime - now) / 60000));
-    const remainingSeconds = Math.max(0, Math.round((expiryTime - now) / 1000) % 60);
-    
-    // Format time remaining
-    let timeRemaining = "";
-    if (remainingMinutes > 0) {
-      timeRemaining = `${remainingMinutes} minute${remainingMinutes !== 1 ? 's' : ''}`;
-      if (remainingSeconds > 0) {
-        timeRemaining += ` and ${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''}`;
-      }
-    } else if (remainingSeconds > 0) {
-      timeRemaining = `${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''}`;
-    } else {
-      timeRemaining = "less than a second";
-    }
     
     return (
       <div className="d-flex justify-content-center align-items-center flex-column" style={{ minHeight: '100vh', padding: '2rem' }}>
@@ -124,7 +197,7 @@ const ProtectedRoute = () => {
           <div className="text-muted">
             Please complete the authentication in the browser window that opened.
           </div>
-          {remainingMinutes > 0 || remainingSeconds > 0 ? (
+          {timeRemaining ? (
             <div className="mt-2 small">
               <strong>Time remaining:</strong> {timeRemaining}
             </div>
@@ -167,8 +240,8 @@ const ProtectedRoute = () => {
         )}
         
         {authError && (
-          <Alert variant="warning" className="mt-3">
-            {authError}
+          <Alert variant={authError.type || "warning"} className="mt-3">
+            {authError.message || authError}
           </Alert>
         )}
       </div>
@@ -181,9 +254,48 @@ const ProtectedRoute = () => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Session status display for authenticated users
+  const renderSessionStatus = () => {
+    if (!sessionExpiry) return null;
+    
+    const now = new Date();
+    const expiry = new Date(sessionExpiry);
+    const timeToExpiry = expiry - now;
+    const hoursRemaining = Math.floor(timeToExpiry / (1000 * 60 * 60));
+    
+    let variant = "success";
+    if (hoursRemaining < 1) {
+      variant = "danger";
+    } else if (hoursRemaining < 3) {
+      variant = "warning";
+    }
+    
+    return (
+      <div className="position-fixed bottom-0 end-0 m-3">
+        <div className="d-flex align-items-center p-2 bg-light rounded shadow-sm">
+          <Badge bg={variant} className="me-2">
+            {hoursRemaining < 1 ? 'Session expiring soon' : `${hoursRemaining}h remaining`}
+          </Badge>
+          <Button 
+            size="sm" 
+            variant="outline-secondary" 
+            onClick={handleManualRefresh}
+          >
+            Refresh
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   // If authenticated, render the child routes
   console.log('ProtectedRoute - User authenticated, rendering child routes');
-  return <Outlet />;
+  return (
+    <>
+      <Outlet />
+      {renderSessionStatus()}
+    </>
+  );
 };
 
 export default ProtectedRoute; 

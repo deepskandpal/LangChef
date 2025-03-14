@@ -20,12 +20,12 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const Login = () => {
-  const { isAuthenticated, login, loginWithAWS, loading, awsSSOState, error: authError } = useAuth();
+  const { isAuthenticated, login, loading, awsSSOState, error: authError } = useAuth();
   const [error, setError] = useState(null);
   const [showVerificationDialog, setShowVerificationDialog] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   // Get the redirect path from location state or default to '/'
   const from = location.state?.from?.pathname || '/';
   
@@ -57,7 +57,7 @@ const Login = () => {
       setShowVerificationDialog(false);
     }
   }, [awsSSOState]);
-  
+
   // Handle auth errors
   useEffect(() => {
     if (authError && !awsSSOState) {
@@ -79,29 +79,14 @@ const Login = () => {
       setError('An unexpected error occurred. Please try again.');
     }
   };
-  
-  const handleAWSLogin = async () => {
-    setError(null);
-    try {
-      const success = await loginWithAWS();
-      if (success) {
-        navigate(from, { replace: true });
-      } else {
-        setError('AWS login failed. Please check that AWS credentials are properly configured on the server.');
-      }
-    } catch (err) {
-      console.error('AWS login error:', err);
-      setError('An unexpected error occurred. Please try again.');
-    }
-  };
 
   const handleCloseVerificationDialog = () => {
     setShowVerificationDialog(false);
   };
-  
+
   // Show a different message when we're in SSO polling state
   const isPolling = awsSSOState && awsSSOState.device_code;
-  
+
   return (
     <Container maxWidth="sm">
       <Box sx={{ 
@@ -120,13 +105,13 @@ const Login = () => {
           <Typography variant="h6" align="center" color="text.secondary" sx={{ mb: 4 }}>
             Sign in to continue
           </Typography>
-          
+
           {error && !isPolling && (
             <Alert severity="error" sx={{ mb: 3 }}>
               {error}
-            </Alert>
-          )}
-          
+             </Alert>
+           )}
+
           {isPolling && (
             <Alert severity="info" sx={{ mb: 3 }}>
               AWS SSO authentication in progress. Please complete the verification in the opened browser window.
@@ -141,7 +126,7 @@ const Login = () => {
           )}
           
           <Stack spacing={2} sx={{ mb: 3 }}>
-            <Button
+             <Button
               variant="contained"
               size="large"
               onClick={handleLogin}
@@ -160,32 +145,7 @@ const Login = () => {
               ) : (
                 <>Sign in with AWS SSO</>
               )}
-            </Button>
-            
-            <Divider sx={{ my: 2 }}>OR</Divider>
-            
-            <Button
-              variant="outlined"
-              size="large"
-              onClick={handleAWSLogin}
-              disabled={loading || isPolling}
-              sx={{ 
-                py: 1.5, 
-                px: 4,
-                borderColor: '#232F3E',
-                color: '#232F3E',
-                '&:hover': {
-                  borderColor: '#1A2530',
-                  backgroundColor: 'rgba(35, 47, 62, 0.04)',
-                },
-              }}
-            >
-              {loading ? (
-                <CircularProgress size={24} color="inherit" sx={{ mr: 1 }} />
-              ) : (
-                <>Use AWS Credentials</>
-              )}
-            </Button>
+             </Button>
           </Stack>
           
           <Typography variant="body2" align="center" sx={{ mt: 4, color: 'text.secondary' }}>

@@ -30,20 +30,31 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [awsSSOState, setAwsSSOState] = useState(null);
   const [pollingTimerId, setPollingTimerId] = useState(null);
+  const [refreshTimerId, setRefreshTimerId] = useState(null);
+  const [refreshInProgress, setRefreshInProgress] = useState(false);
+  const [sessionRefreshAttempts, setSessionRefreshAttempts] = useState(0);
   
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Constants for session management
+  const SESSION_REFRESH_BEFORE_EXPIRY_MS = 30 * 60 * 1000; // Refresh 30 minutes before expiry
+  const SESSION_REFRESH_INTERVAL_MS = 60 * 60 * 1000; // Check every hour
+  const MAX_SESSION_REFRESH_ATTEMPTS = 3; // Maximum number of consecutive failed refresh attempts
+  const SESSION_REFRESH_RETRY_DELAY_MS = 60 * 1000; // Wait 1 minute before retry after failure
 
   // Initialize auth state from localStorage
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     const storedExpiry = localStorage.getItem('sessionExpiry');
     const token = localStorage.getItem('token');
+    const refreshToken = localStorage.getItem('refreshToken');
     
     console.log('AuthContext - Initializing auth state from localStorage:', {
       hasStoredUser: !!storedUser,
       hasStoredExpiry: !!storedExpiry,
       hasToken: !!token,
+      hasRefreshToken: !!refreshToken,
       isExpired: storedExpiry ? new Date(storedExpiry) <= new Date() : true
     });
     
@@ -57,35 +68,158 @@ export const AuthProvider = ({ children }) => {
       
       // Set default auth header for all requests
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      // Schedule session refresh
+      scheduleSessionRefresh(new Date(storedExpiry));
+    } else if (storedUser && token && refreshToken) {
+      // We have a refresh token but the session is expired - try to refresh silently
+      console.log('AuthContext - Session expired but refresh token available, attempting silent refresh');
+      
+      // Attempt to refresh the session silently
+      refreshSession(true)
+        .then(success => {
+          if (!success) {
+            // If silent refresh fails, clear the session
+            clearSessionData();
+          }
+        })
+        .catch(() => {
+          clearSessionData();
+        });
     } else {
       // Clear any expired session data
-      console.log('AuthContext - No valid stored credentials found, clearing session data');
-      
-      localStorage.removeItem('user');
-      localStorage.removeItem('sessionExpiry');
-      localStorage.removeItem('token');
-      delete axios.defaults.headers.common['Authorization'];
-      
-      setIsAuthenticated(false);
-      setUser(null);
-      setSessionExpiry(null);
+      clearSessionData();
     }
     
     setLoading(false);
   }, []);
 
-  // Check session expiry periodically
+  // Helper to clear session data
+  const clearSessionData = () => {
+    console.log('AuthContext - Clearing session data');
+    
+    localStorage.removeItem('user');
+    localStorage.removeItem('sessionExpiry');
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    delete axios.defaults.headers.common['Authorization'];
+    
+    setIsAuthenticated(false);
+    setUser(null);
+    setSessionExpiry(null);
+    
+    // Cancel any scheduled refresh
+    if (refreshTimerId) {
+      clearTimeout(refreshTimerId);
+      setRefreshTimerId(null);
+    }
+  };
+
+  // Schedule session refresh before it expires
+  const scheduleSessionRefresh = (expiryTime) => {
+    // Clear any existing timer
+    if (refreshTimerId) {
+      clearTimeout(refreshTimerId);
+    }
+    
+    if (!expiryTime) return;
+    
+    // Calculate when to refresh
+    const now = new Date();
+    const expiry = new Date(expiryTime);
+    
+    // Time until we should refresh (30 minutes before expiry or half the time left if less than 1 hour)
+    const timeUntilRefresh = Math.max(
+      0,
+      Math.min(
+        expiry - now - SESSION_REFRESH_BEFORE_EXPIRY_MS, // Standard: refresh 30 min before expiry
+        (expiry - now) / 2 // Alternative: refresh when half the time has passed
+      )
+    );
+    
+    console.log(`AuthContext - Scheduling session refresh in ${Math.round(timeUntilRefresh / 60000)} minutes`);
+    
+    // Schedule the refresh
+    const timerId = setTimeout(() => {
+      if (isAuthenticated) {
+        console.log('AuthContext - Executing scheduled session refresh');
+        refreshSession();
+      }
+    }, timeUntilRefresh);
+    
+    setRefreshTimerId(timerId);
+  };
+
+  // Check session expiry and handle proactive refresh
   useEffect(() => {
     if (!isAuthenticated) return;
     
+    // Reset refresh attempts counter when authentication state changes
+    setSessionRefreshAttempts(0);
+    
+    // Setup periodic check for session health
     const checkInterval = setInterval(() => {
-      if (sessionExpiry && new Date() > sessionExpiry) {
+      if (!sessionExpiry) return;
+      
+      const now = new Date();
+      const expiry = new Date(sessionExpiry);
+      
+      // If session is expired, log out
+      if (now > expiry) {
+        console.log('AuthContext - Session expired, logging out');
         logout();
+        return;
       }
-    }, 60000); // Check every minute
+      
+      // If session is about to expire soon, refresh it
+      const timeToExpiry = expiry - now;
+      if (timeToExpiry < SESSION_REFRESH_BEFORE_EXPIRY_MS && !refreshInProgress) {
+        console.log(`AuthContext - Session expires in ${Math.round(timeToExpiry / 60000)} minutes, triggering refresh`);
+        refreshSession();
+      }
+    }, SESSION_REFRESH_INTERVAL_MS);
     
     return () => clearInterval(checkInterval);
   }, [isAuthenticated, sessionExpiry]);
+
+  // Monitor for 401 errors across all axios requests to detect token invalidation
+  useEffect(() => {
+    // Add a response interceptor to detect 401 errors (unauthorized)
+    const interceptor = axios.interceptors.response.use(
+      response => response,
+      async error => {
+        // Check if the error is due to an unauthorized request (401)
+        if (error.response && error.response.status === 401 && isAuthenticated) {
+          console.log('AuthContext - Received 401 error, attempting to refresh session');
+          
+          // Try to refresh the session
+          const refreshed = await refreshSession();
+          
+          if (refreshed) {
+            // If refresh was successful, retry the original request
+            const originalRequest = error.config;
+            
+            // Update the token in the original request
+            originalRequest.headers['Authorization'] = `Bearer ${localStorage.getItem('token')}`;
+            
+            // Retry the original request with the new token
+            return axios(originalRequest);
+          } else {
+            // If refresh failed, log out
+            console.log('AuthContext - Failed to refresh session after 401, logging out');
+            logout();
+          }
+        }
+        
+        return Promise.reject(error);
+      }
+    );
+    
+    // Clean up interceptor on unmount
+    return () => {
+      axios.interceptors.response.eject(interceptor);
+    };
+  }, [isAuthenticated]);
 
   // Load user from localStorage on mount
   useEffect(() => {
@@ -188,25 +322,9 @@ export const AuthProvider = ({ children }) => {
         
         // Clear polling state from localStorage
         localStorage.removeItem('awsSSOPollingState');
-        setAwsSSOState(null);
         
-        // Set user and token
-        const { access_token, user: userData, expires_in } = tokenResponse.data;
-        setUser(userData);
-        setIsAuthenticated(true);
-        
-        // Calculate expiry time (default to 24 hours if not provided)
-        const expiryTime = new Date();
-        expiryTime.setSeconds(expiryTime.getSeconds() + (expires_in || 24 * 60 * 60));
-        setSessionExpiry(expiryTime);
-        
-        // Store in localStorage
-        localStorage.setItem('user', JSON.stringify(userData));
-        localStorage.setItem('token', access_token);
-        localStorage.setItem('sessionExpiry', expiryTime.toISOString());
-        
-        // Set authorization header
-        axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+        // Process authentication success
+        const expiryTime = handleAuthSuccess(tokenResponse.data, tokenResponse.data.user);
         
         // Set loading to false
         setLoading(false);
@@ -215,6 +333,7 @@ export const AuthProvider = ({ children }) => {
         console.log('Authentication successful, redirecting to dashboard');
         navigate('/dashboard');
         
+        return expiryTime;
       } catch (err) {
         // Check if we have a response from the server
         if (err.response) {
@@ -508,65 +627,100 @@ export const AuthProvider = ({ children }) => {
   const loginWithAWS = login;
 
   // Handle logout with improved cleanup
-  const logout = () => {
-    // Clear local storage
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
-    localStorage.removeItem('sessionExpiry');
-    localStorage.removeItem('awsSSOPollingState');
+  const logout = async () => {
+    // Try to revoke the token with the server
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        await axios.post(`${API_BASE_URL}/api/auth/revoke`, {}, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        console.log('AuthContext - Token successfully revoked');
+      }
+    } catch (err) {
+      console.error('Error revoking token:', err);
+    }
     
-    // Clear auth state
-    setUser(null);
-    setIsAuthenticated(false);
-    setSessionExpiry(null);
-    
-    // Clear polling state
+    // Clear all timers
     if (pollingTimerId) {
       clearTimeout(pollingTimerId);
       setPollingTimerId(null);
     }
-    setAwsSSOState(null);
     
-    // Clear authorization header
-    delete axios.defaults.headers.common['Authorization'];
+    if (refreshTimerId) {
+      clearTimeout(refreshTimerId);
+      setRefreshTimerId(null);
+    }
+    
+    // Clear session data
+    clearSessionData();
+    
+    // Clear polling state
+    setAwsSSOState(null);
     
     // Navigate to login page
     navigate('/login');
   };
 
-  // Refresh session function
-  const refreshSession = async () => {
+  // Enhanced refresh session function
+  const refreshSession = async (silent = false) => {
+    // Don't attempt to refresh if not authenticated or refreshing is already in progress
+    if (!isAuthenticated && !silent) return false;
+    if (refreshInProgress) return false;
+    
     try {
-      setLoading(true);
+      // Mark refresh as in progress
+      setRefreshInProgress(true);
+      if (!silent) setLoading(true);
       
-      // Get the stored token
+      // Get the stored tokens
       const token = localStorage.getItem('token');
+      const refreshToken = localStorage.getItem('refreshToken');
       
       if (!token) {
         throw new Error('No token available');
       }
       
       // Call the refresh token endpoint
-      const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {}, {
+      const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {
+        refresh_token: refreshToken
+      }, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       
       if (response.status === 200 && response.data) {
-        const { access_token } = response.data;
+        // Extract token data
+        const { access_token, refresh_token, expires_in } = response.data;
         
-        // Set new session expiry to 24 hours from now
-        const expiry = new Date();
-        expiry.setHours(expiry.getHours() + 24);
+        // Calculate new expiry time (default to 24 hours if not provided)
+        const expiryTime = new Date();
+        expiryTime.setSeconds(expiryTime.getSeconds() + (expires_in || 24 * 60 * 60));
         
         // Update auth header
         axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
         
-        // Update session expiry and token
-        setSessionExpiry(expiry);
-        localStorage.setItem('sessionExpiry', expiry.toISOString());
+        // Update session state
+        setSessionExpiry(expiryTime);
+        setIsAuthenticated(true);
+        
+        // Reset refresh attempts
+        setSessionRefreshAttempts(0);
+        
+        // Store in localStorage
+        localStorage.setItem('sessionExpiry', expiryTime.toISOString());
         localStorage.setItem('token', access_token);
+        if (refresh_token) {
+          localStorage.setItem('refreshToken', refresh_token);
+        }
+        
+        // Schedule the next refresh
+        scheduleSessionRefresh(expiryTime);
+        
+        console.log('AuthContext - Session refreshed successfully, new expiry:', expiryTime);
         
         return true;
       } else {
@@ -574,9 +728,30 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Session refresh error:', error);
+      
+      // Increment the failed attempts counter
+      const newAttemptCount = sessionRefreshAttempts + 1;
+      setSessionRefreshAttempts(newAttemptCount);
+      
+      // If we haven't exceeded max attempts, try again after a delay
+      if (newAttemptCount < MAX_SESSION_REFRESH_ATTEMPTS) {
+        console.log(`AuthContext - Scheduling retry (attempt ${newAttemptCount + 1}/${MAX_SESSION_REFRESH_ATTEMPTS}) in ${SESSION_REFRESH_RETRY_DELAY_MS / 1000} seconds`);
+        
+        setTimeout(() => {
+          if (isAuthenticated) {
+            refreshSession();
+          }
+        }, SESSION_REFRESH_RETRY_DELAY_MS);
+      } else if (!silent) {
+        // If max attempts reached and not in silent mode, log out
+        console.log(`AuthContext - Max refresh attempts (${MAX_SESSION_REFRESH_ATTEMPTS}) reached, logging out`);
+        logout();
+      }
+      
       return false;
     } finally {
-      setLoading(false);
+      setRefreshInProgress(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -590,6 +765,40 @@ export const AuthProvider = ({ children }) => {
   const timeUntilExpiry = () => {
     if (!sessionExpiry) return 0;
     return Math.max(0, sessionExpiry.getTime() - new Date().getTime());
+  };
+
+  // Enhanced login function to store refresh token
+  const handleAuthSuccess = (data, userData) => {
+    // Extract token data
+    const { access_token, refresh_token, expires_in } = data;
+    
+    // Calculate expiry time (default to 24 hours if not provided)
+    const expiryTime = new Date();
+    expiryTime.setSeconds(expiryTime.getSeconds() + (expires_in || 24 * 60 * 60));
+    
+    // Set auth state
+    setUser(userData);
+    setIsAuthenticated(true);
+    setSessionExpiry(expiryTime);
+    setAwsSSOState(null);
+    
+    // Store in localStorage
+    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem('token', access_token);
+    localStorage.setItem('sessionExpiry', expiryTime.toISOString());
+    
+    // Store refresh token if available
+    if (refresh_token) {
+      localStorage.setItem('refreshToken', refresh_token);
+    }
+    
+    // Set authorization header
+    axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+    
+    // Schedule session refresh
+    scheduleSessionRefresh(expiryTime);
+    
+    return expiryTime;
   };
 
   return (
