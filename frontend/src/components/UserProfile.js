@@ -120,6 +120,18 @@ const UserProfile = () => {
     return 'success';
   };
   
+  // Get the display name from user object with fallbacks
+  const getDisplayName = () => {
+    if (!user) return 'User';
+    return user.full_name || user.name || user.username || user.email?.split('@')[0] || 'User';
+  };
+  
+  // Get the first letter of the display name for the avatar
+  const getAvatarInitial = () => {
+    const displayName = getDisplayName();
+    return displayName.charAt(0).toUpperCase();
+  };
+  
   if (!user) return null;
   
   return (
@@ -141,7 +153,7 @@ const UserProfile = () => {
               color={getBadgeColor()}
             >
               <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
-                {user.name.charAt(0)}
+                {getAvatarInitial()}
               </Avatar>
             </Badge>
           </IconButton>
@@ -185,10 +197,10 @@ const UserProfile = () => {
       >
         <Box sx={{ px: 2, py: 1 }}>
           <Typography variant="subtitle1" noWrap>
-            {user.name}
+            {getDisplayName()}
           </Typography>
           <Typography variant="body2" color="text.secondary" noWrap>
-            {user.email}
+            {user.email || 'No email available'}
           </Typography>
         </Box>
         

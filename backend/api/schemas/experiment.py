@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from models.experiment import ModelProvider, ExperimentStatus
+from ...models.experiment import ModelProvider, ExperimentStatus
 
 class ExperimentBase(BaseModel):
     name: str

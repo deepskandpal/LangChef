@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List, Union
 from datetime import datetime
-from models.dataset import DatasetType
+from ...models.dataset import DatasetType
 
 class DatasetBase(BaseModel):
     name: str

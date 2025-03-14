@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
-from api.schemas import (
+from ..schemas import (
     TraceCreate, TraceUpdate, TraceResponse,
     SpanCreate, SpanUpdate, SpanResponse
 )
-from models import Trace, Span, TraceStatus, SpanType
+from ...models import Trace, Span, TraceStatus, SpanType
 from ...utils import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 

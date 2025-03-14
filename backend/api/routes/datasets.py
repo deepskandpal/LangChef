@@ -4,13 +4,13 @@ from typing import List, Optional
 import json
 import csv
 import io
-from api.schemas import (
+from ..schemas import (
     DatasetCreate, DatasetUpdate, DatasetResponse,
     DatasetItemCreate, DatasetItemResponse,
     DatasetVersionCreate, DatasetVersionResponse,
     DatasetUpload
 )
-from models import Dataset, DatasetItem, DatasetVersion, DatasetType
+from ...models import Dataset, DatasetItem, DatasetVersion, DatasetType
 from ...utils import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 

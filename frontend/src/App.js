@@ -22,6 +22,7 @@ import NotFound from './pages/NotFound';
 
 // Context providers
 import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 function App() {
   return (
@@ -34,7 +35,8 @@ function App() {
           {/* Protected routes */}
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
-              <Route index element={<Dashboard />} />
+              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route path="dashboard" element={<Dashboard />} />
               <Route path="prompts" element={<Prompts />} />
               <Route path="prompts/:id" element={<PromptDetail />} />
               <Route path="datasets" element={<Datasets />} />

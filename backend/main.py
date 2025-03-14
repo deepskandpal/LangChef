@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
 
-from .api.routes import prompts, datasets, experiments, traces, metrics, auth
+from .api.routes import prompts, datasets, experiments, traces, metrics, auth, models
 from .config import settings
 
 # Configure logging
@@ -38,6 +38,7 @@ app.include_router(experiments.router, prefix="/api/experiments", tags=["experim
 app.include_router(traces.router, prefix="/api/traces", tags=["traces"])
 app.include_router(metrics.router, prefix="/api/metrics", tags=["metrics"])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(models.router, prefix="/api/models", tags=["models"])
 
 @app.get("/", tags=["root"])
 async def root():

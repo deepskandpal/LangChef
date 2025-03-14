@@ -10,7 +10,7 @@ class Prompt(Base, BaseModel):
     content = Column(Text, nullable=False)
     version = Column(Integer, default=1, nullable=False)
     is_active = Column(Boolean, default=True)
-    metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
     
     # Relationships
     experiments = relationship("Experiment", back_populates="prompt")
@@ -24,7 +24,7 @@ class PromptVersion(Base, BaseModel):
     prompt_id = Column(Integer, ForeignKey("prompts.id"), nullable=False)
     version = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
-    metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
     
     # Relationships
     prompt = relationship("Prompt")

@@ -8,14 +8,21 @@ import {
   Container,
   Alert,
   Divider,
-  Stack
+  Stack,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Link
 } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const Login = () => {
-  const { isAuthenticated, login, loginWithAWS, loading } = useAuth();
+  const { isAuthenticated, login, loginWithAWS, loading, awsSSOState, error: authError } = useAuth();
   const [error, setError] = useState(null);
+  const [showVerificationDialog, setShowVerificationDialog] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -24,20 +31,49 @@ const Login = () => {
   
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
+    console.log('Login - Authentication state:', { 
+      isAuthenticated, 
+      from,
+      awsSSOState,
+      loading
+    });
+    
+    // Only redirect if not loading and authenticated
+    if (!loading && isAuthenticated) {
+      console.log('Login - Already authenticated, redirecting to:', from);
       navigate(from, { replace: true });
     }
-  }, [isAuthenticated, navigate, from]);
+  }, [isAuthenticated, navigate, from, awsSSOState, loading]);
+
+  // Show verification dialog when AWS SSO state is updated
+  useEffect(() => {
+    console.log('Login - AWS SSO state updated:', awsSSOState);
+    if (awsSSOState && awsSSOState.device_code) {
+      // We have an active AWS SSO authentication flow
+      setShowVerificationDialog(true);
+      // Clear any error if we're in polling state
+      setError(null);
+    } else {
+      setShowVerificationDialog(false);
+    }
+  }, [awsSSOState]);
+  
+  // Handle auth errors
+  useEffect(() => {
+    if (authError && !awsSSOState) {
+      // Only set error if we're not in polling state (authorization_pending is expected)
+      setError(authError);
+    } else if (awsSSOState) {
+      // Clear any errors when we're in polling state
+      setError(null);
+    }
+  }, [authError, awsSSOState]);
   
   const handleLogin = async () => {
     setError(null);
     try {
-      const success = await login();
-      if (success) {
-        navigate(from, { replace: true });
-      } else {
-        setError('Login failed. Please try again.');
-      }
+      await login();
+      // No need to set error here - we'll get it from the auth context if needed
     } catch (err) {
       console.error('Login error:', err);
       setError('An unexpected error occurred. Please try again.');
@@ -58,6 +94,13 @@ const Login = () => {
       setError('An unexpected error occurred. Please try again.');
     }
   };
+
+  const handleCloseVerificationDialog = () => {
+    setShowVerificationDialog(false);
+  };
+  
+  // Show a different message when we're in SSO polling state
+  const isPolling = awsSSOState && awsSSOState.device_code;
   
   return (
     <Container maxWidth="sm">
@@ -78,9 +121,16 @@ const Login = () => {
             Sign in to continue
           </Typography>
           
-          {error && (
+          {error && !isPolling && (
             <Alert severity="error" sx={{ mb: 3 }}>
               {error}
+            </Alert>
+          )}
+          
+          {isPolling && (
+            <Alert severity="info" sx={{ mb: 3 }}>
+              AWS SSO authentication in progress. Please complete the verification in the opened browser window.
+              This process may take a few moments. Do not close this page or refresh until authentication is complete.
             </Alert>
           )}
           
@@ -95,7 +145,7 @@ const Login = () => {
               variant="contained"
               size="large"
               onClick={handleLogin}
-              disabled={loading}
+              disabled={loading || isPolling}
               sx={{ 
                 py: 1.5, 
                 px: 4,
@@ -118,7 +168,7 @@ const Login = () => {
               variant="outlined"
               size="large"
               onClick={handleAWSLogin}
-              disabled={loading}
+              disabled={loading || isPolling}
               sx={{ 
                 py: 1.5, 
                 px: 4,
@@ -143,6 +193,75 @@ const Login = () => {
           </Typography>
         </Paper>
       </Box>
+
+      {/* AWS SSO Verification Dialog */}
+      <Dialog 
+        open={showVerificationDialog} 
+        onClose={handleCloseVerificationDialog}
+        maxWidth="sm"
+        fullWidth
+        disableEscapeKeyDown // Prevent closing with ESC key
+      >
+        <DialogTitle>
+          <Typography variant="h6" component="div" align="center">
+            AWS SSO Verification
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ textAlign: 'center', py: 2 }}>
+            <Typography variant="body1" gutterBottom>
+              Please enter the following code at the AWS SSO verification page:
+            </Typography>
+            
+            <TextField
+              variant="outlined"
+              value={awsSSOState?.user_code || ''}
+              fullWidth
+              InputProps={{
+                readOnly: true,
+                sx: { 
+                  fontSize: '24px', 
+                  textAlign: 'center',
+                  letterSpacing: '0.5em',
+                  fontWeight: 'bold'
+                }
+              }}
+              sx={{ my: 3 }}
+            />
+            
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              If the AWS SSO verification page didn't open automatically, please click the link below:
+            </Typography>
+            
+            <Link 
+              href={awsSSOState?.verification_uri_complete || '#'} 
+              target="_blank"
+              rel="noopener noreferrer"
+              sx={{ display: 'inline-block', mt: 1 }}
+            >
+              Open AWS SSO Verification Page
+            </Link>
+            
+            <Box sx={{ mt: 4 }}>
+              <CircularProgress size={24} sx={{ mr: 2 }} />
+              <Typography variant="body2" color="text.secondary" display="inline">
+                Waiting for verification... Please complete the authentication in the browser window.
+              </Typography>
+            </Box>
+
+            <Box sx={{ mt: 3, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+              <Typography variant="caption" color="text.secondary">
+                Authentication will expire in {awsSSOState ? Math.round((new Date(awsSSOState.expiresAt) - new Date()) / 60000) : 0} minutes if not completed
+              </Typography>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseVerificationDialog} color="primary">
+            Cancel Authentication
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

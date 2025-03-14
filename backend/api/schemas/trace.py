@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from models.trace import TraceStatus, SpanType
+from ...models.trace import TraceStatus, SpanType
 
 class TraceBase(BaseModel):
     name: str

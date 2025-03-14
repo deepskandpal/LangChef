@@ -4,17 +4,17 @@ from typing import List, Optional, Dict, Any
 import time
 import json
 from datetime import datetime
-from api.schemas import (
+from ..schemas import (
     ExperimentCreate, ExperimentUpdate, ExperimentResponse,
     ExperimentResultCreate, ExperimentResultResponse,
     ExperimentMetricCreate, ExperimentMetricResponse,
     RunExperiment
 )
-from models import (
+from ...models import (
     Experiment, ExperimentResult, ExperimentMetric, 
     ExperimentStatus, Prompt, Dataset, DatasetItem
 )
-from services.llm_service import get_llm_service
+from ...services.llm_service import get_llm_service
 from ...utils import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 

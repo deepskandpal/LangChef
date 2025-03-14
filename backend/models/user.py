@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime
+from sqlalchemy import Column, String, Boolean, DateTime, Text
 from sqlalchemy.sql import func
 from uuid import uuid4
 
@@ -15,6 +15,10 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     full_name = Column(String, nullable=True)
     aws_identity_id = Column(String, unique=True, index=True, nullable=True)
+    aws_access_key_id = Column(String, nullable=True)
+    aws_secret_access_key = Column(String, nullable=True)
+    aws_session_token = Column(Text, nullable=True)
+    aws_token_expiry = Column(DateTime(timezone=True), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

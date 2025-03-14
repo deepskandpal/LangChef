@@ -23,31 +23,17 @@ import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { materialDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const Playground = () => {
+  const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [prompts, setPrompts] = useState([]);
   const [datasets, setDatasets] = useState([]);
-  const [models, setModels] = useState([
-    // Claude models available in AWS Bedrock
-    { id: 'anthropic.claude-3-sonnet-20240229-v1:0', name: 'Claude 3 Sonnet', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2', 'ap-northeast-1', 'ap-southeast-2', 'eu-central-1'] },
-    { id: 'anthropic.claude-3-haiku-20240307-v1:0', name: 'Claude 3 Haiku', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2', 'ap-northeast-1', 'ap-southeast-2', 'eu-central-1'] },
-    { id: 'anthropic.claude-3-opus-20240229-v1:0', name: 'Claude 3 Opus', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2'] },
-    { id: 'anthropic.claude-instant-v1', name: 'Claude Instant v1', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2', 'ap-northeast-1', 'eu-central-1'] },
-    { id: 'anthropic.claude-v2', name: 'Claude v2', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2', 'ap-northeast-1', 'eu-central-1'] },
-    { id: 'anthropic.claude-v2:1', name: 'Claude v2.1', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2', 'ap-northeast-1', 'eu-central-1'] },
-    
-    // Other popular models
-    { id: 'meta.llama2-70b-chat-v1', name: 'Llama 2 (70B)', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2', 'ap-northeast-1', 'eu-central-1'] },
-    { id: 'meta.llama3-70b-instruct-v1:0', name: 'Llama 3 (70B)', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2'] },
-    { id: 'mistral.mistral-7b-instruct-v0:2', name: 'Mistral 7B', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2', 'ap-northeast-1', 'eu-central-1'] },
-    { id: 'mistral.mixtral-8x7b-instruct-v0:1', name: 'Mixtral 8x7B', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2'] },
-    
-    // OpenAI models (for comparison)
-    { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' },
-    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'openai' },
-    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'openai' },
-  ]);
+  const [models, setModels] = useState([]);
+  const [loadingModels, setLoadingModels] = useState(true);
   
   const [selectedPrompt, setSelectedPrompt] = useState('');
   const [selectedDataset, setSelectedDataset] = useState('');
@@ -61,15 +47,61 @@ const Playground = () => {
   const [error, setError] = useState(null);
   const [metrics, setMetrics] = useState(null);
 
+  // Check authentication
   useEffect(() => {
-    // Fetch prompts and datasets
+    if (!isAuthenticated) {
+      navigate('/login');
+    }
+  }, [isAuthenticated, navigate]);
+
+  useEffect(() => {
+    // Fetch prompts, datasets, and available models
     const fetchData = async () => {
       try {
+        // Fetch prompts and datasets
         const promptsResponse = await axios.get('/api/prompts');
         setPrompts(promptsResponse.data);
         
         const datasetsResponse = await axios.get('/api/datasets');
         setDatasets(datasetsResponse.data);
+        
+        // Fetch available models
+        setLoadingModels(true);
+        try {
+          const modelsResponse = await axios.get('/api/models/available');
+          if (modelsResponse.data && Array.isArray(modelsResponse.data)) {
+            setModels(modelsResponse.data);
+            
+            // Auto-select the first AWS Bedrock model if available
+            const bedrockModels = modelsResponse.data.filter(m => m.provider === 'aws_bedrock');
+            if (bedrockModels.length > 0 && !selectedModel) {
+              setSelectedModel(bedrockModels[0].id);
+            }
+          } else {
+            // Fallback to default models if API doesn't return expected format
+            const defaultModels = getDefaultModels();
+            setModels(defaultModels);
+            
+            // Auto-select the first AWS Bedrock model
+            const bedrockModels = defaultModels.filter(m => m.provider === 'aws_bedrock');
+            if (bedrockModels.length > 0 && !selectedModel) {
+              setSelectedModel(bedrockModels[0].id);
+            }
+          }
+        } catch (modelError) {
+          console.error('Error fetching models:', modelError);
+          // Fallback to default models
+          const defaultModels = getDefaultModels();
+          setModels(defaultModels);
+          
+          // Auto-select the first AWS Bedrock model
+          const bedrockModels = defaultModels.filter(m => m.provider === 'aws_bedrock');
+          if (bedrockModels.length > 0 && !selectedModel) {
+            setSelectedModel(bedrockModels[0].id);
+          }
+        } finally {
+          setLoadingModels(false);
+        }
       } catch (err) {
         console.error('Error fetching data:', err);
         setError('Failed to load prompts and datasets. Using mock data instead.');
@@ -86,11 +118,49 @@ const Playground = () => {
           { id: 2, name: 'News Articles', type: 'text' },
           { id: 3, name: 'Programming Tasks', type: 'json' }
         ]);
+        
+        // Set default models
+        const defaultModels = getDefaultModels();
+        setModels(defaultModels);
+        
+        // Auto-select the first AWS Bedrock model
+        const bedrockModels = defaultModels.filter(m => m.provider === 'aws_bedrock');
+        if (bedrockModels.length > 0 && !selectedModel) {
+          setSelectedModel(bedrockModels[0].id);
+        }
+        
+        setLoadingModels(false);
       }
     };
     
-    fetchData();
-  }, []);
+    if (isAuthenticated) {
+      fetchData();
+    }
+  }, [isAuthenticated, selectedModel]);
+  
+  // Function to get default models if API call fails
+  const getDefaultModels = () => {
+    return [
+      // Claude models available in AWS Bedrock
+      { id: 'anthropic.claude-3-sonnet-20240229-v1:0', name: 'Claude 3 Sonnet', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2', 'ap-northeast-1', 'ap-southeast-2', 'eu-central-1'] },
+      { id: 'anthropic.claude-3-haiku-20240307-v1:0', name: 'Claude 3 Haiku', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2', 'ap-northeast-1', 'ap-southeast-2', 'eu-central-1'] },
+      { id: 'anthropic.claude-3-opus-20240229-v1:0', name: 'Claude 3 Opus', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2'] },
+      { id: 'anthropic.claude-instant-v1', name: 'Claude Instant v1', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2', 'ap-northeast-1', 'eu-central-1'] },
+      { id: 'anthropic.claude-v2', name: 'Claude v2', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2', 'ap-northeast-1', 'eu-central-1'] },
+      { id: 'anthropic.claude-v2:1', name: 'Claude v2.1', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2', 'ap-northeast-1', 'eu-central-1'] },
+      
+      // Other popular models
+      { id: 'meta.llama2-70b-chat-v1', name: 'Llama 2 (70B)', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2', 'ap-northeast-1', 'eu-central-1'] },
+      { id: 'meta.llama3-70b-instruct-v1:0', name: 'Llama 3 (70B)', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2'] },
+      { id: 'mistral.mistral-7b-instruct-v0:2', name: 'Mistral 7B', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2', 'ap-northeast-1', 'eu-central-1'] },
+      { id: 'mistral.mixtral-8x7b-instruct-v0:1', name: 'Mixtral 8x7B', provider: 'aws_bedrock', regions: ['us-east-1', 'us-west-2'] },
+      
+      // OpenAI models (for comparison)
+      { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' },
+      { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'openai' },
+      { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'openai' },
+    ];
+  };
 
   const handlePromptChange = (event) => {
     const promptId = event.target.value;
@@ -118,6 +188,11 @@ const Playground = () => {
       return;
     }
     
+    if (!selectedModel) {
+      setError('Please select a model');
+      return;
+    }
+    
     setLoading(true);
     setError(null);
     setResponse(null);
@@ -125,11 +200,52 @@ const Playground = () => {
     
     try {
       // In a real implementation, this would call your API
-      // For now, we'll simulate a response
+      const selectedModelObj = models.find(m => m.id === selectedModel);
       
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      if (!selectedModelObj) {
+        throw new Error('Please select a model');
+      }
       
+      // Call the API to run the model
+      const response = await axios.post('/api/models/playground/run', {
+        prompt: customPrompt,
+        input: customInput,
+        model_id: selectedModelObj.id,
+        model_provider: selectedModelObj.provider,
+        temperature: temperature,
+        max_tokens: maxTokens
+      });
+      
+      if (response.data) {
+        setResponse(response.data);
+        
+        // Set metrics if available
+        if (response.data.metrics) {
+          setMetrics(response.data.metrics);
+        } else {
+          // Create default metrics
+          setMetrics({
+            latency_ms: response.data.latency_ms || 0,
+            tokens: response.data.usage || {
+              prompt_tokens: 0,
+              completion_tokens: 0,
+              total_tokens: 0
+            },
+            cost: response.data.cost || 0
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error running playground:', err);
+      setError(err.response?.data?.detail || 'Failed to get a response. Please try again.');
+      
+      if (err.response?.status === 401) {
+        // Authentication error - redirect to login
+        navigate('/login');
+        return;
+      }
+      
+      // Fallback to mock response for demo purposes
       const selectedModelObj = models.find(m => m.id === selectedModel) || models[0];
       
       // Mock response
@@ -151,10 +267,6 @@ const Playground = () => {
         tokens: mockResponse.usage,
         cost: calculateMockCost(mockResponse.usage, selectedModelObj.id)
       });
-      
-    } catch (err) {
-      console.error('Error running playground:', err);
-      setError('Failed to get a response. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -210,6 +322,16 @@ const Playground = () => {
     acc[model.provider].push(model);
     return acc;
   }, {});
+
+  if (!isAuthenticated) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="warning">
+          Please log in to access the Playground.
+        </Alert>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ p: 3 }}>
@@ -273,24 +395,31 @@ const Playground = () => {
                 value={selectedModel}
                 label="Model"
                 onChange={handleModelChange}
+                disabled={loadingModels}
               >
-                {Object.entries(groupedModels).map(([provider, providerModels]) => [
-                  <MenuItem key={provider} disabled divider>
-                    {provider === 'aws_bedrock' ? 'AWS Bedrock' : 
-                     provider === 'openai' ? 'OpenAI' : 
-                     provider}
-                  </MenuItem>,
-                  ...providerModels.map((model) => (
-                    <MenuItem key={model.id} value={model.id}>
-                      {model.name}
-                      {model.regions && model.provider === 'aws_bedrock' && (
-                        <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                          ({model.regions.length} regions)
-                        </Typography>
-                      )}
-                    </MenuItem>
-                  ))
-                ]).flat()}
+                {loadingModels ? (
+                  <MenuItem value="">
+                    <em>Loading models...</em>
+                  </MenuItem>
+                ) : (
+                  Object.entries(groupedModels).map(([provider, providerModels]) => [
+                    <MenuItem key={provider} disabled divider>
+                      {provider === 'aws_bedrock' ? 'AWS Bedrock' : 
+                       provider === 'openai' ? 'OpenAI' : 
+                       provider}
+                    </MenuItem>,
+                    ...providerModels.map((model) => (
+                      <MenuItem key={model.id} value={model.id}>
+                        {model.name}
+                        {model.regions && model.provider === 'aws_bedrock' && (
+                          <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                            ({model.regions.length} regions)
+                          </Typography>
+                        )}
+                      </MenuItem>
+                    ))
+                  ]).flat()
+                )}
               </Select>
             </FormControl>
             
@@ -323,7 +452,7 @@ const Playground = () => {
               color="primary" 
               fullWidth 
               onClick={handleRun}
-              disabled={loading}
+              disabled={loading || !selectedModel}
             >
               {loading ? <CircularProgress size={24} /> : 'Run'}
             </Button>

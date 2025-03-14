@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from api.schemas import (
+from ..schemas import (
     PromptCreate, PromptUpdate, PromptResponse,
     PromptVersionCreate, PromptVersionResponse
 )
-from models import Prompt, PromptVersion
+from ...models import Prompt, PromptVersion
 from ...utils import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 

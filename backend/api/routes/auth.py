@@ -3,14 +3,54 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..schemas.auth import (
     Token, 
-    DeviceAuthorizationRequest, 
-    DeviceAuthorizationResponse, 
-    CreateTokenRequest,
     UserResponse
 )
 from ...services.auth_service import AWSSSOService, get_current_user
 from ...database import get_db
 from ...models import User
+# Import directly from the tokens.py file to avoid using the models directory
+from pydantic import BaseModel
+from typing import Dict, Optional, List
+
+
+class AuthClientResponse(BaseModel):
+    """Response model for client registration."""
+    client_id: str
+    client_secret: str
+
+
+class DeviceAuthorizationRequest(BaseModel):
+    """Request model for device authorization."""
+    client_id: str
+    client_secret: str
+
+
+class DeviceAuthorizationResponse(BaseModel):
+    """Response model for device authorization."""
+    device_code: str
+    user_code: str
+    verification_uri: str
+    verification_uri_complete: str
+    expires_in: int
+    interval: Optional[int] = 5
+
+
+class TokenRequest(BaseModel):
+    """Request model for token creation."""
+    client_id: str
+    client_secret: str
+    device_code: str
+
+
+class TokenResponse(BaseModel):
+    """Response model for token creation."""
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -25,33 +65,79 @@ async def aws_login(db: AsyncSession = Depends(get_db)):
     return await AWSSSOService.login_with_aws_credentials(db)
 
 
-@router.post("/register-client", response_model=dict)
+@router.post("/register-client", response_model=AuthClientResponse)
 async def register_client():
     """Register client with AWS SSO OIDC."""
-    return await AWSSSOService.register_client()
+    try:
+        logger.info("Registering client with AWS SSO OIDC")
+        client = await AWSSSOService.register_client()
+        return client
+    except Exception as e:
+        logger.error(f"Error registering client: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to register client: {str(e)}"
+        )
 
 
 @router.post("/device-authorization", response_model=DeviceAuthorizationResponse)
-async def device_authorization(request: DeviceAuthorizationRequest):
-    """Start device authorization flow."""
-    return await AWSSSOService.start_device_authorization(
-        client_id=request.client_id,
-        client_secret=request.client_secret
-    )
+async def start_device_authorization(
+    request: DeviceAuthorizationRequest
+):
+    """Start device authorization flow with AWS SSO."""
+    try:
+        logger.info("Starting device authorization flow")
+        authorization = await AWSSSOService.start_device_authorization(
+            client_id=request.client_id,
+            client_secret=request.client_secret
+        )
+        return authorization
+    except Exception as e:
+        logger.error(f"Error starting device authorization: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to start device authorization: {str(e)}"
+        )
 
 
-@router.post("/token", response_model=Token)
+@router.post("/token", response_model=TokenResponse)
 async def create_token(
-    request: CreateTokenRequest,
+    request: TokenRequest,
     db: AsyncSession = Depends(get_db)
 ):
     """Create token from device code."""
-    return await AWSSSOService.create_token_from_device_code(
-        client_id=request.client_id,
-        client_secret=request.client_secret,
-        device_code=request.device_code,
-        db=db
-    )
+    try:
+        logger.info(f"Creating token from device code for client ID: {request.client_id[:5]}...")
+        token = await AWSSSOService.create_token_from_device_code(
+            client_id=request.client_id,
+            client_secret=request.client_secret,
+            device_code=request.device_code,
+            db=db
+        )
+        logger.info("Token created successfully")
+        return token
+    except HTTPException as http_exc:
+        # Re-raise HTTP exceptions with their original status code and detail
+        logger.warning(f"HTTP exception in token creation: {http_exc.detail}")
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Error creating token: {error_msg}")
+        
+        # Special handling for common AWS SSO errors
+        if "InvalidGrantException" in error_msg:
+            # For invalid grant exceptions, return as a 400 error with authorization_pending
+            # This allows frontend to continue polling
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="authorization_pending"
+            )
+        
+        # For other errors, return 500
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create token: {error_msg}"
+        )
 
 
 @router.get("/me", response_model=UserResponse)
@@ -79,6 +165,8 @@ async def refresh_token(current_user: User = Depends(get_current_user)):
         "user": {
             "username": current_user.username,
             "email": current_user.email,
-            "full_name": current_user.full_name
+            "full_name": current_user.full_name,
+            "id": current_user.id,
+            "is_active": current_user.is_active
         }
     } 

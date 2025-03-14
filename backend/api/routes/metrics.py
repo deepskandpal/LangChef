@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from sqlalchemy import func
-from models import Experiment, ExperimentResult, ExperimentMetric
+from ...models import Experiment, ExperimentResult, ExperimentMetric
 from ...utils import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 

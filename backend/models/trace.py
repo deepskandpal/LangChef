@@ -16,7 +16,7 @@ class Trace(Base, BaseModel):
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=True)
     duration_ms = Column(Float, nullable=True)
-    metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
     
     # Relationships
     spans = relationship("Span", back_populates="trace")
@@ -42,11 +42,18 @@ class Span(Base, BaseModel):
     duration_ms = Column(Float, nullable=True)
     input = Column(JSON, nullable=True)
     output = Column(JSON, nullable=True)
-    metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
     
     # Relationships
     trace = relationship("Trace", back_populates="spans")
-    parent = relationship("Span", remote_side=[id], backref="children")
     
     def __repr__(self):
-        return f"<Span(id={self.id}, trace_id={self.trace_id}, name='{self.name}', type={self.type})>" 
+        return f"<Span(id={self.id}, trace_id={self.trace_id}, name='{self.name}', type={self.type})>"
+
+# Define the parent relationship after the class is fully defined
+Span.parent = relationship(
+    "Span",
+    backref="children",
+    remote_side=[Span.id],
+    foreign_keys=[Span.parent_span_id]
+) 

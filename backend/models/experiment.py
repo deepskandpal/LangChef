@@ -27,7 +27,7 @@ class Experiment(Base, BaseModel):
     model_name = Column(String(255), nullable=False)
     model_config = Column(JSON, nullable=True)
     status = Column(Enum(ExperimentStatus), default=ExperimentStatus.CREATED, nullable=False)
-    metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
     
     # Relationships
     prompt = relationship("Prompt", back_populates="experiments")
@@ -49,7 +49,7 @@ class ExperimentResult(Base, BaseModel):
     token_count_input = Column(Integer, nullable=True)
     token_count_output = Column(Integer, nullable=True)
     cost = Column(Float, nullable=True)
-    metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
     
     # Relationships
     experiment = relationship("Experiment", back_populates="results")
@@ -64,7 +64,7 @@ class ExperimentMetric(Base, BaseModel):
     experiment_id = Column(Integer, ForeignKey("experiments.id"), nullable=False)
     name = Column(String(255), nullable=False)
     value = Column(Float, nullable=False)
-    metadata = Column(JSON, nullable=True)
+    meta_data = Column(JSON, nullable=True)
     
     # Relationships
     experiment = relationship("Experiment", back_populates="metrics")

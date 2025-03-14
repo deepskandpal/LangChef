@@ -4,7 +4,7 @@ import tiktoken
 import openai
 import boto3
 import json
-from models.experiment import ModelProvider
+from ..models.experiment import ModelProvider
 
 class BaseLLMService(ABC):
     """Base class for LLM services."""
