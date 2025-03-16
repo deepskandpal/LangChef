@@ -60,7 +60,7 @@ services:
     environment:
       - NODE_ENV=development
       - REACT_APP_API_URL=http://localhost:8001
-    command: sh -c "cd /app && npm install && npm start"
+    command: sh -c "cd /app && npm install --legacy-peer-deps && npm start"
 
 volumes:
   postgres_data: 

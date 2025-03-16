@@ -93,13 +93,17 @@ const Dashboard = () => {
   // Use mock data if API call fails
   const data = dashboardData || mockDashboardData;
 
+  // Ensure tokens data exists to prevent errors
+  const tokensData = data?.tokens || { input: 0, output: 0, total: 0 };
+  const costData = data?.cost || { total: 0 };
+
   // Chart data
   const tokenDistributionData = {
     labels: ['Input Tokens', 'Output Tokens'],
     datasets: [
       {
         label: 'Token Distribution',
-        data: [data.tokens.input, data.tokens.output],
+        data: [tokensData.input || 0, tokensData.output || 0],
         backgroundColor: [
           'rgba(54, 162, 235, 0.6)',
           'rgba(255, 99, 132, 0.6)',
@@ -205,7 +209,7 @@ const Dashboard = () => {
               Total Experiments
             </Typography>
             <Typography variant="h3" color="primary">
-              {data.total_experiments}
+              {data.total_experiments || 0}
             </Typography>
           </Paper>
         </Grid>
@@ -215,7 +219,7 @@ const Dashboard = () => {
               Total Results
             </Typography>
             <Typography variant="h3" color="primary">
-              {data.total_results}
+              {data.total_results || 0}
             </Typography>
           </Paper>
         </Grid>
@@ -225,7 +229,7 @@ const Dashboard = () => {
               Total Tokens
             </Typography>
             <Typography variant="h3" color="primary">
-              {(data.tokens.total / 1000).toFixed(1)}K
+              {((tokensData.total || 0) / 1000).toFixed(1)}K
             </Typography>
           </Paper>
         </Grid>
@@ -235,7 +239,7 @@ const Dashboard = () => {
               Total Cost
             </Typography>
             <Typography variant="h3" color="primary">
-              ${data.cost.total.toFixed(2)}
+              ${(costData.total || 0).toFixed(2)}
             </Typography>
           </Paper>
         </Grid>

@@ -5,116 +5,129 @@ import boto3
 import logging
 
 from ...utils import get_db
-from ...services.auth_service import get_current_user, AWSSSOService
+from ...services.auth_service import get_current_user, AWSSSOService, validate_aws_credentials
 from ...models import User
+from ...config import settings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 @router.get("/available", response_model=List[Dict[str, Any]])
-async def get_available_models(db: AsyncSession = Depends(get_db)):
+async def get_available_models(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)  # Add auth requirement
+):
     """Get all available models, including AWS Bedrock models if credentials are valid."""
     models = []
     
-    # Default models
-    default_models = [
-        {
-            "id": "gpt-4",
-            "name": "GPT-4",
-            "provider": "openai",
-            "description": "OpenAI GPT-4 model",
-            "supported_features": ["text-generation", "chat"]
-        },
-        {
-            "id": "gpt-3.5-turbo",
-            "name": "GPT-3.5 Turbo",
-            "provider": "openai",
-            "description": "OpenAI GPT-3.5 Turbo model",
-            "supported_features": ["text-generation", "chat"]
-        }
-    ]
-    
-    models.extend(default_models)
-    
-    # Check for AWS Bedrock models
     try:
-        # Try to get AWS identity to verify credentials
-        aws_identity = await AWSSSOService.get_aws_identity()
+        # Check if user has valid AWS credentials
+        is_aws_valid = await validate_aws_credentials(current_user)
         
-        # If we got here, AWS credentials are valid
-        # Add AWS Bedrock models
-        bedrock_models = [
+        # Default models - OpenAI
+        default_models = [
             {
-                "id": "anthropic.claude-v2",
-                "name": "Claude 2",
-                "provider": "aws_bedrock",
-                "description": "Anthropic Claude 2 via AWS Bedrock",
+                "id": "gpt-4",
+                "name": "GPT-4",
+                "provider": "openai",
+                "description": "OpenAI GPT-4 model",
                 "supported_features": ["text-generation", "chat"]
             },
             {
-                "id": "anthropic.claude-instant-v1",
-                "name": "Claude Instant",
-                "provider": "aws_bedrock",
-                "description": "Anthropic Claude Instant via AWS Bedrock",
-                "supported_features": ["text-generation", "chat"]
-            },
-            {
-                "id": "anthropic.claude-3-sonnet-20240229-v1:0",
-                "name": "Claude 3 Sonnet",
-                "provider": "aws_bedrock",
-                "description": "Anthropic Claude 3 Sonnet via AWS Bedrock",
-                "supported_features": ["text-generation", "chat"]
-            },
-            {
-                "id": "anthropic.claude-3-haiku-20240307-v1:0",
-                "name": "Claude 3 Haiku",
-                "provider": "aws_bedrock",
-                "description": "Anthropic Claude 3 Haiku via AWS Bedrock",
-                "supported_features": ["text-generation", "chat"]
-            },
-            {
-                "id": "anthropic.claude-3-opus-20240229-v1:0",
-                "name": "Claude 3 Opus",
-                "provider": "aws_bedrock",
-                "description": "Anthropic Claude 3 Opus via AWS Bedrock",
+                "id": "gpt-3.5-turbo",
+                "name": "GPT-3.5 Turbo",
+                "provider": "openai",
+                "description": "OpenAI GPT-3.5 Turbo model",
                 "supported_features": ["text-generation", "chat"]
             }
         ]
         
-        # Try to validate which models are actually available by checking with Bedrock
-        try:
-            # Create bedrock client
-            bedrock_client = boto3.client('bedrock')
+        models.extend(default_models)
+        
+        # Check for AWS Bedrock models - only add if AWS credentials are valid
+        if is_aws_valid:
+            bedrock_models = [
+                {
+                    "id": "anthropic.claude-v2",
+                    "name": "Claude 2",
+                    "provider": "aws_bedrock",
+                    "description": "Anthropic Claude 2 via AWS Bedrock",
+                    "supported_features": ["text-generation", "chat"]
+                },
+                {
+                    "id": "anthropic.claude-instant-v1",
+                    "name": "Claude Instant",
+                    "provider": "aws_bedrock",
+                    "description": "Anthropic Claude Instant via AWS Bedrock",
+                    "supported_features": ["text-generation", "chat"]
+                },
+                {
+                    "id": "anthropic.claude-3-sonnet-20240229-v1:0",
+                    "name": "Claude 3 Sonnet",
+                    "provider": "aws_bedrock",
+                    "description": "Anthropic Claude 3 Sonnet via AWS Bedrock",
+                    "supported_features": ["text-generation", "chat"]
+                },
+                {
+                    "id": "anthropic.claude-3-haiku-20240307-v1:0",
+                    "name": "Claude 3 Haiku",
+                    "provider": "aws_bedrock",
+                    "description": "Anthropic Claude 3 Haiku via AWS Bedrock",
+                    "supported_features": ["text-generation", "chat"]
+                },
+                {
+                    "id": "anthropic.claude-3-opus-20240229-v1:0",
+                    "name": "Claude 3 Opus",
+                    "provider": "aws_bedrock",
+                    "description": "Anthropic Claude 3 Opus via AWS Bedrock",
+                    "supported_features": ["text-generation", "chat"]
+                }
+            ]
             
-            # Get list of available foundation models
-            response = bedrock_client.list_foundation_models()
-            
-            if 'modelSummaries' in response:
-                available_model_ids = [model['modelId'] for model in response['modelSummaries']]
+            # Try to validate which models are actually available by checking with Bedrock
+            try:
+                # Use the current user's AWS credentials to create the Bedrock client
+                boto3_session = boto3.Session(
+                    aws_access_key_id=current_user.aws_access_key_id,
+                    aws_secret_access_key=current_user.aws_secret_access_key,
+                    aws_session_token=current_user.aws_session_token,
+                    region_name=settings.AWS_REGION
+                )
                 
-                # Filter bedrock_models to only include available ones
-                bedrock_models = [
-                    model for model in bedrock_models 
-                    if model['id'] in available_model_ids
-                ]
+                # Create bedrock client
+                bedrock_client = boto3_session.client('bedrock')
                 
-                logger.info(f"Found {len(bedrock_models)} available AWS Bedrock models")
-            else:
-                logger.warning("No models found in AWS Bedrock response")
+                # Get list of available foundation models
+                response = bedrock_client.list_foundation_models()
+                
+                if 'modelSummaries' in response:
+                    available_model_ids = [model['modelId'] for model in response['modelSummaries']]
+                    
+                    # Filter bedrock_models to only include available ones
+                    bedrock_models = [
+                        model for model in bedrock_models 
+                        if model['id'] in available_model_ids
+                    ]
+                
+                # Add filtered Bedrock models to the models list
+                models.extend(bedrock_models)
+                
+            except Exception as bedrock_error:
+                logger.error(f"Error checking Bedrock models: {bedrock_error}")
+                # We'll still return the default models
         
-        except Exception as e:
-            logger.warning(f"Could not verify available Bedrock models: {e}")
-            # Still include the models but mark them as unverified
-            for model in bedrock_models:
-                model['unverified'] = True
+        return models
         
-        models.extend(bedrock_models)
-        
+    except HTTPException as http_exc:
+        # Re-raise HTTP exceptions (like auth errors)
+        raise http_exc
     except Exception as e:
-        logger.warning(f"AWS credentials not valid or AWS Bedrock not accessible: {e}")
-        # Just return the default models
-    
-    return models
+        logger.error(f"Error fetching models: {e}")
+        # Return a proper error response instead of a 500
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch models: {str(e)}"
+        )
 
 @router.post("/playground/run", response_model=Dict[str, Any])
 async def run_playground_model(

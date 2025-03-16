@@ -98,15 +98,15 @@ export const AuthProvider = ({ children }) => {
   const clearSessionData = () => {
     console.log('AuthContext - Clearing session data');
     
-    localStorage.removeItem('user');
-    localStorage.removeItem('sessionExpiry');
-    localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('sessionExpiry');
+      localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
-    delete axios.defaults.headers.common['Authorization'];
-    
-    setIsAuthenticated(false);
-    setUser(null);
-    setSessionExpiry(null);
+      delete axios.defaults.headers.common['Authorization'];
+      
+      setIsAuthenticated(false);
+      setUser(null);
+      setSessionExpiry(null);
     
     // Cancel any scheduled refresh
     if (refreshTimerId) {

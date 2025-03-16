@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../services/api';
+import { promptsApi } from '../services/api';
 
 const Prompts = () => {
   const navigate = useNavigate();
@@ -38,17 +38,28 @@ const Prompts = () => {
   const fetchPrompts = async () => {
     try {
       setLoading(true);
-      // For now, use mock data since the backend might not be fully set up
-      // In a real app, you would use: const response = await api.prompts.getAll();
+      // Try to fetch from API first
+      try {
+        const response = await promptsApi.getAll();
+        if (response && Array.isArray(response.data)) {
+          setPrompts(response.data);
+          return;
+        }
+      } catch (apiError) {
+        console.error('API fetch failed, using mock data:', apiError);
+      }
+      
+      // Fallback to mock data
       const mockPrompts = [
         { id: 1, name: 'Customer Support', description: 'Template for customer support responses', type: 'text', createdAt: '2025-03-04T12:00:00Z', updatedAt: '2025-03-04T12:00:00Z' },
         { id: 2, name: 'Product Description', description: 'Template for product descriptions', type: 'text', createdAt: '2025-03-04T12:00:00Z', updatedAt: '2025-03-04T12:00:00Z' },
         { id: 3, name: 'Code Generation', description: 'Template for generating code', type: 'code', createdAt: '2025-03-04T12:00:00Z', updatedAt: '2025-03-04T12:00:00Z' },
       ];
       setPrompts(mockPrompts);
-      setLoading(false);
     } catch (error) {
       console.error('Error fetching prompts:', error);
+      setPrompts([]);
+    } finally {
       setLoading(false);
     }
   };

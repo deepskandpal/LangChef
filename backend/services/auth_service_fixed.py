@@ -292,15 +292,15 @@ class AWSSSOService:
             # Try to get token from AWS SSO OIDC
             client = get_aws_sso_oidc_client()
             
-            try:
+            ry:
                 # Create token from device code
                 token_response = client.create_token(
-                    clientId=client_id,
-                    clientSecret=client_secret,
-                    deviceCode=device_code,
-                    grantType="urn:ietf:params:oauth:grant-type:device_code"
-                )
-                
+                        clientId=client_id,
+                        clientSecret=client_secret,
+                        deviceCode=device_code,
+                        grantType="urn:ietf:params:oauth:grant-type:device_code"
+                    )
+                    
                 logger.info("Successfully created token from device code")
                 access_token = token_response["accessToken"]
                 
@@ -398,26 +398,26 @@ class AWSSSOService:
                 # Create or update user
                 result = await db.execute(select(User).filter(User.username == user_info.get("username")))
                 user = result.scalars().first()
-
-                if user is None:
-                # Create new user
+                    
+                    if user is None:
+                    # Create new user
                     logger.info(f"Creating new user: {user_info.get('username')}")
-                    user = User(
-                    username=user_info.get("username"),
-                    email=user_info.get("email", f"{user_info.get('username')}@example.com"),
-                    full_name=user_info.get("name", user_info.get("username")),
-                    aws_identity_id=user_info.get("userId", ""),
-                    aws_access_key_id=aws_access_key_id,
-                    aws_secret_access_key=aws_secret_access_key,
-                    aws_session_token=aws_session_token,
-                    aws_token_expiry=aws_token_expiry,
-                    is_active=True
-                    )
-                    db.add(user)
-                else:
+                        user = User(
+                        username=user_info.get("username"),
+                        email=user_info.get("email", f"{user_info.get('username')}@example.com"),
+                        full_name=user_info.get("name", user_info.get("username")),
+                        aws_identity_id=user_info.get("userId", ""),
+                        aws_access_key_id=aws_access_key_id,
+                        aws_secret_access_key=aws_secret_access_key,
+                        aws_session_token=aws_session_token,
+                        aws_token_expiry=aws_token_expiry,
+                        is_active=True
+                        )
+                        db.add(user)
+                    else:
                     # Update existing user
                     logger.info(f"Updating existing user: {user.username}")
-                    user.is_active = True
+                        user.is_active = True
                     user.full_name = user_info.get("name", user.full_name)
                     user.aws_identity_id = user_info.get("userId", user.aws_identity_id)
                     user.aws_access_key_id = aws_access_key_id
@@ -430,15 +430,15 @@ class AWSSSOService:
                 logger.info(f"User {user.username} successfully saved to database")
                     
                     # Create JWT token
-                token_data = {
+                    token_data = {
                         "sub": user.username,
                         "email": user.email,
                         "aws_identity_id": user.aws_identity_id
                     }
-                jwt_token = create_token(token_data)
+                    jwt_token = create_token(token_data)
                 logger.info("JWT token successfully created")
                     
-                return {
+                    return {
                         "access_token": jwt_token,
                         "token_type": "bearer",
                         "user": {
@@ -470,10 +470,10 @@ class AWSSSOService:
                 )
             except client.exceptions.InvalidGrantException:
                 logger.info("Invalid grant - treating as authorization pending")
-                raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="authorization_pending"
-                    )
+            raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="authorization_pending"
+                )
             except Exception as e:
                 logger.error(f"Unexpected error creating token: {e}")
                 raise

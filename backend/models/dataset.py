@@ -15,7 +15,7 @@ class Dataset(Base, BaseModel):
     
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    type = Column(Enum(DatasetType), nullable=False)
+    dataset_type = Column(Enum(DatasetType), nullable=False, name="type")
     version = Column(Integer, default=1, nullable=False)
     is_active = Column(Boolean, default=True)
     meta_data = Column(JSON, nullable=True)
@@ -25,7 +25,7 @@ class Dataset(Base, BaseModel):
     experiments = relationship("Experiment", back_populates="dataset")
     
     def __repr__(self):
-        return f"<Dataset(id={self.id}, name='{self.name}', type={self.type}, version={self.version})>"
+        return f"<Dataset(id={self.id}, name='{self.name}', type={self.dataset_type}, version={self.version})>"
 
 class DatasetItem(Base, BaseModel):
     __tablename__ = "dataset_items"

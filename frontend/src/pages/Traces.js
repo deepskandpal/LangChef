@@ -18,7 +18,7 @@ import {
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../services/api';
+import { tracesApi } from '../services/api';
 
 const Traces = () => {
   const navigate = useNavigate();
@@ -38,8 +38,18 @@ const Traces = () => {
   const fetchTraces = async () => {
     try {
       setLoading(true);
-      // For now, use mock data since the backend might not be fully set up
-      // In a real app, you would use: const response = await api.traces.getAll();
+      // Try to fetch from API first
+      try {
+        const response = await tracesApi.getAll();
+        if (response && Array.isArray(response.data)) {
+          setTraces(response.data);
+          return;
+        }
+      } catch (apiError) {
+        console.error('API fetch failed, using mock data:', apiError);
+      }
+      
+      // Fallback to mock data
       const mockTraces = [
         { 
           id: 1, 
@@ -73,9 +83,10 @@ const Traces = () => {
         },
       ];
       setTraces(mockTraces);
-      setLoading(false);
     } catch (error) {
       console.error('Error fetching traces:', error);
+      setTraces([]);
+    } finally {
       setLoading(false);
     }
   };

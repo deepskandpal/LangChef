@@ -27,7 +27,27 @@ export const datasetsApi = {
   delete: (id) => api.delete(`/datasets/${id}`),
   getItems: (id, params) => api.get(`/datasets/${id}/items`, { params }),
   createItem: (id, data) => api.post(`/datasets/${id}/items`, data),
-  upload: (data) => api.post('/datasets/upload', data),
+  deleteItem: (id, itemId) => api.delete(`/datasets/${id}/items/${itemId}`),
+  getExperiments: (id, params) => api.get(`/datasets/${id}/experiments`, { params }),
+  upload: (formData) => {
+    return api.post('/datasets/upload/file', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+  },
+  uploadCSV: (formData) => {
+    return api.post('/datasets/upload/csv', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+  },
+  export: (id) => api.get(`/datasets/${id}/export`, { 
+    responseType: 'blob' 
+  }),
+  runExperiment: (id, data) => api.post(`/datasets/${id}/run`, data),
+  getVersions: (id) => api.get(`/datasets/${id}/versions`),
 };
 
 // Experiments API
@@ -38,8 +58,15 @@ export const experimentsApi = {
   update: (id, data) => api.put(`/experiments/${id}`, data),
   delete: (id) => api.delete(`/experiments/${id}`),
   getResults: (id, params) => api.get(`/experiments/${id}/results`, { params }),
+  getRuns: (id, params) => api.get(`/experiments/${id}/runs`, { params }),
+  getItemResults: (id, itemId) => api.get(`/experiments/${id}/items/${itemId}/results`),
+  compareTo: (id, otherExperimentId) => api.get(`/experiments/${id}/compare/${otherExperimentId}`),
   getMetrics: (id) => api.get(`/experiments/${id}/metrics`),
-  run: (id) => api.post(`/experiments/${id}/run`),
+  run: (id, data) => api.post(`/experiments/${id}/run`, data),
+  abort: (id) => api.post(`/experiments/${id}/abort`),
+  export: (id) => api.get(`/experiments/${id}/export`, { 
+    responseType: 'blob' 
+  }),
 };
 
 // Traces API
@@ -62,16 +89,14 @@ export const metricsApi = {
   getDashboard: () => api.get('/metrics/dashboard'),
 };
 
-// Playground API
-export const playgroundApi = {
-  generate: (data) => api.post('/playground/generate', data),
-};
-
-export default {
+// Create combined API object
+const apiServices = {
   prompts: promptsApi,
   datasets: datasetsApi,
   experiments: experimentsApi,
   traces: tracesApi,
   metrics: metricsApi,
-  playground: playgroundApi,
-}; 
+};
+
+// Export the combined API object
+export default apiServices;

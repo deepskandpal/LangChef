@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Box, 
   Typography, 
@@ -10,7 +10,6 @@ import {
   Divider,
   CircularProgress,
   Chip,
-  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -31,11 +30,7 @@ const PromptDetail = () => {
   const [editedPrompt, setEditedPrompt] = useState(null);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
-  useEffect(() => {
-    fetchPromptDetails();
-  }, [id]);
-
-  const fetchPromptDetails = async () => {
+  const fetchPromptDetails = useCallback(async () => {
     try {
       setLoading(true);
       // For now, use mock data since the backend might not be fully set up
@@ -53,20 +48,22 @@ const PromptDetail = () => {
         updatedAt: '2025-03-04T12:00:00Z'
       };
       
-      const mockVersions = [
-        { id: 1, promptId: parseInt(id), version: 1, template: 'Initial template version', createdAt: '2025-03-04T12:00:00Z' },
-        { id: 2, promptId: parseInt(id), version: 2, template: 'You are a helpful customer support agent for {{company_name}}. The customer has the following question: {{question}}. Please provide a helpful, friendly, and accurate response.', createdAt: '2025-03-04T14:00:00Z' }
-      ];
-      
       setPrompt(mockPrompt);
-      setVersions(mockVersions);
       setEditedPrompt(mockPrompt);
-      setLoading(false);
+      setVersions([
+        { id: 1, version: 1, createdAt: '2023-02-15T10:30:00Z' },
+        { id: 2, version: 2, createdAt: '2023-02-20T14:45:00Z' }
+      ]);
     } catch (error) {
       console.error('Error fetching prompt details:', error);
+    } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    fetchPromptDetails();
+  }, [fetchPromptDetails]);
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);

@@ -40,6 +40,13 @@ app.include_router(metrics.router, prefix="/api/metrics", tags=["metrics"])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(models.router, prefix="/api/models", tags=["models"])
 
+# For backward compatibility with existing code - add alternative routes
+app.include_router(prompts.router, prefix="/prompts", tags=["prompts-alt"])
+app.include_router(datasets.router, prefix="/datasets", tags=["datasets-alt"])
+app.include_router(experiments.router, prefix="/experiments", tags=["experiments-alt"])
+app.include_router(traces.router, prefix="/traces", tags=["traces-alt"])
+app.include_router(metrics.router, prefix="/metrics", tags=["metrics-alt"])
+
 @app.get("/", tags=["root"])
 async def root():
     """Root endpoint."""

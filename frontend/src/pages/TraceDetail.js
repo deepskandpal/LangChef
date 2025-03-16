@@ -1,13 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Box, 
   Typography, 
   Button, 
   Paper, 
   TextField,
-  Tabs,
-  Tab,
-  Divider,
   CircularProgress,
   Chip,
   Grid,
@@ -19,7 +16,6 @@ import {
   List,
   ListItem,
   ListItemIcon,
-  ListItemText,
   Card,
   CardContent
 } from '@mui/material';
@@ -53,11 +49,7 @@ const TraceDetail = () => {
     metadata: ''
   });
 
-  useEffect(() => {
-    fetchTraceDetails();
-  }, [id]);
-
-  const fetchTraceDetails = async () => {
+  const fetchTraceDetails = useCallback(async () => {
     try {
       setLoading(true);
       // For now, use mock data since the backend might not be fully set up
@@ -135,7 +127,11 @@ const TraceDetail = () => {
       console.error('Error fetching trace details:', error);
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    fetchTraceDetails();
+  }, [fetchTraceDetails]);
 
   const handleEditToggle = () => {
     setEditMode(!editMode);
