@@ -17,6 +17,7 @@ from ...models import (
 from ...services.llm_service import get_llm_service
 from ...utils import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import text
 
 router = APIRouter()
 
@@ -50,59 +51,194 @@ def create_experiment(experiment: ExperimentCreate, db: Session = Depends(get_db
     return db_experiment
 
 @router.get("/", response_model=List[ExperimentResponse])
-def get_experiments(
+async def get_experiments(
     skip: int = 0, 
     limit: int = 100, 
     name: Optional[str] = None,
     status: Optional[ExperimentStatus] = None,
-    db: Session = Depends(get_db)
+    dataset_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db)
 ):
     """Get all experiments with optional filtering."""
-    query = db.query(Experiment)
-    
-    if name:
-        query = query.filter(Experiment.name.ilike(f"%{name}%"))
-    
-    if status:
-        query = query.filter(Experiment.status == status)
-    
-    return query.offset(skip).limit(limit).all()
+    try:
+        # Build the SQL query
+        query = "SELECT * FROM experiments WHERE 1=1"
+        params = {}
+        
+        if name:
+            query += " AND name ILIKE :name"
+            params["name"] = f"%{name}%"
+        
+        if status:
+            query += " AND status = :status"
+            params["status"] = status.value
+            
+        if dataset_id:
+            query += " AND dataset_id = :dataset_id"
+            params["dataset_id"] = dataset_id
+        
+        # Add pagination
+        query += " OFFSET :skip LIMIT :limit"
+        params["skip"] = skip
+        params["limit"] = limit
+        
+        # Execute the query
+        result = await db.execute(text(query), params)
+        experiments = result.fetchall()
+        
+        # Convert to response model
+        return [
+            {
+                "id": exp.id,
+                "name": exp.name,
+                "description": exp.description,
+                "dataset_id": exp.dataset_id,
+                "prompt_template_id": exp.prompt_template_id,
+                "status": exp.status,
+                "config": exp.config,
+                "metadata": exp.metadata,
+                "created_at": exp.created_at,
+                "updated_at": exp.updated_at
+            }
+            for exp in experiments
+        ]
+    except Exception as e:
+        print(f"Error in get_experiments: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve experiments: {str(e)}"
+        )
 
 @router.get("/{experiment_id}", response_model=ExperimentResponse)
-def get_experiment(experiment_id: int, db: Session = Depends(get_db)):
+async def get_experiment(experiment_id: int, db: AsyncSession = Depends(get_db)):
     """Get a specific experiment by ID."""
-    db_experiment = db.query(Experiment).filter(Experiment.id == experiment_id).first()
-    if db_experiment is None:
-        raise HTTPException(status_code=404, detail="Experiment not found")
-    return db_experiment
+    try:
+        # Execute raw SQL query to get the experiment
+        query = "SELECT * FROM experiments WHERE id = :experiment_id"
+        result = await db.execute(text(query), {"experiment_id": experiment_id})
+        db_experiment = result.fetchone()
+        
+        if db_experiment is None:
+            raise HTTPException(status_code=404, detail="Experiment not found")
+        
+        # Convert to response model
+        return {
+            "id": db_experiment.id,
+            "name": db_experiment.name,
+            "description": db_experiment.description,
+            "dataset_id": db_experiment.dataset_id,
+            "prompt_template_id": db_experiment.prompt_template_id,
+            "status": db_experiment.status,
+            "config": db_experiment.config,
+            "metadata": db_experiment.metadata,
+            "created_at": db_experiment.created_at,
+            "updated_at": db_experiment.updated_at
+        }
+    except Exception as e:
+        print(f"Error in get_experiment: {e}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve experiment: {str(e)}"
+        )
 
 @router.put("/{experiment_id}", response_model=ExperimentResponse)
-def update_experiment(experiment_id: int, experiment: ExperimentUpdate, db: Session = Depends(get_db)):
+async def update_experiment(experiment_id: int, experiment: ExperimentUpdate, db: AsyncSession = Depends(get_db)):
     """Update an experiment."""
-    db_experiment = db.query(Experiment).filter(Experiment.id == experiment_id).first()
-    if db_experiment is None:
-        raise HTTPException(status_code=404, detail="Experiment not found")
-    
-    # Update experiment fields if provided
-    update_data = experiment.dict(exclude_unset=True)
-    
-    for key, value in update_data.items():
-        setattr(db_experiment, key, value)
-    
-    db.commit()
-    db.refresh(db_experiment)
-    return db_experiment
+    try:
+        # First check if the experiment exists
+        query = "SELECT * FROM experiments WHERE id = :experiment_id"
+        result = await db.execute(text(query), {"experiment_id": experiment_id})
+        db_experiment = result.fetchone()
+        
+        if db_experiment is None:
+            raise HTTPException(status_code=404, detail="Experiment not found")
+        
+        # Update experiment fields if provided
+        update_data = experiment.dict(exclude_unset=True)
+        if not update_data:
+            # If no fields to update, return the current experiment
+            return {
+                "id": db_experiment.id,
+                "name": db_experiment.name,
+                "description": db_experiment.description,
+                "dataset_id": db_experiment.dataset_id,
+                "prompt_template_id": db_experiment.prompt_template_id,
+                "status": db_experiment.status,
+                "config": db_experiment.config,
+                "metadata": db_experiment.metadata,
+                "created_at": db_experiment.created_at,
+                "updated_at": db_experiment.updated_at
+            }
+        
+        # Build UPDATE query
+        update_query = "UPDATE experiments SET "
+        update_params = {"experiment_id": experiment_id}
+        
+        update_parts = []
+        for key, value in update_data.items():
+            update_parts.append(f"{key} = :{key}")
+            update_params[key] = value
+        
+        update_query += ", ".join(update_parts)
+        update_query += ", updated_at = now() WHERE id = :experiment_id RETURNING *"
+        
+        # Execute the update
+        result = await db.execute(text(update_query), update_params)
+        updated_experiment = result.fetchone()
+        await db.commit()
+        
+        # Return the updated experiment
+        return {
+            "id": updated_experiment.id,
+            "name": updated_experiment.name,
+            "description": updated_experiment.description,
+            "dataset_id": updated_experiment.dataset_id,
+            "prompt_template_id": updated_experiment.prompt_template_id,
+            "status": updated_experiment.status,
+            "config": updated_experiment.config,
+            "metadata": updated_experiment.metadata,
+            "created_at": updated_experiment.created_at,
+            "updated_at": updated_experiment.updated_at
+        }
+    except Exception as e:
+        await db.rollback()
+        print(f"Error in update_experiment: {e}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update experiment: {str(e)}"
+        )
 
 @router.delete("/{experiment_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_experiment(experiment_id: int, db: Session = Depends(get_db)):
+async def delete_experiment(experiment_id: int, db: AsyncSession = Depends(get_db)):
     """Delete an experiment."""
-    db_experiment = db.query(Experiment).filter(Experiment.id == experiment_id).first()
-    if db_experiment is None:
-        raise HTTPException(status_code=404, detail="Experiment not found")
-    
-    db.delete(db_experiment)
-    db.commit()
-    return None
+    try:
+        # First check if the experiment exists
+        query = "SELECT id FROM experiments WHERE id = :experiment_id"
+        result = await db.execute(text(query), {"experiment_id": experiment_id})
+        db_experiment = result.fetchone()
+        
+        if db_experiment is None:
+            raise HTTPException(status_code=404, detail="Experiment not found")
+        
+        # Delete the experiment
+        delete_query = "DELETE FROM experiments WHERE id = :experiment_id"
+        await db.execute(text(delete_query), {"experiment_id": experiment_id})
+        await db.commit()
+        
+        return None
+    except Exception as e:
+        await db.rollback()
+        print(f"Error in delete_experiment: {e}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete experiment: {str(e)}"
+        )
 
 @router.post("/{experiment_id}/results", response_model=ExperimentResultResponse)
 def create_experiment_result(
@@ -292,14 +428,4 @@ def run_experiment(
     db.commit()
     db.refresh(db_experiment)
     
-    return db_experiment
-
-@router.get("/")
-async def get_experiments(db: AsyncSession = Depends(get_db)):
-    """Get all experiments."""
-    return {"experiments": []}
-
-@router.get("/{experiment_id}")
-async def get_experiment(experiment_id: int, db: AsyncSession = Depends(get_db)):
-    """Get an experiment by ID."""
-    return {"experiment": {"id": experiment_id, "name": "Sample Experiment", "description": "This is a sample experiment."}} 
+    return db_experiment 
