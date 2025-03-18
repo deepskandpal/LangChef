@@ -9,6 +9,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from uuid import uuid4
 
 from ..config import settings
 from ..models import User
@@ -100,11 +101,28 @@ async def get_current_user(
     
     # Check if AWS session token is expired
     if user.aws_token_expiry:
-        if datetime.utcnow() > user.aws_token_expiry:
-            logger.warning(f"AWS session token expired for user {user.username}")
+        try:
+            # Make sure both datetimes are timezone naive for comparison
+            now = datetime.utcnow()
+            # If aws_token_expiry is timezone aware, convert it to naive
+            token_expiry = user.aws_token_expiry
+            if hasattr(token_expiry, 'tzinfo') and token_expiry.tzinfo:
+                # Convert to naive UTC datetime
+                token_expiry = token_expiry.replace(tzinfo=None)
+            
+            if now > token_expiry:
+                logger.warning(f"AWS session token expired for user {user.username}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="AWS session expired, please log in again",
+                    headers={"X-AWS-Session-Expired": "true"}
+                )
+        except TypeError as type_error:
+            # If there's a TypeError (likely due to datetime comparison), consider the token expired
+            logger.error(f"Error comparing token expiry times: {type_error}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="AWS session expired, please log in again",
+                detail="Error validating AWS token expiry, please log in again",
                 headers={"X-AWS-Session-Expired": "true"}
             )
     
@@ -113,29 +131,48 @@ async def get_current_user(
 # Add a new function to validate AWS credentials
 async def validate_aws_credentials(user: User) -> bool:
     """Validate AWS credentials by making a test call to AWS."""
+    logger.info(f"Validating AWS credentials for user: {user.username}")
+    
     if not user.aws_access_key_id or not user.aws_secret_access_key:
+        logger.warning(f"Missing AWS credentials for user {user.username} - access_key: {bool(user.aws_access_key_id)}, secret_key: {bool(user.aws_secret_access_key)}")
         return False
         
     # Check if AWS token is expired
-    if user.aws_token_expiry and datetime.utcnow() > user.aws_token_expiry:
-        return False
+    if user.aws_token_expiry:
+        try:
+            # Make sure both datetimes are timezone naive for comparison
+            now = datetime.utcnow()
+            # If aws_token_expiry is timezone aware, convert it to naive
+            token_expiry = user.aws_token_expiry
+            if hasattr(token_expiry, 'tzinfo') and token_expiry.tzinfo:
+                # Convert to naive UTC datetime
+                token_expiry = token_expiry.replace(tzinfo=None)
+            
+            if now > token_expiry:
+                logger.warning(f"AWS token expired for user {user.username} - expiry: {token_expiry}, now: {now}")
+                return False
+        except Exception as e:
+            logger.error(f"Error comparing token expiry times: {e}")
+            return False
         
     try:
         # Try to create a boto3 session with user credentials
         boto3_session = boto3.Session(
             aws_access_key_id=user.aws_access_key_id,
             aws_secret_access_key=user.aws_secret_access_key,
-            aws_session_token=user.aws_session_token
+            aws_session_token=user.aws_session_token,
+            region_name=settings.AWS_REGION
         )
         
         # Try a simple API call to verify credentials
         sts_client = boto3_session.client('sts')
-        sts_client.get_caller_identity()
+        identity = sts_client.get_caller_identity()
         
+        logger.info(f"AWS credentials valid for user {user.username} - identity: {identity.get('Arn')}")
         # If we get here, credentials are valid
         return True
     except Exception as e:
-        logger.error(f"Error validating AWS credentials: {e}")
+        logger.error(f"Error validating AWS credentials for user {user.username}: {e}")
         return False
 
 class AWSSSOService:
@@ -348,11 +385,28 @@ class AWSSSOService:
                                 roleName=settings.AWS_SSO_ROLE_NAME
                             )
                             # Successfully got role credentials, which confirms user's identity
-                            logger.info("Successfully retrieved role credentials")
-                            user_id = f"{settings.AWS_SSO_ACCOUNT_ID}:{settings.AWS_SSO_ROLE_NAME}"
+                            logger.info("Successfully got role credentials")
+                            
+                            # Extract AWS credentials
+                            aws_access_key_id = role_credentials.get('roleCredentials', {}).get('accessKeyId')
+                            aws_secret_access_key = role_credentials.get('roleCredentials', {}).get('secretAccessKey')
+                            aws_session_token = role_credentials.get('roleCredentials', {}).get('sessionToken')
+                            aws_token_expiry = role_credentials.get('roleCredentials', {}).get('expiration')
+                            
+                            if aws_token_expiry:
+                                # Convert from milliseconds to datetime
+                                aws_token_expiry = datetime.fromtimestamp(aws_token_expiry / 1000)
+                            
+                            logger.info("Extracted AWS credentials from role credentials")
                     except Exception as role_error:
-                        logger.warning(f"Could not retrieve role credentials: {role_error}")
+                        logger.warning(f"Could not get role credentials: {role_error}")
+                        # We'll continue without role credentials, but set defaults
+                        aws_access_key_id = None
+                        aws_secret_access_key = None
+                        aws_session_token = None
+                        aws_token_expiry = None
                     
+                    # Put together user info
                     user_info = {
                         "username": username,
                         "email": email,
@@ -360,124 +414,97 @@ class AWSSSOService:
                         "userId": user_id
                     }
                     
-                    logger.info(f"Created user profile with username: {username}")
-                except Exception as user_info_error:
-                    logger.error(f"Error creating user profile: {user_info_error}")
-                    # Use default values if we can't get user info
-                    timestamp = int(time.time())
-                    user_info = {
-                        "username": f"user_{timestamp}",
-                        "email": f"user_{timestamp}@example.com",
-                        "name": f"User {timestamp}"
-                    }
-                
-                # Get AWS credentials for the role
-                try:
-                    # Try to get AWS credentials for the given account and role
-                    role_credentials = sso_client.get_role_credentials(
-                        accessToken=access_token,
-                        accountId=settings.AWS_SSO_ACCOUNT_ID,
-                        roleName=settings.AWS_SSO_ROLE_NAME
-                    )["roleCredentials"]
+                    logger.info(f"User info: {user_info}")
                     
-                    logger.info("Successfully retrieved AWS role credentials")
+                    # Check if user exists
+                    result = await db.execute(select(User).filter(User.username == username))
+                    user = result.scalars().first()
                     
-                    # Extract credentials
-                    aws_access_key_id = role_credentials["accessKeyId"]
-                    aws_secret_access_key = role_credentials["secretAccessKey"]
-                    aws_session_token = role_credentials["sessionToken"]
-                    aws_token_expiry = datetime.fromtimestamp(role_credentials["expiration"] / 1000)
-                except Exception as cred_error:
-                    logger.error(f"Error getting role credentials: {cred_error}")
-                    # Use environment variables as fallback
-                    aws_access_key_id = settings.AWS_ACCESS_KEY_ID
-                    aws_secret_access_key = settings.AWS_SECRET_ACCESS_KEY
-                    aws_session_token = settings.AWS_SESSION_TOKEN
-                    aws_token_expiry = datetime.utcnow() + timedelta(hours=1)
-                
-                # Create or update user
-                result = await db.execute(select(User).filter(User.username == user_info.get("username")))
-                user = result.scalars().first()
-
-                if user is None:
-                # Create new user
-                    logger.info(f"Creating new user: {user_info.get('username')}")
-                    user = User(
-                    username=user_info.get("username"),
-                    email=user_info.get("email", f"{user_info.get('username')}@example.com"),
-                    full_name=user_info.get("name", user_info.get("username")),
-                    aws_identity_id=user_info.get("userId", ""),
-                    aws_access_key_id=aws_access_key_id,
-                    aws_secret_access_key=aws_secret_access_key,
-                    aws_session_token=aws_session_token,
-                    aws_token_expiry=aws_token_expiry,
-                    is_active=True
-                    )
-                    db.add(user)
-                else:
-                    # Update existing user
-                    logger.info(f"Updating existing user: {user.username}")
-                    user.is_active = True
-                    user.full_name = user_info.get("name", user.full_name)
-                    user.aws_identity_id = user_info.get("userId", user.aws_identity_id)
-                    user.aws_access_key_id = aws_access_key_id
-                    user.aws_secret_access_key = aws_secret_access_key
-                    user.aws_session_token = aws_session_token
-                    user.aws_token_expiry = aws_token_expiry
-                
-                # Commit to database
+                    if user is None:
+                        # Create new user
+                        logger.info(f"Creating new user: {user_info.get('username')}")
+                        user = User(
+                            id=str(uuid4()),  # Explicitly set a UUID for the user id
+                            username=user_info.get("username"),
+                            email=user_info.get("email", f"{user_info.get('username')}@example.com"),
+                            full_name=user_info.get("name", user_info.get("username")),
+                            aws_identity_id=user_info.get("userId", ""),
+                            aws_access_key_id=aws_access_key_id,
+                            aws_secret_access_key=aws_secret_access_key,
+                            aws_session_token=aws_session_token,
+                            aws_token_expiry=aws_token_expiry,
+                            is_active=True
+                        )
+                        db.add(user)
+                    else:
+                        # Update existing user
+                        logger.info(f"Updating existing user: {user.username}")
+                        user.aws_access_key_id = aws_access_key_id
+                        user.aws_secret_access_key = aws_secret_access_key
+                        user.aws_session_token = aws_session_token
+                        user.aws_token_expiry = aws_token_expiry
+                        user.is_active = True
+                    
                     await db.commit()
-                logger.info(f"User {user.username} successfully saved to database")
+                    logger.info(f"User {user.username} successfully saved to database")
                     
                     # Create JWT token
-                token_data = {
+                    token_data = {
                         "sub": user.username,
-                        "email": user.email,
-                        "aws_identity_id": user.aws_identity_id
+                        "email": user.email
                     }
-                jwt_token = create_token(token_data)
-                logger.info("JWT token successfully created")
+                    jwt_token = create_token(token_data)
+                    logger.info("JWT token successfully created")
                     
-                return {
+                    return {
                         "access_token": jwt_token,
                         "token_type": "bearer",
                         "user": {
                             "username": user.username,
                             "email": user.email,
-                        "full_name": user.full_name,
-                        "id": user.id,
-                        "is_active": user.is_active
+                            "full_name": user.full_name,
+                            "id": user.id,  # This should now be a valid string
+                            "is_active": user.is_active
+                        }
                     }
-                }
-            
-            except client.exceptions.AuthorizationPendingException:
-                logger.info("Authorization pending - user has not yet authorized")
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="authorization_pending"
-                )
-            except client.exceptions.SlowDownException:
-                logger.info("Polling too fast - client needs to slow down")
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="slow_down"
-                )
-            except client.exceptions.ExpiredTokenException:
-                logger.info("Device code has expired")
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="expired_token"
-                )
-            except client.exceptions.InvalidGrantException:
-                logger.info("Invalid grant - treating as authorization pending")
-                raise HTTPException(
+                except Exception as user_info_error:
+                    logger.error(f"Error creating user profile: {user_info_error}")
+                    raise
+            except Exception as token_error:
+                # Check for specific AWS errors to map to appropriate HTTP responses
+                error_message = str(token_error)
+                
+                # Handle various AWS SSO error cases
+                if "ExpiredTokenException" in error_message:
+                    logger.info("Device code has expired")
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="expired_token"
+                    )
+                
+                if "SlowDownException" in error_message:
+                    logger.info("Polling too frequently, slow down")
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail="slow_down"
+                    )
+                
+                if "AccessDeniedException" in error_message:
+                    logger.info("Access denied by user")
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="access_denied"
+                    )
+                
+                if "InvalidGrantException" in error_message:
+                    logger.info("Invalid grant - treating as authorization pending")
+                    raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="authorization_pending"
                     )
-            except Exception as e:
-                logger.error(f"Unexpected error creating token: {e}")
-                raise
-        
+                
+                # Re-raise any other errors
+                raise token_error
         except HTTPException:
             # Re-raise HTTP exceptions
             raise

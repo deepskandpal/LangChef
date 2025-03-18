@@ -2,11 +2,49 @@ import axios from 'axios';
 
 // Create axios instance with base URL
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api',
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// Add request interceptor to add auth token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    console.log('API Request:', config.method.toUpperCase(), config.url, config.headers);
+    return config;
+  },
+  (error) => {
+    console.error('API Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for debugging
+api.interceptors.response.use(
+  (response) => {
+    console.log('API Response:', response.status, response.config.url);
+    return response;
+  },
+  (error) => {
+    console.error('API Response Error:', 
+      error.response?.status, 
+      error.response?.config?.url, 
+      error.response?.data
+    );
+    return Promise.reject(error);
+  }
+);
+
+// Models API
+export const modelsApi = {
+  getAvailable: () => api.get('/api/models/available'),
+  runPlayground: (data) => api.post('/api/models/playground/run', data),
+};
 
 // Prompts API
 export const promptsApi = {
@@ -96,6 +134,7 @@ const apiServices = {
   experiments: experimentsApi,
   traces: tracesApi,
   metrics: metricsApi,
+  models: modelsApi,
 };
 
 // Export the combined API object

@@ -28,7 +28,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
-import { promptsApi, datasetsApi } from '../services/api';
+import { promptsApi, datasetsApi, modelsApi } from '../services/api';
 import SendIcon from '@mui/icons-material/Send';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -38,14 +38,23 @@ import AddIcon from '@mui/icons-material/Add';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { Link as RouterLink } from 'react-router-dom';
 
-// Map of Claude models to their required regions
-const CLAUDE_MODEL_REGIONS = {
-  'anthropic.claude-instant-v1': 'us-east-1',
-  'anthropic.claude-v2': 'us-east-1',
-  'anthropic.claude-v2:1': 'us-east-1',
-  'anthropic.claude-3-haiku-20240307-v1:0': 'us-east-1',
-  'anthropic.claude-3-sonnet-20240229-v1:0': 'us-east-1',
-  'anthropic.claude-3-opus-20240229-v1:0': 'us-east-1',
+// API URL configuration - using the same base URL as in api.js
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
+// Function to determine the model region based on the model ID
+const getModelRegion = (modelId) => {
+  // Default region for all models unless specified otherwise
+  const defaultRegion = 'us-east-1';
+
+  // All Claude models are in us-east-1 for now
+  if (modelId && modelId.startsWith('anthropic.claude')) {
+    return 'us-east-1';
+  }
+  
+  // Add other model-specific regions as needed
+  // Example: if (modelId.startsWith('ai21')) return 'us-west-2';
+  
+  return defaultRegion;
 };
 
 // Helper function to determine if error is related to AWS credentials
@@ -54,6 +63,50 @@ const isAwsCredentialError = (errorMessage) => {
   return errorMessage.includes('AWS credentials') || 
          errorMessage.includes('Bedrock models') || 
          errorMessage.includes('AWS account');
+};
+
+// Helper function to convert regular model IDs to inference profile IDs when needed
+const getModelIdWithInferenceProfile = (modelId, region) => {
+  // If the model already has a regional prefix (us. or eu.), return it as is
+  if (modelId && (modelId.startsWith('us.') || modelId.startsWith('eu.'))) {
+    return modelId;
+  }
+  
+  // Specific mappings for models that require inference profiles
+  const inferenceProfileMappings = {
+    // Claude 3 models
+    'anthropic.claude-3-haiku-20240307-v1:0': 'us.anthropic.claude-3-haiku-20240307-v1:0',
+    'anthropic.claude-3-sonnet-20240229-v1:0': 'us.anthropic.claude-3-sonnet-20240229-v1:0',
+    'anthropic.claude-3-opus-20240229-v1:0': 'us.anthropic.claude-3-opus-20240229-v1:0',
+    
+    // Claude 3.5 models
+    'anthropic.claude-3-5-sonnet-20240620-v1:0': 'us.anthropic.claude-3-5-sonnet-20240620-v1:0',
+    'anthropic.claude-3-5-haiku-20241022-v1:0': 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
+    
+    // Claude 3.7 models
+    'anthropic.claude-3-7-sonnet-20250219-v1:0': 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
+    
+    // Add more mappings as needed
+  };
+  
+  // For EU regions, use EU inference profiles when available
+  if (region && (region.startsWith('eu-'))) {
+    const euMappings = {
+      'anthropic.claude-3-haiku-20240307-v1:0': 'eu.anthropic.claude-3-haiku-20240307-v1:0',
+      'anthropic.claude-3-sonnet-20240229-v1:0': 'eu.anthropic.claude-3-sonnet-20240229-v1:0',
+      'anthropic.claude-3-opus-20240229-v1:0': 'eu.anthropic.claude-3-opus-20240229-v1:0',
+      'anthropic.claude-3-5-sonnet-20240620-v1:0': 'eu.anthropic.claude-3-5-sonnet-20240620-v1:0',
+      'anthropic.claude-3-5-haiku-20241022-v1:0': 'eu.anthropic.claude-3-5-haiku-20241022-v1:0',
+      // Add more EU mappings as needed
+    };
+    
+    if (euMappings[modelId]) {
+      return euMappings[modelId];
+    }
+  }
+  
+  // Return the inference profile ID if a mapping exists, otherwise return the original model ID
+  return inferenceProfileMappings[modelId] || modelId;
 };
 
 const Playground = () => {
@@ -84,10 +137,39 @@ const Playground = () => {
       try {
         // Convert date strings back to Date objects when loading from localStorage
         const parsedHistory = JSON.parse(savedHistory);
-        return parsedHistory.map(chat => ({
-          ...chat,
-          timestamp: new Date(chat.timestamp)
-        }));
+        
+        // Migrate old format history items to new format if needed
+        const migratedHistory = parsedHistory.map(chat => {
+          // Convert timestamp to Date object
+          const chatWithDateObj = {
+            ...chat,
+            timestamp: new Date(chat.timestamp)
+          };
+          
+          // Check if messages need migration
+          if (chat.messages && chat.messages.length > 0) {
+            const migratedMessages = chat.messages.map(message => {
+              // If this is a direct API response (old format) without content property
+              if (message.text && !message.content) {
+                return {
+                  content: message.text,
+                  response_data: message
+                };
+              }
+              return message;
+            });
+            
+            return {
+              ...chatWithDateObj,
+              messages: migratedMessages
+            };
+          }
+          
+          return chatWithDateObj;
+        });
+        
+        console.log('Loaded and migrated chat history:', migratedHistory);
+        return migratedHistory;
       } catch (err) {
         console.error('Error parsing saved chat history:', err);
         return [];
@@ -138,29 +220,101 @@ const Playground = () => {
     try {
       setError(''); // Clear any previous errors
       setLoading(true);
-      const response = await axios.get('/api/models/available');
+      
+      console.log('Fetching models with auth token:', localStorage.getItem('token') ? 'Token present' : 'No token');
+      
+      const response = await modelsApi.getAvailable();
       
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+        console.log('Models fetched successfully:', response.data.length);
+        
         // Filter to only Claude models in AWS Bedrock
-        const claudeModels = response.data.filter(
+        let claudeModels = response.data.filter(
           model => model.provider === 'aws_bedrock' && model.id.includes('anthropic.claude')
         );
         
+        // Deduplicate models by model name (keeping only the first occurrence)
+        const seenNames = new Set();
+        claudeModels = claudeModels.filter(model => {
+          if (seenNames.has(model.name)) {
+            console.log(`Skipping duplicate model: ${model.name} (${model.id})`);
+            return false;
+          }
+          seenNames.add(model.name);
+          return true;
+        });
+        
+        console.log('Unique Claude models available:', claudeModels.length);
+        
         if (claudeModels.length > 0) {
+          // Sort models by name
+          claudeModels.sort((a, b) => {
+            // First sort by family (3.7 > 3.5 > 3 > 2)
+            const aFamily = a.name.match(/Claude (\d+(\.\d+)?)/)?.[1] || '0';
+            const bFamily = b.name.match(/Claude (\d+(\.\d+)?)/)?.[1] || '0';
+            
+            if (parseFloat(aFamily) !== parseFloat(bFamily)) {
+              return parseFloat(bFamily) - parseFloat(aFamily); // Descending order by version
+            }
+            
+            // Then sort by variant (Opus > Sonnet > Haiku)
+            const variantOrder = { "Opus": 3, "Sonnet": 2, "Haiku": 1 };
+            const aVariant = a.name.includes("Opus") ? "Opus" : 
+                            a.name.includes("Sonnet") ? "Sonnet" : 
+                            a.name.includes("Haiku") ? "Haiku" : "";
+            const bVariant = b.name.includes("Opus") ? "Opus" : 
+                            b.name.includes("Sonnet") ? "Sonnet" : 
+                            b.name.includes("Haiku") ? "Haiku" : "";
+            
+            if (aVariant !== bVariant) {
+              return (variantOrder[bVariant] || 0) - (variantOrder[aVariant] || 0);
+            }
+            
+            // Finally, sort by version number (v2 > v1)
+            const aVersion = a.name.match(/v(\d+)/)?.[1] || '0';
+            const bVersion = b.name.match(/v(\d+)/)?.[1] || '0';
+            return parseInt(bVersion) - parseInt(aVersion);
+          });
+          
           setModels(claudeModels);
           setSelectedModel(claudeModels[0].id);
+          return true;
+        } else {
+          // If we have models but no Claude models
+          const uniqueModels = response.data.filter((model, index, self) => {
+            return index === self.findIndex(m => m.name === model.name);
+          });
+          setModels(uniqueModels);
+          setSelectedModel(uniqueModels[0].id);
           return true;
         }
       }
       
       // If we get here, either no models or no Claude models
+      console.error('No models returned from API');
       setModels([]);
+      setError('No models available. Please check your AWS credentials and try again.');
       return false;
     } catch (err) {
       console.error('Error fetching models:', err);
-      setError(isAwsCredentialError(err.message || err.response?.data?.detail) ?
-        'AWS credentials are missing or invalid. Check your settings.' :
-        'Failed to fetch available models');
+      
+      // Check for specific error types
+      if (err.response?.status === 401) {
+        // Authentication error
+        console.error('Authentication error fetching models');
+        localStorage.removeItem('token'); // Clear invalid token
+        setError('Authentication error. Please log in again.');
+        
+        // Redirect to login after a short delay
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 3000);
+      } else {
+        setError(isAwsCredentialError(err.message || err.response?.data?.detail) ?
+          'AWS credentials are missing or invalid. Check your settings.' :
+          'Failed to fetch available models. Please try refreshing the page.');
+      }
+      
       setModels([]);
       return false;
     } finally {
@@ -231,12 +385,24 @@ const Playground = () => {
 
   const saveConversationToHistory = () => {
     if (response) {
+      // Find the model info to get the name
+      const modelInfo = models.find(m => m.id === selectedModel);
+      
+      // Ensure the response has text content (might be missing in error cases)
+      const responseText = response.text || "No response content from model";
+      
+      // Create a message object with a content property that contains the response text
+      const messageWithContent = {
+        content: responseText,
+        response_data: response
+      };
+      
       const newChat = {
         id: Date.now(),
         model: selectedModel,
-        modelName: models.find(m => m.id === selectedModel)?.name || 'Unknown Model',
+        modelName: modelInfo?.name || 'Unknown Model',
         timestamp: new Date(),
-        messages: [response],
+        messages: [messageWithContent], // Use the formatted message
         config: {
           temperature,
           maxTokens,
@@ -245,6 +411,7 @@ const Playground = () => {
         }
       };
       
+      console.log('Saving chat to history:', newChat);
       setChatHistory(prev => [newChat, ...prev]);
     }
   };
@@ -252,10 +419,32 @@ const Playground = () => {
   const loadConversationFromHistory = (chatId) => {
     const selectedChat = chatHistory.find(chat => chat.id === chatId);
     if (selectedChat) {
+      // Set the conversation details from history
       setInputText('');
       setSelectedModel(selectedChat.model);
       setTemperature(selectedChat.config.temperature);
       setMaxTokens(selectedChat.config.maxTokens);
+      
+      // If there's a message with content, display it
+      if (selectedChat.messages && selectedChat.messages.length > 0) {
+        const firstMessage = selectedChat.messages[0];
+        
+        // Set the response if available
+        if (firstMessage.response_data) {
+          setResponse(firstMessage.response_data);
+        } 
+        // Otherwise create a simple response object with the content
+        else if (firstMessage.content) {
+          setResponse({
+            text: firstMessage.content,
+            model: selectedChat.model,
+            usage: { total_tokens: 0 },
+            latency_ms: 0,
+            cost: 0
+          });
+        }
+      }
+      
       setSelectedChatId(chatId);
       setActiveTab('playground');
     }
@@ -266,65 +455,125 @@ const Playground = () => {
     setSelectedChatId(null);
   };
 
-  const runModel = async () => {
+  const handleSubmit = async () => {
     setLoading(true);
-    setError('');
-    
-    // Check if model is selected
+    setError(null);
+    setResponse(null);
+    const token = localStorage.getItem('token');
+
+    if (!token) {
+      setError('Authentication required. Please login.');
+      setLoading(false);
+      return;
+    }
+
     if (!selectedModel) {
-      setError('Please select a model first');
+      setError('Please select a model to continue.');
       setLoading(false);
       return;
     }
-    
-    // Check if there's any input
-    if (!inputText.trim()) {
-      setError('Please enter some input text');
-      setLoading(false);
-      return;
-    }
-    
+
     try {
       // Find the selected model info
       const modelInfo = models.find(m => m.id === selectedModel);
-      const region = modelInfo && CLAUDE_MODEL_REGIONS[modelInfo.id] ? CLAUDE_MODEL_REGIONS[modelInfo.id] : 'us-east-1';
+      if (!modelInfo) {
+        setError('Selected model information not found.');
+        setLoading(false);
+        return;
+      }
       
-      const response = await axios.post('/api/models/playground', {
+      // Get the region for this model
+      const region = getModelRegion(selectedModel);
+      
+      // Get the appropriate model ID, using inference profiles when needed
+      const inferenceProfileModelId = getModelIdWithInferenceProfile(selectedModel, region);
+      
+      console.log(`Running model: ${modelInfo.name} (${selectedModel})`);
+      if (inferenceProfileModelId !== selectedModel) {
+        console.log(`Using inference profile: ${inferenceProfileModelId}`);
+      }
+      
+      // Prepare payload for API call
+      const payload = {
         prompt: systemPrompt,
         input: inputText,
-        model_id: selectedModel,
-        model_provider: 'aws_bedrock',
+        model_id: inferenceProfileModelId, // Use the inference profile ID when appropriate
+        model_provider: modelInfo.provider,
         temperature: temperature,
         max_tokens: maxTokens,
         region: region
-      });
+      };
       
-      setResponse(response.data);
-      
-      // Add to history when successful
-      saveConversationToHistory();
-      
-    } catch (err) {
-      console.error('Error running playground:', err);
-      if (err.response?.status === 401) {
-        const isAwsExpired = err.response.headers['x-aws-session-expired'] === 'true';
+      // Try using the modelsApi first
+      let response;
+      try {
+        response = await modelsApi.runPlayground(payload);
+        console.log('Model API response:', response.data);
         
+        if (response.data) {
+          setResponse(response.data);
+          // Add to history when successful
+          saveConversationToHistory();
+        }
+      } catch (apiError) {
+        console.error('Error using modelsApi, falling back to direct fetch:', apiError);
+        
+        // Fallback to direct fetch if the modelsApi fails
+        const fetchResponse = await fetch(`${API_URL}/api/models/playground/run`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        const data = await fetchResponse.json();
+        
+        if (!fetchResponse.ok) {
+          throw { response: { data, status: fetchResponse.status } };
+        }
+        
+        console.log('Model fetch response:', data);
+        setResponse(data);
+        // Add to history when successful
+        saveConversationToHistory();
+      }
+    } catch (error) {
+      console.error('Error running model:', error);
+      
+      // Check for specific validation errors related to on-demand throughput
+      if (error.response?.data?.detail && typeof error.response.data.detail === 'string' &&
+          error.response.data.detail.includes("on-demand throughput isn't supported")) {
+        setError(`This model doesn't support on-demand throughput in the current region. The application will try to use inference profiles in the next request.`);
+        
+        // Force a refresh of the models
+        fetchModels();
+      }
+      // Handle specific error cases with better messages
+      else if (error.response?.data?.detail && typeof error.response.data.detail === 'string') {
+        if (error.response.data.detail.includes("BedrockRuntime' object has no attribute 'converse'")) {
+          setError('Error: The AWS SDK version in the backend is too old to support Claude 3 models. Please try a different model or contact support to update the AWS SDK.');
+        } else if (error.response.data.detail.includes("AWS credentials")) {
+          setError(`AWS credentials error: ${error.response.data.detail}. Please re-authenticate with AWS SSO.`);
+        } else {
+          setError(`Error: ${error.response.data.detail}`);
+        }
+      } else if (error.response?.status === 401) {
+        setError('Authentication error. Please log in again.');
+        
+        // Check if AWS session expired
+        const isAwsExpired = error.response.headers?.['x-aws-session-expired'] === 'true';
         if (isAwsExpired) {
           setError('Your AWS session has expired. Please log in again to refresh your credentials.');
-          
-          // Redirect to login after a short delay
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 3000);
-        } else {
-          setError('Authentication error. Please log in again.');
         }
-      } else if (err.response?.status === 403) {
-        setError('Permission denied. Your account may not have access to use this model.');
-      } else if (err.response?.status === 404) {
-        setError('Model service unavailable (404). The requested endpoint was not found.');
+        
+        // Redirect to login after a short delay
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 3000);
       } else {
-        setError(`Error: ${err.response?.data?.detail || err.message || 'Unknown error'}`);
+        setError(`Error: ${error.message || 'Failed to run model. Please try again.'}`);
       }
     } finally {
       setLoading(false);
@@ -834,10 +1083,16 @@ const Playground = () => {
                   >
                     <CardContent>
                       <Box sx={{ mb: 2 }}>
-                        <ReactMarkdown>
-                      {response.text}
-                    </ReactMarkdown>
-                  </Box>
+                        {response.text && response.text.trim() ? (
+                          <ReactMarkdown>
+                            {response.text}
+                          </ReactMarkdown>
+                        ) : (
+                          <Typography color="error">
+                            No response content was returned from the model. Please try again with a different prompt or model.
+                          </Typography>
+                        )}
+                      </Box>
                   
                       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 2 }}>
                         <Chip 
@@ -988,8 +1243,9 @@ const Playground = () => {
                         item.messages.map((message, index) => (
                           <Box key={`${item.id}-msg-${index}`} sx={{ mb: 1 }}>
                             <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
-                              {message.content.substring(0, 150)}
-                              {message.content.length > 150 ? '...' : ''}
+                              {message.content && typeof message.content === 'string' 
+                                ? message.content.substring(0, 150) + (message.content.length > 150 ? '...' : '')
+                                : 'No content available'}
                             </Typography>
                           </Box>
                         ))
@@ -1045,7 +1301,7 @@ const Playground = () => {
                 <Button
                   variant="contained"
                   color="primary"
-                  onClick={runModel}
+                  onClick={handleSubmit}
                   disabled={loading}
                   endIcon={<SendIcon />}
                   sx={{ height: '56px', minWidth: '100px' }}

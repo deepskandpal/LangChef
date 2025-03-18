@@ -494,7 +494,7 @@ wheels = [
 ]
 
 [[package]]
-name = "llm-workflow-platform-backend"
+name = "langchef-backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

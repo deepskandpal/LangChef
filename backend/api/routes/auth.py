@@ -107,36 +107,37 @@ async def create_token(
 ):
     """Create token from device code."""
     try:
-        logger.info(f"Creating token from device code for client ID: {request.client_id[:5]}...")
-        token = await AWSSSOService.create_token_from_device_code(
-            client_id=request.client_id,
-            client_secret=request.client_secret,
-            device_code=request.device_code,
-            db=db
+        # Try to create token from device code
+        logger.info(f"Creating token from device code")
+        response = await AWSSSOService.create_token_from_device_code(
+            request.client_id,
+            request.client_secret,
+            request.device_code,
+            db
         )
-        logger.info("Token created successfully")
-        return token
-    except HTTPException as http_exc:
-        # Re-raise HTTP exceptions with their original status code and detail
-        logger.warning(f"HTTP exception in token creation: {http_exc.detail}")
-        raise
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Error creating token: {error_msg}")
         
-        # Special handling for common AWS SSO errors
-        if "InvalidGrantException" in error_msg:
-            # For invalid grant exceptions, return as a 400 error with authorization_pending
-            # This allows frontend to continue polling
+        if response:
+            logger.info(f"Successfully created token for user: {response.get('user', {}).get('username')}")
+            logger.info(f"User AWS credentials obtained: access_key={bool(response.get('user', {}).get('aws_access_key_id'))}, secret_key={bool(response.get('user', {}).get('aws_secret_access_key'))}, token={bool(response.get('user', {}).get('aws_session_token'))}")
+            return response
+        else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="authorization_pending"
+                detail="Failed to create token"
             )
+    except HTTPException as http_exc:
+        # Log the exception
+        logger.warning(f"HTTP exception in token creation: {http_exc.detail}")
+        # Re-raise the exception
+        raise http_exc
+    except Exception as e:
+        # Log the exception
+        logger.error(f"Error creating token: {str(e)}")
         
-        # For other errors, return 500
+        # Return a proper error response
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create token: {error_msg}"
+            detail=f"Failed to create token: {str(e)}"
         )
 
 

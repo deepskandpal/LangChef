@@ -20,7 +20,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const Login = () => {
-  const { isAuthenticated, login, loading, awsSSOState, error: authError } = useAuth();
+  const { isAuthenticated, login, loading, awsSSOState, error: authError, restartAuthentication } = useAuth();
   const [error, setError] = useState(null);
   const [showVerificationDialog, setShowVerificationDialog] = useState(false);
   const navigate = useNavigate();
@@ -81,7 +81,14 @@ const Login = () => {
   };
 
   const handleCloseVerificationDialog = () => {
+    // Close the dialog
     setShowVerificationDialog(false);
+    
+    // Cancel the current authentication without restarting
+    // Just close the dialog and return to login page
+    if (restartAuthentication) {
+      restartAuthentication(false); // Pass false to indicate don't auto-restart
+    }
   };
 
   // Show a different message when we're in SSO polling state

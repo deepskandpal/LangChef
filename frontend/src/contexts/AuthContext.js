@@ -16,6 +16,7 @@ const AuthContext = createContext({
   refreshSession: () => {},
   isSessionExpired: () => false,
   timeUntilExpiry: () => 0,
+  restartAuthentication: () => {},
 });
 
 // Custom hook to use the auth context
@@ -801,6 +802,39 @@ export const AuthProvider = ({ children }) => {
     return expiryTime;
   };
 
+  // If there's active polling, stop it and clear state
+  const cancelAuthentication = () => {
+    console.log('AuthContext - Cancelling current authentication flow');
+    
+    // Stop any active polling
+    if (pollingTimerId) {
+      clearTimeout(pollingTimerId);
+      setPollingTimerId(null);
+    }
+    
+    // Clear AWS SSO state
+    setAwsSSOState(null);
+    
+    // Clear from localStorage
+    localStorage.removeItem('awsSSOPollingState');
+    
+    // Clear error state
+    setError(null);
+  };
+  
+  // Restart authentication by cancelling current flow and starting a new one
+  const restartAuthentication = async (autoRestart = true) => {
+    console.log('AuthContext - Restarting authentication flow, autoRestart:', autoRestart);
+    
+    // Cancel current authentication
+    cancelAuthentication();
+    
+    // Start a new login flow only if autoRestart is true
+    if (autoRestart) {
+      await login();
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -808,14 +842,15 @@ export const AuthProvider = ({ children }) => {
         user,
         sessionExpiry,
         login,
-        loginWithAWS,
+        loginWithAWS: login, // Alias for backward compatibility
         logout,
-        refreshSession,
-        isSessionExpired,
-        timeUntilExpiry,
         loading,
         error,
         awsSSOState,
+        refreshSession,
+        isSessionExpired,
+        timeUntilExpiry,
+        restartAuthentication,
       }}
     >
       {children}
