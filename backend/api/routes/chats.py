@@ -66,6 +66,11 @@ async def create_chat(
 ):
     """Create a new chat with its messages."""
     try:
+        logger.info(f"Received request to create chat: model_id={chat_data.model_id}, user_id={current_user.id}")
+        logger.info(f"Chat data contains {len(chat_data.messages)} messages")
+        logger.info(f"System prompt: {chat_data.system_prompt}")
+        logger.info(f"Full chat data: {chat_data}")
+        
         # Create chat title from first message if available
         title = None
         if chat_data.messages and len(chat_data.messages) > 0:
@@ -74,6 +79,8 @@ async def create_chat(
             if user_messages:
                 # Create title from first few characters
                 title = user_messages[0].content[:30] + ("..." if len(user_messages[0].content) > 30 else "")
+        
+        logger.info(f"Created title: {title}")
         
         # Create chat object
         chat = Chat(
@@ -86,9 +93,12 @@ async def create_chat(
             configuration=chat_data.configuration
         )
         
+        logger.info(f"Created chat object: {chat.__dict__}")
+        
         # Add to database
         db.add(chat)
         await db.flush()  # To get the chat ID
+        logger.info(f"Flushed chat to DB, got ID: {chat.id}")
         
         # Add messages
         for i, msg_data in enumerate(chat_data.messages):
@@ -99,12 +109,22 @@ async def create_chat(
                 order=i,
                 message_metadata=msg_data.message_metadata
             )
+            logger.info(f"Adding message {i}: role={msg_data.role}, content preview={msg_data.content[:30] if msg_data.content else None}")
             db.add(message)
         
+        logger.info("Committing transaction")
         await db.commit()
+        logger.info("Transaction committed successfully")
         
         # Refresh to get the full object with relationships
         await db.refresh(chat)
+        logger.info("Chat object refreshed")
+        
+        # Explicitly query for messages instead of using chat.messages
+        msg_stmt = select(ChatMessage).where(ChatMessage.chat_id == chat.id).order_by(ChatMessage.order)
+        msg_result = await db.execute(msg_stmt)
+        messages = msg_result.scalars().all()
+        logger.info(f"Retrieved {len(messages)} messages for chat {chat.id}")
         
         # Convert to response model
         response = {
@@ -126,14 +146,15 @@ async def create_chat(
                     "message_metadata": msg.message_metadata,
                     "created_at": msg.created_at
                 }
-                for msg in sorted(chat.messages, key=lambda x: x.order)
+                for msg in messages
             ]
         }
         
+        logger.info(f"Returning response with chat ID: {chat.id}")
         return response
     
     except Exception as e:
-        logger.error(f"Error creating chat: {e}")
+        logger.error(f"Error creating chat: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create chat: {str(e)}"

@@ -12,10 +12,50 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
+    
+    // More detailed token debugging
+    console.log('%c TOKEN DEBUG IN REQUEST INTERCEPTOR', 'background: darkblue; color: white; font-size: 12px', {
+      url: config.url,
+      method: config.method,
+      hasToken: !!token,
+      tokenLength: token ? token.length : 0,
+      tokenStart: token ? token.substring(0, 10) + '...' : 'No token',
+      tokenEnd: token ? '...' + token.substring(token.length - 10) : 'No token',
+      isJWT: token && token.split('.').length === 3,
+      previousAuthHeader: config.headers['Authorization'] || 'None'
+    });
+    
     if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
+      // Ensure token has correct format
+      const formattedToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+      config.headers['Authorization'] = formattedToken;
+      console.log('%c AUTH HEADER SET', 'background: green; color: white; font-size: 12px', {
+        headerValue: formattedToken.substring(0, 15) + '...',
+        url: config.url
+      });
+    } else {
+      console.log('%c NO AUTH TOKEN AVAILABLE', 'background: red; color: white; font-size: 12px', {
+        url: config.url
+      });
     }
-    console.log('API Request:', config.method.toUpperCase(), config.url, config.data, config.headers);
+    
+    // Enhanced debugging for chat-related API calls
+    if (config.url && config.url.includes('/api/chats')) {
+      console.log('%c 🔍 CHAT API REQUEST 🔍', 'background: purple; color: white; font-size: 14px', {
+        method: config.method.toUpperCase(),
+        url: config.url,
+        headers: config.headers,
+        data: config.data ? JSON.stringify(config.data) : null,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Add a DOM marker we can check
+      document.body.setAttribute('data-api-request-url', config.url);
+      document.body.setAttribute('data-api-request-time', new Date().toISOString());
+    } else {
+      console.log('API Request:', config.method.toUpperCase(), config.url);
+    }
+    
     return config;
   },
   (error) => {
@@ -27,16 +67,54 @@ api.interceptors.request.use(
 // Add response interceptor for debugging
 api.interceptors.response.use(
   (response) => {
-    console.log('API Response:', response.status, response.config.url, response.data);
+    // Enhanced debugging for chat-related API calls
+    if (response.config.url && response.config.url.includes('/api/chats')) {
+      console.log('%c 🔍 CHAT API RESPONSE SUCCESS 🔍', 'background: green; color: white; font-size: 14px', {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.config.url,
+        data: response.data,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Add DOM marker for successful response
+      document.body.setAttribute('data-api-response-status', response.status);
+      document.body.setAttribute('data-api-response-time', new Date().toISOString());
+    } else {
+      console.log('API Response:', response.status, response.config.url);
+    }
     return response;
   },
   (error) => {
-    console.error('API Response Error:', 
-      error.response?.status, 
-      error.response?.config?.url, 
-      error.response?.data,
-      error.message
-    );
+    // Enhanced debugging for chat-related API calls
+    if (error.config && error.config.url && error.config.url.includes('/api/chats')) {
+      console.error('%c 🔍 CHAT API RESPONSE ERROR 🔍', 'background: red; color: white; font-size: 14px', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        url: error.config?.url,
+        data: error.response?.data,
+        message: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+        originalRequest: {
+          method: error.config?.method?.toUpperCase(),
+          url: error.config?.url,
+          headers: error.config?.headers,
+          data: error.config?.data ? JSON.stringify(error.config.data) : null
+        }
+      });
+      
+      // Add DOM marker for error response
+      document.body.setAttribute('data-api-error-status', error.response?.status || 'unknown');
+      document.body.setAttribute('data-api-error-message', error.message || 'unknown error');
+      document.body.setAttribute('data-api-error-time', new Date().toISOString());
+    } else {
+      console.error('API Response Error:', 
+        error.response?.status, 
+        error.config?.url, 
+        error.message
+      );
+    }
     return Promise.reject(error);
   }
 );

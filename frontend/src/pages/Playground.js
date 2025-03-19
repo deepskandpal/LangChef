@@ -356,83 +356,387 @@ const Playground = () => {
     }
   };
 
-  const saveConversationToHistory = async () => {
-    if (response) {
-      try {
-        // Find the model info to get the name
-        const modelInfo = models.find(m => m.id === selectedModel);
-        
-        // Collect all messages for this conversation
-        const messages = [
-          // User message
-          {
-            role: 'user',
-            content: inputText,
-            message_metadata: null
-          },
-          // Assistant (model) message
-          {
-            role: 'assistant',
-            content: response.text || "No response content from model",
-            message_metadata: {
-              tokens: response.usage,
-              latency_ms: response.latency_ms,
-              cost: response.cost
-            }
-          }
-        ];
-        
-        // If there's a system prompt, include it
-        if (systemPrompt && systemPrompt.trim()) {
-          messages.unshift({
-            role: 'system',
-            content: systemPrompt,
-            message_metadata: null
-          });
-        }
-        
-        // Create the chat object to save to the database
-        const chatData = {
-          system_prompt: systemPrompt,
-          model_id: selectedModel,
-          model_name: modelInfo?.name || 'Unknown Model',
-          model_provider: modelInfo?.provider || 'unknown',
-          configuration: {
-            temperature,
-            maxTokens,
-            topP: 1.0,
-            topK: 1.0
-          },
-          messages: messages
-        };
-        
-        console.log('Saving chat to database:', chatData);
-        
-        // Save to database
-        try {
-          const apiResponse = await chatsApi.create(chatData);
-          console.log('Save chat response:', apiResponse);
-          
-          // Refresh the history list
-          fetchChatHistory();
-          
-          // Set the newly created chat as the selected one
-          if (apiResponse.data && apiResponse.data.id) {
-            setSelectedChatId(apiResponse.data.id);
-          }
-        } catch (saveError) {
-          console.error('Error details:', {
-            message: saveError.message,
-            response: saveError.response?.data,
-            status: saveError.response?.status,
-            config: saveError.config
-          });
-          throw saveError;
-        }
-      } catch (err) {
-        console.error('Error saving chat to history:', err);
-        setError('Failed to save chat to history');
+  const handleSubmit = async () => {
+    setLoading(true);
+    setError(null);
+    setResponse(null);
+    
+    // Debug authentication status
+    console.log('%c AUTHENTICATION DEBUG', 'background: purple; color: white; font-size: 16px', {
+      isAuthenticated: isAuthenticated,
+      userInfo: user,
+      hasToken: !!localStorage.getItem('token'),
+      tokenBeginning: localStorage.getItem('token') ? localStorage.getItem('token').substring(0, 15) + '...' : 'No token'
+    });
+    
+    // Save token to window for debugging
+    window.debugAuthToken = localStorage.getItem('token');
+    document.body.setAttribute('data-has-token', !!localStorage.getItem('token'));
+    
+    const token = localStorage.getItem('token');
+
+    if (!token) {
+      setError('Authentication required. Please login.');
+      setLoading(false);
+      return;
+    }
+
+    if (!selectedModel) {
+      setError('Please select a model to continue.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Find the selected model info
+      const modelInfo = models.find(m => m.id === selectedModel);
+      if (!modelInfo) {
+        setError('Selected model information not found.');
+        setLoading(false);
+        return;
       }
+      
+      // Get the region for this model
+      const region = getModelRegion(selectedModel);
+      
+      // Get the appropriate model ID, using inference profiles when needed
+      const inferenceProfileModelId = getModelIdWithInferenceProfile(selectedModel, region);
+      
+      console.log(`Running model: ${modelInfo.name} (${selectedModel})`);
+      if (inferenceProfileModelId !== selectedModel) {
+        console.log(`Using inference profile: ${inferenceProfileModelId}`);
+      }
+      
+      // Prepare payload for API call
+      const payload = {
+        prompt: systemPrompt,
+        input: inputText,
+        model_id: inferenceProfileModelId, // Use the inference profile ID when appropriate
+        model_provider: modelInfo.provider,
+        temperature: temperature,
+        max_tokens: maxTokens,
+        region: region
+      };
+      
+      // Try using the modelsApi first
+      let response;
+      try {
+        response = await modelsApi.runPlayground(payload);
+        console.log('Model API response:', response.data);
+        
+        if (response.data) {
+          // Store the raw response for debugging
+          window.lastModelResponse = response.data;
+          console.log('%c STORING RAW RESPONSE FOR DEBUGGING', 'background: teal; color: white; font-size: 14px', response.data);
+          
+          // Set the response state
+          setResponse(response.data);
+          
+          // Make sure the response is properly set before saving to history
+          setTimeout(async () => {
+            try {
+              console.log('%c DELAYED SAVE CONVERSATION CALL', 'background: yellow; color: black; font-size: 18px');
+              console.log('Response in state:', window.lastModelResponse);
+              await saveConversationToHistory(window.lastModelResponse);
+            } catch (saveError) {
+              console.error('Delayed save attempt failed:', saveError);
+            }
+          }, 1000); // Longer delay to ensure state is updated
+        }
+      } catch (apiError) {
+        console.error('Error using modelsApi, falling back to direct fetch:', apiError);
+        
+        // Fallback to direct fetch if the modelsApi fails
+        const fetchResponse = await fetch(`${API_URL}/api/models/playground/run`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        const data = await fetchResponse.json();
+        
+        if (!fetchResponse.ok) {
+          throw { response: { data, status: fetchResponse.status } };
+        }
+        
+        console.log('Model fetch response:', data);
+        setResponse(data);
+        
+        // Add a delay to ensure state is updated
+        setTimeout(async () => {
+          try {
+            console.log('%c DELAYED SAVE CONVERSATION CALL (FETCH FALLBACK)', 'background: yellow; color: black; font-size: 18px');
+            await saveConversationToHistory(data);
+          } catch (saveError) {
+            console.error('Delayed save attempt failed (fetch fallback):', saveError);
+          }
+        }, 500); // Short delay to ensure state is updated
+      }
+    } catch (error) {
+      console.error('Error running model:', error);
+      
+      // Check for specific validation errors related to on-demand throughput
+      if (error.response?.data?.detail && typeof error.response.data.detail === 'string' &&
+          error.response.data.detail.includes("on-demand throughput isn't supported")) {
+        setError(`This model doesn't support on-demand throughput in the current region. The application will try to use inference profiles in the next request.`);
+        
+        // Force a refresh of the models
+        fetchModels();
+      }
+      // Handle specific error cases with better messages
+      else if (error.response?.data?.detail && typeof error.response.data.detail === 'string') {
+        if (error.response.data.detail.includes("BedrockRuntime' object has no attribute 'converse'")) {
+          setError('Error: The AWS SDK version in the backend is too old to support Claude 3 models. Please try a different model or contact support to update the AWS SDK.');
+        } else if (error.response.data.detail.includes("AWS credentials")) {
+          setError(`AWS credentials error: ${error.response.data.detail}. Please re-authenticate with AWS SSO.`);
+        } else {
+          setError(`Error: ${error.response.data.detail}`);
+        }
+      } else if (error.response?.status === 401) {
+        setError('Authentication error. Please log in again.');
+        
+        // Check if AWS session expired
+        const isAwsExpired = error.response.headers?.['x-aws-session-expired'] === 'true';
+        if (isAwsExpired) {
+          setError('Your AWS session has expired. Please log in again to refresh your credentials.');
+        }
+        
+        // Redirect to login after a short delay
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 3000);
+      } else {
+        setError(`Error: ${error.message || 'Failed to run model. Please try again.'}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveConversationToHistory = async (directResponse = null) => {
+    // CRITICAL DEBUGGING
+    console.log('%c SAVE CONVERSATION TO HISTORY CALLED', 'background: red; color: white; font-size: 20px');
+    document.body.setAttribute('data-debug-save-called', 'true'); // DOM marker for debugging
+    
+    // Use the directly passed response or fall back to the state
+    const responseToUse = directResponse || response;
+    
+    // Debug response value
+    console.log('%c RESPONSE OBJECT CHECK', 'background: blue; color: white; font-size: 16px', {
+      directResponseExists: !!directResponse,
+      stateResponseExists: !!response,
+      usingDirectResponse: !!directResponse,
+      responseExists: !!responseToUse,
+      responseType: typeof responseToUse,
+      responseKeys: responseToUse ? Object.keys(responseToUse) : 'N/A',
+      responseValue: responseToUse,
+      responseText: responseToUse?.text,
+      responseTextType: responseToUse?.text ? typeof responseToUse.text : 'N/A'
+    });
+    
+    if (!responseToUse) {
+      console.log('No response object available');
+      return;
+    }
+    
+    if (!responseToUse.text && responseToUse.data && responseToUse.data.text) {
+      // Fix for response format inconsistency
+      console.log('%c FIXING RESPONSE FORMAT', 'background: orange; color: black; font-size: 14px');
+      const fixedResponse = {
+        ...responseToUse,
+        text: responseToUse.data.text,
+        usage: responseToUse.data.usage || responseToUse.usage,
+        latency_ms: responseToUse.data.latency_ms || responseToUse.latency_ms,
+        cost: responseToUse.data.cost || responseToUse.cost
+      };
+      console.log('Using fixed response:', fixedResponse);
+      // Use the fixed response
+      responseToUse = fixedResponse;
+    }
+    
+    try {
+      // Find the model info to get the name
+      const modelInfo = models.find(m => m.id === selectedModel);
+      console.log('Model info:', modelInfo);
+
+      // Make sure we have text content from the response
+      const responseText = responseToUse.text || responseToUse.data?.text || "No response content from model";
+      console.log('Response text:', responseText ? responseText.substring(0, 100) + '...' : 'Empty response');
+      
+      // Collect all messages for this conversation
+      const messages = [
+        // User message
+        {
+          role: 'user',
+          content: inputText,
+          message_metadata: null
+        },
+        // Assistant (model) message
+        {
+          role: 'assistant',
+          content: responseText,
+          message_metadata: {
+            tokens: responseToUse.usage || responseToUse.data?.usage || { total_tokens: 0 },
+            latency_ms: responseToUse.latency_ms || responseToUse.data?.latency_ms || 0,
+            cost: responseToUse.cost || responseToUse.data?.cost || 0
+          }
+        }
+      ];
+      
+      // If there's a system prompt, include it
+      if (systemPrompt && systemPrompt.trim()) {
+        messages.unshift({
+          role: 'system',
+          content: systemPrompt,
+          message_metadata: null
+        });
+      }
+      
+      // Create the chat object to save to the database
+      const chatData = {
+        system_prompt: systemPrompt,
+        model_id: selectedModel,
+        model_name: modelInfo?.name || 'Unknown Model',
+        model_provider: modelInfo?.provider || 'unknown',
+        configuration: {
+          temperature,
+          maxTokens,
+          topP: 1.0,
+          topK: 1.0
+        },
+        messages: messages
+      };
+      
+      console.log('%c CHAT DATA TO SAVE', 'background: orange; color: black; font-size: 14px', JSON.stringify(chatData));
+      
+      // Get token from localStorage
+      const token = localStorage.getItem('token');
+      console.log('%c TOKEN DEBUG', 'background: teal; color: white; font-size: 16px', {
+        hasToken: !!token,
+        tokenLength: token ? token.length : 0,
+        tokenBeginning: token ? token.substring(0, 10) + '...' : 'No token',
+        tokenEnding: token ? '...' + token.substring(token.length - 10) : 'No token',
+        isTokenValidJWT: token && token.split('.').length === 3
+      });
+      
+      // Add token to DOM for debugging
+      document.body.setAttribute('data-token-info', JSON.stringify({
+        hasToken: !!token,
+        tokenLength: token ? token.length : 0,
+        isTokenValidJWT: token && token.split('.').length === 3
+      }));
+      
+      if (!token) {
+        console.error('No authentication token available');
+        throw new Error('Authentication required. Please login again.');
+      }
+      
+      // Try THREE different approaches to ensure one works
+      
+      // 1. Direct API call with trailing slash
+      try {
+        console.log('%c APPROACH 1: DIRECT FETCH WITH TRAILING SLASH', 'background: blue; color: white; font-size: 16px');
+        const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001';
+        
+        const directResponse = await fetch(`${API_URL}/api/chats/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(chatData)
+        });
+        
+        if (directResponse.ok) {
+          const data = await directResponse.json();
+          console.log('%c DIRECT API CALL SUCCEEDED', 'background: green; color: white', data);
+          
+          // Refresh history and set selected chat
+          await fetchChatHistory();
+          if (data && data.id) {
+            setSelectedChatId(data.id);
+          }
+          return; // Early return if successful
+        } else {
+          const errorText = await directResponse.text();
+          console.error('%c DIRECT API CALL FAILED', 'background: red; color: white', {
+            status: directResponse.status,
+            statusText: directResponse.statusText,
+            body: errorText
+          });
+          // Continue to next approach
+        }
+      } catch (approach1Error) {
+        console.error('Approach 1 failed:', approach1Error);
+        // Continue to next approach
+      }
+      
+      // 2. Direct API call without trailing slash
+      try {
+        console.log('%c APPROACH 2: DIRECT FETCH WITHOUT TRAILING SLASH', 'background: blue; color: white; font-size: 16px');
+        const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001';
+        
+        const directResponse = await fetch(`${API_URL}/api/chats`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(chatData)
+        });
+        
+        if (directResponse.ok) {
+          const data = await directResponse.json();
+          console.log('%c DIRECT API CALL SUCCEEDED', 'background: green; color: white', data);
+          
+          // Refresh history and set selected chat
+          await fetchChatHistory();
+          if (data && data.id) {
+            setSelectedChatId(data.id);
+          }
+          return; // Early return if successful
+        } else {
+          const errorText = await directResponse.text();
+          console.error('%c DIRECT API CALL FAILED', 'background: red; color: white', {
+            status: directResponse.status,
+            statusText: directResponse.statusText,
+            body: errorText
+          });
+          // Continue to next approach
+        }
+      } catch (approach2Error) {
+        console.error('Approach 2 failed:', approach2Error);
+        // Continue to next approach
+      }
+      
+      // 3. Using the chatsApi helper
+      try {
+        console.log('%c APPROACH 3: USING CHATSAPI', 'background: blue; color: white; font-size: 16px');
+        const apiResponse = await chatsApi.create(chatData);
+        console.log('%c CHATSAPI CALL SUCCEEDED', 'background: green; color: white', apiResponse);
+        
+        // Refresh history and set selected chat
+        await fetchChatHistory();
+        if (apiResponse.data && apiResponse.data.id) {
+          setSelectedChatId(apiResponse.data.id);
+        }
+        return; // Early return if successful
+      } catch (approach3Error) {
+        console.error('Approach 3 failed:', approach3Error);
+        throw approach3Error; // Rethrow the error if all approaches failed
+      }
+      
+    } catch (err) {
+      console.error('%c ERROR SAVING CHAT TO HISTORY', 'background: red; color: white; font-size: 16px', err);
+      document.body.setAttribute('data-save-error', JSON.stringify({
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status
+      }));
+      setError('Failed to save chat to history: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -534,131 +838,6 @@ const Playground = () => {
     }
   };
 
-  const handleSubmit = async () => {
-    setLoading(true);
-    setError(null);
-    setResponse(null);
-    const token = localStorage.getItem('token');
-
-    if (!token) {
-      setError('Authentication required. Please login.');
-      setLoading(false);
-      return;
-    }
-
-    if (!selectedModel) {
-      setError('Please select a model to continue.');
-      setLoading(false);
-      return;
-    }
-
-    try {
-      // Find the selected model info
-      const modelInfo = models.find(m => m.id === selectedModel);
-      if (!modelInfo) {
-        setError('Selected model information not found.');
-        setLoading(false);
-        return;
-      }
-      
-      // Get the region for this model
-      const region = getModelRegion(selectedModel);
-      
-      // Get the appropriate model ID, using inference profiles when needed
-      const inferenceProfileModelId = getModelIdWithInferenceProfile(selectedModel, region);
-      
-      console.log(`Running model: ${modelInfo.name} (${selectedModel})`);
-      if (inferenceProfileModelId !== selectedModel) {
-        console.log(`Using inference profile: ${inferenceProfileModelId}`);
-      }
-      
-      // Prepare payload for API call
-      const payload = {
-        prompt: systemPrompt,
-        input: inputText,
-        model_id: inferenceProfileModelId, // Use the inference profile ID when appropriate
-        model_provider: modelInfo.provider,
-        temperature: temperature,
-        max_tokens: maxTokens,
-        region: region
-      };
-      
-      // Try using the modelsApi first
-      let response;
-      try {
-        response = await modelsApi.runPlayground(payload);
-        console.log('Model API response:', response.data);
-        
-        if (response.data) {
-          setResponse(response.data);
-          // Instead of the previous implementation, use our new function to save to database
-          await saveConversationToHistory();
-        }
-      } catch (apiError) {
-        console.error('Error using modelsApi, falling back to direct fetch:', apiError);
-        
-        // Fallback to direct fetch if the modelsApi fails
-        const fetchResponse = await fetch(`${API_URL}/api/models/playground/run`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify(payload)
-        });
-        
-        const data = await fetchResponse.json();
-        
-        if (!fetchResponse.ok) {
-          throw { response: { data, status: fetchResponse.status } };
-        }
-        
-        console.log('Model fetch response:', data);
-        setResponse(data);
-        // Save to database
-        await saveConversationToHistory();
-      }
-    } catch (error) {
-      console.error('Error running model:', error);
-      
-      // Check for specific validation errors related to on-demand throughput
-      if (error.response?.data?.detail && typeof error.response.data.detail === 'string' &&
-          error.response.data.detail.includes("on-demand throughput isn't supported")) {
-        setError(`This model doesn't support on-demand throughput in the current region. The application will try to use inference profiles in the next request.`);
-        
-        // Force a refresh of the models
-        fetchModels();
-      }
-      // Handle specific error cases with better messages
-      else if (error.response?.data?.detail && typeof error.response.data.detail === 'string') {
-        if (error.response.data.detail.includes("BedrockRuntime' object has no attribute 'converse'")) {
-          setError('Error: The AWS SDK version in the backend is too old to support Claude 3 models. Please try a different model or contact support to update the AWS SDK.');
-        } else if (error.response.data.detail.includes("AWS credentials")) {
-          setError(`AWS credentials error: ${error.response.data.detail}. Please re-authenticate with AWS SSO.`);
-        } else {
-          setError(`Error: ${error.response.data.detail}`);
-        }
-      } else if (error.response?.status === 401) {
-        setError('Authentication error. Please log in again.');
-        
-        // Check if AWS session expired
-        const isAwsExpired = error.response.headers?.['x-aws-session-expired'] === 'true';
-        if (isAwsExpired) {
-          setError('Your AWS session has expired. Please log in again to refresh your credentials.');
-        }
-        
-        // Redirect to login after a short delay
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 3000);
-      } else {
-        setError(`Error: ${error.message || 'Failed to run model. Please try again.'}`);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-  
   // Function to format cost as USD
   const formatCost = (cost) => {
     return new Intl.NumberFormat('en-US', {
@@ -745,7 +924,7 @@ const Playground = () => {
                       Model: {chat.modelName}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {chat.timestamp.toLocaleString()}
+                      {new Date(chat.created_at || chat.updated_at).toLocaleString()}
                     </Typography>
                   </Box>
                 </ListItem>
@@ -1249,7 +1428,7 @@ const Playground = () => {
                   >
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
                       <Typography variant="subtitle1" fontWeight="medium">
-                        {new Date(item.timestamp).toLocaleString()}
+                        {new Date(item.created_at || item.updated_at).toLocaleString()}
                       </Typography>
                       <Box sx={{ display: 'flex', gap: 1 }}>
                         <Button 
@@ -1263,7 +1442,7 @@ const Playground = () => {
                           size="small" 
                           variant="outlined" 
                           color="error"
-                          onClick={() => setChatHistory(prev => prev.filter(chat => chat.id !== item.id))}
+                          onClick={() => deleteConversation(item.id)}
                         >
                           Delete
                         </Button>
@@ -1280,7 +1459,7 @@ const Playground = () => {
                             Model
                           </Typography>
                           <Typography variant="body2" fontWeight="medium">
-                            {item.modelName}
+                            {item.model_name || 'Unknown'}
                           </Typography>
                         </Grid>
                         <Grid item xs={6} sm={3}>
@@ -1288,7 +1467,7 @@ const Playground = () => {
                             Temperature
                           </Typography>
                           <Typography variant="body2" fontWeight="medium">
-                            {item.config.temperature}
+                            {item.configuration?.temperature || 'N/A'}
                           </Typography>
                         </Grid>
                         <Grid item xs={6} sm={3}>
@@ -1296,7 +1475,7 @@ const Playground = () => {
                             Max Tokens
                           </Typography>
                           <Typography variant="body2" fontWeight="medium">
-                            {item.config.maxTokens}
+                            {item.configuration?.maxTokens || 'N/A'}
                           </Typography>
                         </Grid>
                         <Grid item xs={6} sm={3}>
@@ -1304,7 +1483,7 @@ const Playground = () => {
                             Top-P
                           </Typography>
                           <Typography variant="body2" fontWeight="medium">
-                            {item.config.topP}
+                            {item.configuration?.topP || 'N/A'}
                           </Typography>
                         </Grid>
                       </Grid>

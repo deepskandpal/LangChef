@@ -27,11 +27,12 @@ class Chat(Base, BaseModel):
         return f"<Chat(id={self.id}, user_id='{self.user_id}', model='{self.model_id}')>"
 
 
-class ChatMessage(Base, BaseModel):
+class ChatMessage(Base):
     """Model for storing individual messages within a chat."""
     
     __tablename__ = "chat_messages"
     
+    id = Column(Integer, primary_key=True, index=True)
     chat_id = Column(Integer, ForeignKey("chats.id"), nullable=False)
     role = Column(String, nullable=False)  # 'user', 'assistant', or 'system'
     content = Column(Text, nullable=False)
