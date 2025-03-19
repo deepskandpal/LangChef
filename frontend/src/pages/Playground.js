@@ -28,7 +28,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
-import { promptsApi, datasetsApi, modelsApi } from '../services/api';
+import { promptsApi, datasetsApi, modelsApi, chatsApi } from '../services/api';
 import SendIcon from '@mui/icons-material/Send';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -39,7 +39,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { Link as RouterLink } from 'react-router-dom';
 
 // API URL configuration - using the same base URL as in api.js
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001';
 
 // Function to determine the model region based on the model ID
 const getModelRegion = (modelId) => {
@@ -110,7 +110,7 @@ const getModelIdWithInferenceProfile = (modelId, region) => {
 };
 
 const Playground = () => {
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, loading: authLoading, user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [prompts, setPrompts] = useState([]);
   const [datasets, setDatasets] = useState([]);
@@ -130,60 +130,33 @@ const Playground = () => {
   const [showNewPromptForm, setShowNewPromptForm] = useState(false);
   const [newPromptName, setNewPromptName] = useState('');
   
-  // Chat history state with localStorage persistence
-  const [chatHistory, setChatHistory] = useState(() => {
-    const savedHistory = localStorage.getItem('langchef_chat_history');
-    if (savedHistory) {
-      try {
-        // Convert date strings back to Date objects when loading from localStorage
-        const parsedHistory = JSON.parse(savedHistory);
-        
-        // Migrate old format history items to new format if needed
-        const migratedHistory = parsedHistory.map(chat => {
-          // Convert timestamp to Date object
-          const chatWithDateObj = {
-            ...chat,
-            timestamp: new Date(chat.timestamp)
-          };
-          
-          // Check if messages need migration
-          if (chat.messages && chat.messages.length > 0) {
-            const migratedMessages = chat.messages.map(message => {
-              // If this is a direct API response (old format) without content property
-              if (message.text && !message.content) {
-                return {
-                  content: message.text,
-                  response_data: message
-                };
-              }
-              return message;
-            });
-            
-            return {
-              ...chatWithDateObj,
-              messages: migratedMessages
-            };
-          }
-          
-          return chatWithDateObj;
-        });
-        
-        console.log('Loaded and migrated chat history:', migratedHistory);
-        return migratedHistory;
-      } catch (err) {
-        console.error('Error parsing saved chat history:', err);
-        return [];
-      }
-    }
-    return [];
-  });
+  // Chat history state from database
+  const [chatHistory, setChatHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [activeTab, setActiveTab] = useState('playground'); // 'playground' or 'history'
   const [selectedChatId, setSelectedChatId] = useState(null);
 
-  // Save chat history to localStorage whenever it changes
+  // Load chat history from database whenever authenticated
   useEffect(() => {
-    localStorage.setItem('langchef_chat_history', JSON.stringify(chatHistory));
-  }, [chatHistory]);
+    if (isAuthenticated) {
+      fetchChatHistory();
+    }
+  }, [isAuthenticated]);
+  
+  const fetchChatHistory = async () => {
+    try {
+      setLoadingHistory(true);
+      const response = await chatsApi.getAll();
+      if (response.data && Array.isArray(response.data)) {
+        setChatHistory(response.data);
+      }
+    } catch (err) {
+      console.error('Error fetching chat history:', err);
+      setError('Failed to fetch chat history');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -383,76 +356,182 @@ const Playground = () => {
     }
   };
 
-  const saveConversationToHistory = () => {
+  const saveConversationToHistory = async () => {
     if (response) {
-      // Find the model info to get the name
-      const modelInfo = models.find(m => m.id === selectedModel);
-      
-      // Ensure the response has text content (might be missing in error cases)
-      const responseText = response.text || "No response content from model";
-      
-      // Create a message object with a content property that contains the response text
-      const messageWithContent = {
-        content: responseText,
-        response_data: response
-      };
-      
-      const newChat = {
-        id: Date.now(),
-        model: selectedModel,
-        modelName: modelInfo?.name || 'Unknown Model',
-        timestamp: new Date(),
-        messages: [messageWithContent], // Use the formatted message
-        config: {
-          temperature,
-          maxTokens,
-          topP: 1.0,
-          topK: 1.0
+      try {
+        // Find the model info to get the name
+        const modelInfo = models.find(m => m.id === selectedModel);
+        
+        // Collect all messages for this conversation
+        const messages = [
+          // User message
+          {
+            role: 'user',
+            content: inputText,
+            message_metadata: null
+          },
+          // Assistant (model) message
+          {
+            role: 'assistant',
+            content: response.text || "No response content from model",
+            message_metadata: {
+              tokens: response.usage,
+              latency_ms: response.latency_ms,
+              cost: response.cost
+            }
+          }
+        ];
+        
+        // If there's a system prompt, include it
+        if (systemPrompt && systemPrompt.trim()) {
+          messages.unshift({
+            role: 'system',
+            content: systemPrompt,
+            message_metadata: null
+          });
         }
-      };
-      
-      console.log('Saving chat to history:', newChat);
-      setChatHistory(prev => [newChat, ...prev]);
+        
+        // Create the chat object to save to the database
+        const chatData = {
+          system_prompt: systemPrompt,
+          model_id: selectedModel,
+          model_name: modelInfo?.name || 'Unknown Model',
+          model_provider: modelInfo?.provider || 'unknown',
+          configuration: {
+            temperature,
+            maxTokens,
+            topP: 1.0,
+            topK: 1.0
+          },
+          messages: messages
+        };
+        
+        console.log('Saving chat to database:', chatData);
+        
+        // Save to database
+        try {
+          const apiResponse = await chatsApi.create(chatData);
+          console.log('Save chat response:', apiResponse);
+          
+          // Refresh the history list
+          fetchChatHistory();
+          
+          // Set the newly created chat as the selected one
+          if (apiResponse.data && apiResponse.data.id) {
+            setSelectedChatId(apiResponse.data.id);
+          }
+        } catch (saveError) {
+          console.error('Error details:', {
+            message: saveError.message,
+            response: saveError.response?.data,
+            status: saveError.response?.status,
+            config: saveError.config
+          });
+          throw saveError;
+        }
+      } catch (err) {
+        console.error('Error saving chat to history:', err);
+        setError('Failed to save chat to history');
+      }
     }
   };
 
-  const loadConversationFromHistory = (chatId) => {
-    const selectedChat = chatHistory.find(chat => chat.id === chatId);
-    if (selectedChat) {
-      // Set the conversation details from history
-      setInputText('');
-      setSelectedModel(selectedChat.model);
-      setTemperature(selectedChat.config.temperature);
-      setMaxTokens(selectedChat.config.maxTokens);
+  const loadConversationFromHistory = async (chatId) => {
+    try {
+      setLoading(true);
       
-      // If there's a message with content, display it
-      if (selectedChat.messages && selectedChat.messages.length > 0) {
-        const firstMessage = selectedChat.messages[0];
+      // Fetch the specific chat from the database
+      const response = await chatsApi.getById(chatId);
+      
+      if (response.data) {
+        const chat = response.data;
         
-        // Set the response if available
-        if (firstMessage.response_data) {
-          setResponse(firstMessage.response_data);
-        } 
-        // Otherwise create a simple response object with the content
-        else if (firstMessage.content) {
-          setResponse({
-            text: firstMessage.content,
-            model: selectedChat.model,
-            usage: { total_tokens: 0 },
-            latency_ms: 0,
-            cost: 0
-          });
+        // Set the conversation details from history
+        setSystemPrompt(chat.system_prompt || '');
+        setSelectedModel(chat.model_id);
+        
+        // Set configuration values
+        if (chat.configuration) {
+          setTemperature(chat.configuration.temperature || 0.7);
+          setMaxTokens(chat.configuration.maxTokens || 1000);
         }
+        
+        // Get the user message (if available)
+        const userMessage = chat.messages.find(msg => msg.role === 'user');
+        if (userMessage) {
+          setInputText(userMessage.content);
+        } else {
+          setInputText('');
+        }
+        
+        // Get the assistant message (if available)
+        const assistantMessage = chat.messages.find(msg => msg.role === 'assistant');
+        if (assistantMessage) {
+          // Recreate the response object
+          setResponse({
+            text: assistantMessage.content,
+            model: chat.model_id,
+            usage: assistantMessage.message_metadata?.tokens || { total_tokens: 0 },
+            latency_ms: assistantMessage.message_metadata?.latency_ms || 0,
+            cost: assistantMessage.message_metadata?.cost || 0
+          });
+        } else {
+          setResponse(null);
+        }
+        
+        setSelectedChatId(chatId);
+        setActiveTab('playground');
       }
-      
-      setSelectedChatId(chatId);
-      setActiveTab('playground');
+    } catch (err) {
+      console.error('Error loading chat:', err);
+      setError('Failed to load chat');
+    } finally {
+      setLoading(false);
     }
   };
 
   const startNewConversation = () => {
     setInputText('');
+    setSystemPrompt('');
+    setResponse(null);
     setSelectedChatId(null);
+  };
+
+  const deleteConversation = async (chatId) => {
+    try {
+      await chatsApi.delete(chatId);
+      
+      // If the deleted chat was selected, clear the selection
+      if (selectedChatId === chatId) {
+        startNewConversation();
+      }
+      
+      // Refresh the history list
+      fetchChatHistory();
+    } catch (err) {
+      console.error('Error deleting chat:', err);
+      setError('Failed to delete chat');
+    }
+  };
+
+  // Enhanced function to clear all history
+  const clearAllHistory = async () => {
+    if (window.confirm('Are you sure you want to clear all conversation history? This cannot be undone.')) {
+      try {
+        // Delete all chats one by one
+        const deletePromises = chatHistory.map(chat => chatsApi.delete(chat.id));
+        await Promise.all(deletePromises);
+        
+        // Refresh the history
+        fetchChatHistory();
+        
+        // Clear current selection
+        startNewConversation();
+      } catch (err) {
+        console.error('Error clearing chat history:', err);
+        setError('Failed to clear chat history');
+      }
+    }
   };
 
   const handleSubmit = async () => {
@@ -512,8 +591,8 @@ const Playground = () => {
         
         if (response.data) {
           setResponse(response.data);
-          // Add to history when successful
-          saveConversationToHistory();
+          // Instead of the previous implementation, use our new function to save to database
+          await saveConversationToHistory();
         }
       } catch (apiError) {
         console.error('Error using modelsApi, falling back to direct fetch:', apiError);
@@ -536,8 +615,8 @@ const Playground = () => {
         
         console.log('Model fetch response:', data);
         setResponse(data);
-        // Add to history when successful
-        saveConversationToHistory();
+        // Save to database
+        await saveConversationToHistory();
       }
     } catch (error) {
       console.error('Error running model:', error);
@@ -588,14 +667,6 @@ const Playground = () => {
       minimumFractionDigits: 6,
       maximumFractionDigits: 6
     }).format(cost);
-  };
-
-  // Enhanced function to clear all history
-  const clearAllHistory = () => {
-    if (window.confirm('Are you sure you want to clear all conversation history? This cannot be undone.')) {
-      setChatHistory([]);
-      localStorage.removeItem('langchef_chat_history');
-    }
   };
 
   if (authLoading) {
@@ -649,7 +720,11 @@ const Playground = () => {
           </Box>
           
           <List sx={{ overflow: 'auto' }}>
-            {chatHistory.length > 0 ? (
+            {loadingHistory ? (
+              <Box sx={{ p: 3, display: 'flex', justifyContent: 'center' }}>
+                <CircularProgress size={24} />
+              </Box>
+            ) : chatHistory.length > 0 ? (
               chatHistory.map((chat) => (
                 <ListItem 
                   key={chat.id} 

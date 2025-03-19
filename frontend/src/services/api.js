@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Create axios instance with base URL
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8001',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -15,7 +15,7 @@ api.interceptors.request.use(
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
-    console.log('API Request:', config.method.toUpperCase(), config.url, config.headers);
+    console.log('API Request:', config.method.toUpperCase(), config.url, config.data, config.headers);
     return config;
   },
   (error) => {
@@ -27,14 +27,15 @@ api.interceptors.request.use(
 // Add response interceptor for debugging
 api.interceptors.response.use(
   (response) => {
-    console.log('API Response:', response.status, response.config.url);
+    console.log('API Response:', response.status, response.config.url, response.data);
     return response;
   },
   (error) => {
     console.error('API Response Error:', 
       error.response?.status, 
       error.response?.config?.url, 
-      error.response?.data
+      error.response?.data,
+      error.message
     );
     return Promise.reject(error);
   }
@@ -44,6 +45,16 @@ api.interceptors.response.use(
 export const modelsApi = {
   getAvailable: () => api.get('/api/models/available'),
   runPlayground: (data) => api.post('/api/models/playground/run', data),
+};
+
+// Chats API
+export const chatsApi = {
+  getAll: (params) => api.get('/api/chats', { params }),
+  getById: (id) => api.get(`/api/chats/${id}`),
+  create: (data) => api.post('/api/chats', data),
+  update: (id, data) => api.put(`/api/chats/${id}`, data),
+  delete: (id) => api.delete(`/api/chats/${id}`),
+  addMessage: (chatId, message) => api.post(`/api/chats/${chatId}/messages`, message),
 };
 
 // Prompts API
@@ -135,6 +146,7 @@ const apiServices = {
   traces: tracesApi,
   metrics: metricsApi,
   models: modelsApi,
+  chats: chatsApi,
 };
 
 // Export the combined API object

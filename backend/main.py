@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
 
-from .api.routes import prompts, datasets, experiments, traces, metrics, auth, models
+from .api.routes import prompts, datasets, experiments, traces, metrics, auth, models, chats
 from .config import settings
 
 # Configure logging
@@ -39,6 +39,7 @@ app.include_router(traces.router, prefix="/api/traces", tags=["traces"])
 app.include_router(metrics.router, prefix="/api/metrics", tags=["metrics"])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(models.router, prefix="/api/models", tags=["models"])
+app.include_router(chats.router, prefix="/api/chats", tags=["chats"])
 
 # For backward compatibility with existing code - add alternative routes
 app.include_router(prompts.router, prefix="/prompts", tags=["prompts-alt"])
