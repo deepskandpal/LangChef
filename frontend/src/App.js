@@ -20,6 +20,9 @@ import TraceDetail from './pages/TraceDetail';
 import Login from './pages/Login';
 import NotFound from './pages/NotFound';
 
+// Agent Flow Builder
+import AgentFlowCanvas from './components/AgentBuilder/AgentFlowCanvas';
+
 // Context providers
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -44,6 +47,7 @@ function App() {
               <Route path="experiments" element={<Experiments />} />
               <Route path="experiments/:id" element={<ExperimentDetail />} />
               <Route path="playground" element={<Playground />} />
+              <Route path="agent-builder" element={<AgentFlowCanvas />} />
               <Route path="traces" element={<Traces />} />
               <Route path="traces/:id" element={<TraceDetail />} />
               <Route path="*" element={<NotFound />} />

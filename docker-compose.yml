@@ -48,19 +48,42 @@ services:
     command: python -m backend.main
 
   frontend:
-    image: node:18-alpine
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.dev
     container_name: langchef_frontend
-    working_dir: /app
     volumes:
-      - ./frontend:/app
+      # Development hot-reloading for frontend code
+      - ./frontend/src:/app/src
+      # Make sure our custom files don't get overwritten by volume mounts
+      - ./src/components/AgentBuilder:/app/src/components/AgentBuilder
+      - ./src/components/AgentBuilder/nodes:/app/src/components/AgentBuilder/nodes
     ports:
       - "3001:3000"
     depends_on:
       - backend
+      - agent-api
     environment:
       - NODE_ENV=development
       - REACT_APP_API_URL=http://localhost:8001
-    command: sh -c "cd /app && npm install --legacy-peer-deps && npm start"
+      - REACT_APP_AGENT_API_URL=http://localhost:5001
+
+  agent-api:
+    build:
+      context: .
+      dockerfile: agent-api/Dockerfile
+    container_name: langchef_agent_api
+    volumes:
+      - ./src/models:/app/models
+      - ./src/controllers:/app/controllers
+      - ./src/routes:/app/routes
+      - ./src/server.js:/app/server.js
+    ports:
+      - "5001:5000"
+    environment:
+      - NODE_ENV=development
+      - PORT=5000
+      - CORS_ORIGIN=http://localhost:3001
 
 volumes:
   postgres_data: 

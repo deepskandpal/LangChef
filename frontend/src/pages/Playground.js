@@ -283,8 +283,8 @@ const Playground = () => {
           window.location.href = '/login';
         }, 3000);
       } else {
-        setError(isAwsCredentialError(err.message || err.response?.data?.detail) ?
-          'AWS credentials are missing or invalid. Check your settings.' :
+      setError(isAwsCredentialError(err.message || err.response?.data?.detail) ?
+        'AWS credentials are missing or invalid. Check your settings.' :
           'Failed to fetch available models. Please try refreshing the page.');
       }
       
@@ -380,13 +380,13 @@ const Playground = () => {
       setLoading(false);
       return;
     }
-
+    
     if (!selectedModel) {
       setError('Please select a model to continue.');
       setLoading(false);
       return;
     }
-
+    
     try {
       // Find the selected model info
       const modelInfo = models.find(m => m.id === selectedModel);
@@ -430,8 +430,8 @@ const Playground = () => {
           console.log('%c STORING RAW RESPONSE FOR DEBUGGING', 'background: teal; color: white; font-size: 14px', response.data);
           
           // Set the response state
-          setResponse(response.data);
-          
+      setResponse(response.data);
+      
           // Make sure the response is properly set before saving to history
           setTimeout(async () => {
             try {
@@ -503,12 +503,12 @@ const Playground = () => {
         if (isAwsExpired) {
           setError('Your AWS session has expired. Please log in again to refresh your credentials.');
         }
-        
-        // Redirect to login after a short delay
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 3000);
-      } else {
+          
+          // Redirect to login after a short delay
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 3000);
+        } else {
         setError(`Error: ${error.message || 'Failed to run model. Please try again.'}`);
       }
     } finally {
@@ -660,7 +660,7 @@ const Playground = () => {
             setSelectedChatId(data.id);
           }
           return; // Early return if successful
-        } else {
+      } else {
           const errorText = await directResponse.text();
           console.error('%c DIRECT API CALL FAILED', 'background: red; color: white', {
             status: directResponse.status,
@@ -837,7 +837,7 @@ const Playground = () => {
       }
     }
   };
-
+  
   // Function to format cost as USD
   const formatCost = (cost) => {
     return new Intl.NumberFormat('en-US', {
@@ -1338,15 +1338,15 @@ const Playground = () => {
                     <CardContent>
                       <Box sx={{ mb: 2 }}>
                         {response.text && response.text.trim() ? (
-                          <ReactMarkdown>
-                            {response.text}
-                          </ReactMarkdown>
+                        <ReactMarkdown>
+                      {response.text}
+                    </ReactMarkdown>
                         ) : (
                           <Typography color="error">
                             No response content was returned from the model. Please try again with a different prompt or model.
                           </Typography>
                         )}
-                      </Box>
+                  </Box>
                   
                       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 2 }}>
                         <Chip 

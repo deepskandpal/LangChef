@@ -27,7 +27,8 @@ import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
   Brightness4 as Brightness4Icon,
-  Brightness7 as Brightness7Icon
+  Brightness7 as Brightness7Icon,
+  Build as BuildIcon
 } from '@mui/icons-material';
 import { Link, useLocation } from 'react-router-dom';
 import { useThemeContext } from '../contexts/ThemeContext';
@@ -41,6 +42,7 @@ const menuItems = [
   { text: 'Datasets', icon: <StorageIcon />, path: '/datasets' },
   { text: 'Experiments', icon: <ScienceIcon />, path: '/experiments' },
   { text: 'Playground', icon: <PlayArrowIcon />, path: '/playground' },
+  { text: 'Agent Builder', icon: <BuildIcon />, path: '/agent-builder' },
   { text: 'Traces', icon: <TimelineIcon />, path: '/traces' },
 ];
 

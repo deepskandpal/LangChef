@@ -1,15 +1,42 @@
 FROM node:18-alpine
 
-WORKDIR /app/frontend
+WORKDIR /app
 
 # Copy package.json and package-lock.json
 COPY frontend/package*.json ./
 
-# Install dependencies and react-scripts globally
-RUN npm install && npm install -g react-scripts
+# Install dependencies including Agent Flow Builder requirements
+RUN npm install --legacy-peer-deps && \
+    npm install reactflow @emotion/react @emotion/styled --legacy-peer-deps && \
+    npm install -g react-scripts
 
 # Copy the frontend code
 COPY frontend/ ./
+
+# Create necessary directories
+RUN mkdir -p src/components/AgentBuilder/nodes src/models src/controllers src/routes docs
+
+# Copy specific Agent Builder files
+COPY src/components/AgentBuilder/AgentFlowCanvas.jsx src/components/AgentBuilder/
+COPY src/components/AgentBuilder/ComponentPanel.jsx src/components/AgentBuilder/
+COPY src/components/AgentBuilder/PropertiesPanel.jsx src/components/AgentBuilder/
+COPY src/components/AgentBuilder/TestingConsole.jsx src/components/AgentBuilder/
+COPY src/components/AgentBuilder/nodes/LLMNode.jsx src/components/AgentBuilder/nodes/
+COPY src/components/AgentBuilder/nodes/SearchToolNode.jsx src/components/AgentBuilder/nodes/
+
+# Add Agent Builder to the main navigation
+# This modifies the Layout.js file to include the Agent Builder entry
+RUN sed -i 's/import {/import {\n  Build as BuildIcon,/g' src/components/Layout.js && \
+    sed -i 's/PlayArrow as PlayArrowIcon,/PlayArrow as PlayArrowIcon,\n  Build as BuildIcon,/g' src/components/Layout.js && \
+    sed -i 's/{ text: '\''Playground'\'', icon: <PlayArrowIcon \/>, path: '\''\/playground'\'' },/{ text: '\''Playground'\'', icon: <PlayArrowIcon \/>, path: '\''\/playground'\'' },\n  { text: '\''Agent Builder'\'', icon: <BuildIcon \/>, path: '\''\/agent-builder'\'' },/g' src/components/Layout.js
+
+# Add Agent Builder to the main routes
+# This modifies the App.js file to include the Agent Builder route
+RUN sed -i 's/import NotFound from '\''\.\/pages\/NotFound'\'';/import NotFound from '\''\.\/pages\/NotFound'\'';\n\n\/\/ Agent Flow Builder\nimport AgentFlowCanvas from '\''\.\/components\/AgentBuilder\/AgentFlowCanvas'\'';/g' src/App.js && \
+    sed -i 's/<Route path="playground" element={<Playground \/>} \/>/<Route path="playground" element={<Playground \/>} \/>\n              <Route path="agent-builder" element={<AgentFlowCanvas \/>} \/>/g' src/App.js
+
+# Copy documentation
+COPY docs/agent-flow-builder.md docs/
 
 # Expose the port
 EXPOSE 3000

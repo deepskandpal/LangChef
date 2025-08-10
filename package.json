@@ -1,6 +1,9 @@
 {
   "dependencies": {
     "@mui/lab": "^6.0.0-beta.29",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
     "node-fetch": "^2.7.0",
     "react-json-view": "^1.21.3"
   }
