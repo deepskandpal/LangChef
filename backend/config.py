@@ -18,8 +18,14 @@ class Settings(BaseSettings):
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     
     # Security
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-for-jwt")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24 hours
+    
+    def model_post_init(self, __context) -> None:
+        """Validate settings after initialization."""
+        # Only validate SECRET_KEY if it's explicitly set to the default placeholder
+        if self.SECRET_KEY == "your-secret-key-for-jwt":
+            raise ValueError("SECRET_KEY must be set to a secure random value")
     
     # OpenAI
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")

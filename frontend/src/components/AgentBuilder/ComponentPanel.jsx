@@ -11,13 +11,25 @@ const ComponentPanel = () => {
       <h3>Components</h3>
       
       <div className="component-section">
+        <h4>Agents</h4>
+        <div 
+          className="component-item"
+          draggable
+          onDragStart={(event) => onDragStart(event, 'agent')}
+        >
+          <div className="component-icon">🤖</div>
+          <div className="component-label">Tool-calling Agent</div>
+        </div>
+      </div>
+      
+      <div className="component-section">
         <h4>Language Models</h4>
         <div 
           className="component-item"
           draggable
           onDragStart={(event) => onDragStart(event, 'llm')}
         >
-          <div className="component-icon">🤖</div>
+          <div className="component-icon">🧠</div>
           <div className="component-label">LLM</div>
         </div>
       </div>
@@ -31,6 +43,34 @@ const ComponentPanel = () => {
         >
           <div className="component-icon">🔍</div>
           <div className="component-label">Search Tool</div>
+        </div>
+        <div 
+          className="component-item"
+          draggable
+          onDragStart={(event) => onDragStart(event, 'calculator')}
+        >
+          <div className="component-icon">🧮</div>
+          <div className="component-label">Calculator</div>
+        </div>
+      </div>
+      
+      <div className="component-section">
+        <h4>I/O</h4>
+        <div 
+          className="component-item"
+          draggable
+          onDragStart={(event) => onDragStart(event, 'chatInput')}
+        >
+          <div className="component-icon">💬</div>
+          <div className="component-label">Chat Input</div>
+        </div>
+        <div 
+          className="component-item"
+          draggable
+          onDragStart={(event) => onDragStart(event, 'chatOutput')}
+        >
+          <div className="component-icon">📤</div>
+          <div className="component-label">Chat Output</div>
         </div>
       </div>
       

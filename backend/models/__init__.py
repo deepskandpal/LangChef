@@ -1,10 +1,10 @@
-from .base import Base, BaseModel
-from .prompt import Prompt, PromptVersion
-from .dataset import Dataset, DatasetItem, DatasetVersion, DatasetType
-from .experiment import Experiment, ExperimentResult, ExperimentMetric, ModelProvider, ExperimentStatus
-from .trace import Trace, Span, TraceStatus, SpanType
-from .user import User
-from .chat import Chat, ChatMessage
+from backend.models.base import Base, BaseModel
+from backend.models.prompt import Prompt, PromptVersion
+from backend.models.dataset import Dataset, DatasetItem, DatasetVersion, DatasetType
+from backend.models.experiment import Experiment, ExperimentResult, ExperimentMetric, ModelProvider, ExperimentStatus
+from backend.models.trace import Trace, Span, TraceStatus, SpanType
+from backend.models.user import User
+from backend.models.chat import Chat, ChatMessage
 
 __all__ = [
     "Base",

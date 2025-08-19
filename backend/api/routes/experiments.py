@@ -1,54 +1,72 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, text
 from typing import List, Optional, Dict, Any
 import time
 import json
 from datetime import datetime
-from ..schemas import (
+
+from backend.api.schemas import (
     ExperimentCreate, ExperimentUpdate, ExperimentResponse,
     ExperimentResultCreate, ExperimentResultResponse,
     ExperimentMetricCreate, ExperimentMetricResponse,
     RunExperiment
 )
-from ...models import (
+from backend.models import (
     Experiment, ExperimentResult, ExperimentMetric, 
     ExperimentStatus, Prompt, Dataset, DatasetItem
 )
-from ...services.llm_service import get_llm_service
-from ...utils import get_db
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql import text
+from backend.services.llm_service import get_llm_service
+from backend.database import get_db
+from backend.core.logging import get_logger
 
+logger = get_logger(__name__)
 router = APIRouter()
 
 @router.post("/", response_model=ExperimentResponse, status_code=status.HTTP_201_CREATED)
-def create_experiment(experiment: ExperimentCreate, db: Session = Depends(get_db)):
+async def create_experiment(experiment: ExperimentCreate, db: AsyncSession = Depends(get_db)):
     """Create a new experiment."""
-    # Check if prompt exists
-    db_prompt = db.query(Prompt).filter(Prompt.id == experiment.prompt_id).first()
-    if db_prompt is None:
-        raise HTTPException(status_code=404, detail="Prompt not found")
+    logger.info(f"Creating experiment: {experiment.name}")
     
-    # Check if dataset exists
-    db_dataset = db.query(Dataset).filter(Dataset.id == experiment.dataset_id).first()
-    if db_dataset is None:
-        raise HTTPException(status_code=404, detail="Dataset not found")
-    
-    db_experiment = Experiment(
-        name=experiment.name,
-        description=experiment.description,
-        prompt_id=experiment.prompt_id,
-        dataset_id=experiment.dataset_id,
-        model_provider=experiment.model_provider,
-        model_name=experiment.model_name,
-        model_config=experiment.model_config,
-        metadata=experiment.metadata
-    )
-    db.add(db_experiment)
-    db.commit()
-    db.refresh(db_experiment)
-    
-    return db_experiment
+    try:
+        # Check if prompt exists
+        prompt_result = await db.execute(select(Prompt).where(Prompt.id == experiment.prompt_id))
+        db_prompt = prompt_result.scalar_one_or_none()
+        if db_prompt is None:
+            logger.warning(f"Prompt not found: {experiment.prompt_id}")
+            raise HTTPException(status_code=404, detail="Prompt not found")
+        
+        # Check if dataset exists
+        dataset_result = await db.execute(select(Dataset).where(Dataset.id == experiment.dataset_id))
+        db_dataset = dataset_result.scalar_one_or_none()
+        if db_dataset is None:
+            logger.warning(f"Dataset not found: {experiment.dataset_id}")
+            raise HTTPException(status_code=404, detail="Dataset not found")
+        
+        db_experiment = Experiment(
+            name=experiment.name,
+            description=experiment.description,
+            prompt_id=experiment.prompt_id,
+            dataset_id=experiment.dataset_id,
+            model_provider=experiment.model_provider,
+            model_name=experiment.model_name,
+            model_config=experiment.llm_config,
+            metadata=experiment.metadata
+        )
+        db.add(db_experiment)
+        await db.flush()
+        
+        logger.info(f"Created experiment with ID: {db_experiment.id}")
+        return db_experiment
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating experiment: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create experiment"
+        )
 
 @router.get("/", response_model=List[ExperimentResponse])
 async def get_experiments(

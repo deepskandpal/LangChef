@@ -1,6 +1,5 @@
 import boto3
 import json
-import logging
 import time
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Any, Union
@@ -11,12 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from uuid import uuid4
 
-from ..config import settings
-from ..models import User
-from ..database import get_db
+from backend.config import settings
+from backend.models import User
+from backend.database import get_db
+from backend.core.logging import get_logger
 
 # Configure logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # OAuth2 scheme for token authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/token")

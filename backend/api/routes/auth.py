@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..schemas.auth import (
+from backend.api.schemas.auth import (
     Token, 
     UserResponse
 )
-from ...services.auth_service import AWSSSOService, get_current_user
-from ...database import get_db
-from ...models import User
+from backend.services.auth_service import AWSSSOService, get_current_user
+from backend.database import get_db
+from backend.models import User
 # Import directly from the tokens.py file to avoid using the models directory
 from pydantic import BaseModel
 from typing import Dict, Optional, List
@@ -48,9 +48,9 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     user: UserResponse
 
-import logging
+from backend.core.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -150,7 +150,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
 @router.post("/refresh", response_model=Token)
 async def refresh_token(current_user: User = Depends(get_current_user)):
     """Refresh token."""
-    from ...services.auth_service import create_token
+    from backend.services.auth_service import create_token
     
     # Create new token
     token_data = {

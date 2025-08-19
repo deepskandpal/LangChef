@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from ...models.experiment import ModelProvider, ExperimentStatus
+from backend.models.experiment import ModelProvider, ExperimentStatus
 
 class ExperimentBase(BaseModel):
     name: str
@@ -10,7 +10,7 @@ class ExperimentBase(BaseModel):
     dataset_id: int
     model_provider: ModelProvider
     model_name: str
-    model_config: Optional[Dict[str, Any]] = None
+    llm_config: Optional[Dict[str, Any]] = Field(None, alias="model_config")
     metadata: Optional[Dict[str, Any]] = None
 
 class ExperimentCreate(ExperimentBase):
@@ -19,7 +19,7 @@ class ExperimentCreate(ExperimentBase):
 class ExperimentUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    model_config: Optional[Dict[str, Any]] = None
+    llm_config: Optional[Dict[str, Any]] = Field(None, alias="model_config")
     status: Optional[ExperimentStatus] = None
     metadata: Optional[Dict[str, Any]] = None
 
@@ -44,7 +44,7 @@ class ExperimentResultResponse(ExperimentResultBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class ExperimentMetricBase(BaseModel):
     name: str
@@ -61,7 +61,7 @@ class ExperimentMetricResponse(ExperimentMetricBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class ExperimentResponse(ExperimentBase):
     id: int
@@ -72,7 +72,7 @@ class ExperimentResponse(ExperimentBase):
     metrics: Optional[List[ExperimentMetricResponse]] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class RunExperiment(BaseModel):
     experiment_id: int 

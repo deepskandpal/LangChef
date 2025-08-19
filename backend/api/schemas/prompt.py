@@ -32,7 +32,7 @@ class PromptVersionResponse(BaseModel):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class PromptResponse(PromptBase):
     id: int
@@ -43,4 +43,4 @@ class PromptResponse(PromptBase):
     versions: Optional[List[PromptVersionResponse]] = None
 
     class Config:
-        orm_mode = True 
+        from_attributes = True 

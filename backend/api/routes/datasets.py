@@ -4,14 +4,15 @@ from typing import List, Optional
 import json
 import csv
 import io
-from ..schemas import (
+from backend.api.schemas import (
     DatasetCreate, DatasetUpdate, DatasetResponse,
     DatasetItemCreate, DatasetItemResponse,
     DatasetVersionCreate, DatasetVersionResponse,
     DatasetUpload
 )
-from ...models import Dataset, DatasetItem, DatasetVersion, DatasetType
-from ...utils import get_db
+from backend.models import Dataset, DatasetItem, DatasetVersion, DatasetType, User
+from backend.database import get_db
+from backend.services.auth_service import get_current_user
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 from fastapi import Form
@@ -19,7 +20,11 @@ from fastapi import Form
 router = APIRouter()
 
 @router.post("/", response_model=DatasetResponse, status_code=status.HTTP_201_CREATED)
-async def create_dataset(dataset: DatasetCreate, db: AsyncSession = Depends(get_db)):
+async def create_dataset(
+    dataset: DatasetCreate, 
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Create a new dataset."""
     try:
         # Convert dataset_type to lowercase string to avoid enum issues
@@ -737,10 +742,18 @@ async def upload_dataset_file(
         metadata_json = json.dumps({})  # Ensure valid JSON for metadata
         examples_json = json.dumps([])  # Empty examples array
         
-        # Create SQL query with enum value directly embedded
-        query = text(f"""
+        # Create SQL query with parameterized enum casting
+        # Validate file_type_lower against allowed values to prevent injection
+        allowed_types_enum = {"text", "json", "csv", "jsonl", "custom"}
+        if file_type_lower not in allowed_types_enum:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid file_type. Must be one of: {', '.join(allowed_types_enum)}"
+            )
+        
+        query = text("""
         INSERT INTO datasets (name, description, type, version, is_active, meta_data, examples, created_at, updated_at)
-        VALUES (:name, :description, '{file_type_lower}'::datasettype, :version, :is_active, :meta_data, :examples, now(), now())
+        VALUES (:name, :description, :file_type::datasettype, :version, :is_active, :meta_data, :examples, now(), now())
         RETURNING id, created_at, updated_at
         """)
         
@@ -750,6 +763,7 @@ async def upload_dataset_file(
                 {
                     "name": name, 
                     "description": description, 
+                    "file_type": file_type_lower,
                     "version": 1, 
                     "is_active": True, 
                     "meta_data": metadata_json,
@@ -1046,8 +1060,8 @@ async def upload_csv_file(
         metadata_json = json.dumps({})  # Ensure valid JSON for metadata
         examples_json = json.dumps([])  # Empty examples array
         
-        # Create SQL query with enum value directly embedded
-        query = text(f"""
+        # Create SQL query with safe parameterized approach
+        query = text("""
         INSERT INTO datasets (name, description, type, version, is_active, meta_data, examples, created_at, updated_at)
         VALUES (:name, :description, 'csv'::datasettype, :version, :is_active, :meta_data, :examples, now(), now())
         RETURNING id, created_at, updated_at

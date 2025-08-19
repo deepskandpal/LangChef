@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, Text, Integer, ForeignKey, JSON, Boolean, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from .base import Base, BaseModel
+from backend.models.base import Base, BaseModel
 from uuid import uuid4
 
 class Chat(Base, BaseModel):

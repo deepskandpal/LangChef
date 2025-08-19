@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List, Union
 from datetime import datetime
-from ...models.dataset import DatasetType
+from backend.models.dataset import DatasetType
 from pydantic import validator
 
 class DatasetBase(BaseModel):

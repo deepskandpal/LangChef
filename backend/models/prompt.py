@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Text, Integer, ForeignKey, JSON, Boolean
 from sqlalchemy.orm import relationship
-from .base import Base, BaseModel
+from backend.models.base import Base, BaseModel
 
 class Prompt(Base, BaseModel):
     __tablename__ = "prompts"

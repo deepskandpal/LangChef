@@ -2,16 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Dict, Any, Optional
 import boto3
-import logging
 import re
 
-from ...utils import get_db
-from ...services.auth_service import get_current_user, AWSSSOService, validate_aws_credentials
-from ...models import User
-from ...config import settings
+from backend.database import get_db
+from backend.services.auth_service import get_current_user, AWSSSOService, validate_aws_credentials
+from backend.models import User
+from backend.config import settings
+from backend.core.logging import get_logger
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 @router.get("/available", response_model=List[Dict[str, Any]])
 async def get_available_models(

@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, Boolean, DateTime, Text
 from sqlalchemy.sql import func
 from uuid import uuid4
 
-from .base import Base
+from backend.models.base import Base
 
 
 class User(Base):

@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from ...models.trace import TraceStatus, SpanType
+from backend.models.trace import TraceStatus, SpanType
 
 class TraceBase(BaseModel):
     name: str
@@ -44,7 +44,7 @@ class SpanResponse(SpanBase):
     updated_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class TraceResponse(TraceBase):
     id: int
@@ -57,4 +57,4 @@ class TraceResponse(TraceBase):
     spans: Optional[List[SpanResponse]] = None
 
     class Config:
-        orm_mode = True 
+        from_attributes = True 

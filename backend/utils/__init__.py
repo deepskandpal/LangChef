@@ -1,4 +1,4 @@
 # Utils module
-from .database import get_db
+from backend.database import get_db
 
 __all__ = ["get_db"] 

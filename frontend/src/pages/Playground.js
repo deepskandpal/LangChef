@@ -41,6 +41,275 @@ import { Link as RouterLink } from 'react-router-dom';
 // API URL configuration - using the same base URL as in api.js
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001';
 
+// ChatHistory component extracted from Playground
+const PlaygroundChatHistory = ({ 
+  chatHistory, 
+  loadingHistory, 
+  selectedChatId, 
+  loadConversationFromHistory, 
+  startNewConversation 
+}) => (
+  <Box sx={{ 
+    width: 280, 
+    flexShrink: 0, 
+    borderRight: '1px solid #e0e0e0',
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    overflow: 'auto',
+    backgroundColor: '#f8f8f8'
+  }}>
+    <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0' }}>
+      <Typography variant="h6" gutterBottom>
+        Chat History
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        Your previous conversations
+      </Typography>
+    </Box>
+    
+    <List sx={{ overflow: 'auto' }}>
+      {loadingHistory ? (
+        <Box sx={{ p: 3, display: 'flex', justifyContent: 'center' }}>
+          <CircularProgress size={24} />
+        </Box>
+      ) : chatHistory.length > 0 ? (
+        chatHistory.map((chat) => (
+          <ListItem 
+            key={chat.id} 
+            button 
+            onClick={() => loadConversationFromHistory(chat.id)}
+            selected={selectedChatId === chat.id}
+            sx={{ 
+              borderBottom: '1px solid #eaeaea',
+              '&:hover': { backgroundColor: '#f0f0f0' },
+              backgroundColor: selectedChatId === chat.id ? '#e3f2fd' : 'transparent'
+            }}
+          >
+            <Box sx={{ width: '100%' }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 'medium' }}>
+                {chat.messages[0]?.content?.substring(0, 30)}...
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                Model: {chat.modelName}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {new Date(chat.created_at || chat.updated_at).toLocaleString()}
+              </Typography>
+            </Box>
+          </ListItem>
+        ))
+      ) : (
+        <Box sx={{ p: 3, textAlign: 'center' }}>
+          <Typography variant="body2" color="text.secondary">
+            No conversations yet.
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Start chatting to create history.
+          </Typography>
+        </Box>
+      )}
+    </List>
+    
+    <Box sx={{ p: 2, mt: 'auto' }}>
+      <Button 
+        variant="contained" 
+        fullWidth 
+        onClick={startNewConversation}
+        sx={{ mb: 1 }}
+      >
+        New Conversation
+      </Button>
+    </Box>
+  </Box>
+);
+
+// Model Configuration component extracted from Playground
+const PlaygroundModelConfig = ({
+  error,
+  models,
+  selectedModel,
+  handleModelChange,
+  temperature,
+  handleTemperatureChange,
+  maxTokens,
+  handleMaxTokensChange,
+  randomnessExpanded,
+  setRandomnessExpanded,
+  lengthExpanded,
+  setLengthExpanded
+}) => (
+  <Box sx={{ 
+    width: 280, 
+    flexShrink: 0, 
+    borderRight: '1px solid #e0e0e0',
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    overflow: 'auto'
+  }}>
+    <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0' }}>
+      <Typography variant="h6" gutterBottom>
+        Configurations
+      </Typography>
+      {error && (
+        <Alert 
+          severity={isAwsCredentialError(error) ? "warning" : "error"} 
+          sx={{ my: 2 }}
+          action={
+            isAwsCredentialError(error) && (
+              <Button 
+                color="inherit" 
+                size="small" 
+                component={RouterLink} 
+                to="/settings"
+              >
+                Configure AWS
+              </Button>
+            )
+          }
+        >
+          <Typography variant="body2" gutterBottom>
+            {error}
+          </Typography>
+          {isAwsCredentialError(error) && (
+            <Typography variant="caption" display="block">
+              To fix this, go to Settings and configure your AWS credentials with access to Bedrock models.
+            </Typography>
+          )}
+        </Alert>
+      )}
+    </Box>
+
+    <Box sx={{ p: 3 }}>
+      <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
+        Model
+      </Typography>
+      <FormControl fullWidth sx={{ mb: 3 }}>
+        <Select
+          value={selectedModel}
+          onChange={handleModelChange}
+          displayEmpty
+          size="small"
+        >
+          <MenuItem value="" disabled>
+            <Typography color="text.secondary">Select a model</Typography>
+          </MenuItem>
+          {Array.isArray(models) && models.map((model) => (
+            <MenuItem key={model.id} value={model.id}>
+              {model.name || model.id}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+      
+      <Divider sx={{ my: 2 }} />
+      
+      {/* Randomness Section */}
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          mb: 1,
+          cursor: 'pointer',
+        }}
+        onClick={() => setRandomnessExpanded(!randomnessExpanded)}
+      >
+        <Typography variant="subtitle1" fontWeight="medium">
+          Randomness and diversity
+        </Typography>
+        <IconButton size="small">
+          {randomnessExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+        </IconButton>
+      </Box>
+      
+      {randomnessExpanded && (
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" gutterBottom>
+            Temperature: {temperature}
+          </Typography>
+          <Slider
+            value={temperature}
+            onChange={handleTemperatureChange}
+            step={0.1}
+            min={0}
+            max={1}
+            valueLabelDisplay="auto"
+            sx={{ 
+              mb: 2,
+              '& .MuiSlider-thumb': {
+                width: 18, 
+                height: 18,
+                backgroundColor: '#1976d2',
+              },
+              '& .MuiSlider-track': {
+                backgroundColor: '#1976d2',
+              },
+              '& .MuiSlider-rail': {
+                opacity: 0.5,
+                backgroundColor: '#bfbfbf',
+              },
+            }}
+          />
+        </Box>
+      )}
+      
+      <Divider sx={{ my: 2 }} />
+      
+      {/* Length Section */}
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          mb: 1,
+          cursor: 'pointer',
+        }}
+        onClick={() => setLengthExpanded(!lengthExpanded)}
+      >
+        <Typography variant="subtitle1" fontWeight="medium">
+          Response length
+        </Typography>
+        <IconButton size="small">
+          {lengthExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+        </IconButton>
+      </Box>
+      
+      {lengthExpanded && (
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" gutterBottom>
+            Max tokens: {maxTokens}
+          </Typography>
+          <Slider
+            value={maxTokens}
+            onChange={handleMaxTokensChange}
+            step={100}
+            min={100}
+            max={4000}
+            valueLabelDisplay="auto"
+            sx={{ 
+              mb: 2,
+              '& .MuiSlider-thumb': {
+                width: 18, 
+                height: 18,
+                backgroundColor: '#1976d2',
+              },
+              '& .MuiSlider-track': {
+                backgroundColor: '#1976d2',
+              },
+              '& .MuiSlider-rail': {
+                opacity: 0.5,
+                backgroundColor: '#bfbfbf',
+              },
+            }}
+          />
+        </Box>
+      )}
+    </Box>
+  </Box>
+);
+
 // Function to determine the model region based on the model ID
 const getModelRegion = (modelId) => {
   // Default region for all models unless specified otherwise
@@ -879,79 +1148,13 @@ const Playground = () => {
         overflow: 'hidden'
       }}>
         {/* History Sidebar */}
-        <Box sx={{ 
-          width: 280, 
-          flexShrink: 0, 
-          borderRight: '1px solid #e0e0e0',
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          overflow: 'auto',
-          backgroundColor: '#f8f8f8'
-        }}>
-          <Box sx={{ p: 3, borderBottom: '1px solid #e0e0e0' }}>
-            <Typography variant="h6" gutterBottom>
-              Chat History
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Your previous conversations
-            </Typography>
-          </Box>
-          
-          <List sx={{ overflow: 'auto' }}>
-            {loadingHistory ? (
-              <Box sx={{ p: 3, display: 'flex', justifyContent: 'center' }}>
-                <CircularProgress size={24} />
-              </Box>
-            ) : chatHistory.length > 0 ? (
-              chatHistory.map((chat) => (
-                <ListItem 
-                  key={chat.id} 
-                  button 
-                  onClick={() => loadConversationFromHistory(chat.id)}
-                  selected={selectedChatId === chat.id}
-                  sx={{ 
-                    borderBottom: '1px solid #eaeaea',
-                    '&:hover': { backgroundColor: '#f0f0f0' },
-                    backgroundColor: selectedChatId === chat.id ? '#e3f2fd' : 'transparent'
-                  }}
-                >
-                  <Box sx={{ width: '100%' }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 'medium' }}>
-                      {chat.messages[0]?.content?.substring(0, 30)}...
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      Model: {chat.modelName}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {new Date(chat.created_at || chat.updated_at).toLocaleString()}
-                    </Typography>
-                  </Box>
-                </ListItem>
-              ))
-            ) : (
-              <Box sx={{ p: 3, textAlign: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  No conversations yet.
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Start chatting to create history.
-                </Typography>
-              </Box>
-            )}
-          </List>
-          
-          <Box sx={{ p: 2, mt: 'auto' }}>
-            <Button 
-              variant="contained" 
-              fullWidth 
-              onClick={startNewConversation}
-              sx={{ mb: 1 }}
-            >
-              New Conversation
-            </Button>
-          </Box>
-        </Box>
+        <PlaygroundChatHistory
+          chatHistory={chatHistory}
+          loadingHistory={loadingHistory}
+          selectedChatId={selectedChatId}
+          loadConversationFromHistory={loadConversationFromHistory}
+          startNewConversation={startNewConversation}
+        />
         
         {/* Fixed Sidebar */}
         <Box sx={{ 

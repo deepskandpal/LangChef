@@ -2,16 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from typing import List, Dict, Any, Optional
-import logging
 from datetime import datetime
 import json
 
-from ...utils import get_db
-from ...services.auth_service import get_current_user
-from ...models import User, Chat, ChatMessage
+from backend.database import get_db
+from backend.services.auth_service import get_current_user
+from backend.models import User, Chat, ChatMessage
+from backend.core.logging import get_logger
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Pydantic schemas for request/response validation
 from pydantic import BaseModel, Field

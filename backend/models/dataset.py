@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, Text, Integer, ForeignKey, JSON, Boolean, Enum
 from sqlalchemy.orm import relationship
 import enum
-from .base import Base, BaseModel
+from backend.models.base import Base, BaseModel
 
 class DatasetType(enum.Enum):
     TEXT = "text"

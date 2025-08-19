@@ -24,6 +24,8 @@ var/
 venv/
 ENV/
 .env
+.env.*
+!.env.example
 .venv/
 
 *.csv
@@ -74,9 +76,15 @@ migrations/versions/*
 htmlcov/
 .pytest_cache/
 
+# Security - Never commit sensitive files
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+secrets/
+.aws/
+aws-credentials.json
+
 # Misc
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local 
+.DS_Store 

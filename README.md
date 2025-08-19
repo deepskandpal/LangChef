@@ -1,144 +1,194 @@
-# langchef
+<div align="center">
+  <img src="lang-chef.png" alt="LangChef" width="120" height="120">
+  <h1>LangChef</h1>
+  <p><strong>End-to-end LLM workflow platform for prompt engineering, dataset management, and experimentation</strong></p>
+</div>
 
-An end-to-end LLM workflow platform for prompt engineering, dataset management, experimentation, and evaluation.
+## 🌐 Overview
 
-## Overview
+LangChef streamlines the entire lifecycle of LLM applications, from initial prompt engineering to production evaluation. Built for teams who need to iterate fast and maintain quality in their AI workflows.
 
-This platform provides a comprehensive solution for managing the entire lifecycle of LLM applications, from prompt engineering to evaluation. It's designed to help teams iterate faster, track experiments, and improve the quality of their LLM-powered applications.
+### ✨ Core Features
 
-Key features include:
+- 📝 **Prompt Management** - Create, version, and organize prompts with full lifecycle tracking
+- 📁 **Dataset Management** - Upload and manage datasets in multiple formats (JSON, CSV, JSONL)
+- 🧪 **Experimentation** - Run controlled experiments across prompts, models, and datasets
+- 🎮 **Interactive Playground** - Real-time testing environment with multiple LLM providers
+- 📈 **Performance Tracking** - Monitor latency, token usage, costs, and custom metrics
+- 🔍 **Request Tracing** - Complete observability for production LLM applications
 
-- **Prompt Management**: Create, version, and organize prompts
-- **Dataset Management**: Upload, manage, and version datasets for testing and evaluation
-- **Experimentation**: Run experiments with different prompts, models, and datasets
-- **Playground**: Interactive environment for testing prompts and models
-- **Evaluation**: Track metrics and evaluate model performance
-- **Tracing**: Monitor latency, token usage, and costs
+## 🏗️ Architecture
 
-## Architecture
+```mermaid
+graph TB
+    subgraph "Frontend (React + Material-UI)"
+        UI[User Interface]
+        PG[Playground]
+        DS[Datasets]
+        EX[Experiments]
+    end
+    
+    subgraph "Backend (FastAPI + SQLAlchemy)"
+        API[REST API]
+        AUTH[Authentication]
+        SVC[Services Layer]
+    end
+    
+    subgraph "External Services"
+        LLM[LLM Providers<br/>OpenAI, Anthropic, AWS Bedrock]
+        AWS[AWS SSO]
+    end
+    
+    subgraph "Data Layer"
+        DB[(PostgreSQL)]
+    end
+    
+    UI --> API
+    PG --> API
+    DS --> API
+    EX --> API
+    
+    API --> AUTH
+    API --> SVC
+    SVC --> DB
+    
+    AUTH --> AWS
+    SVC --> LLM
+```
 
-The platform consists of two main components:
-
-1. **Backend**: A Python FastAPI application that handles data storage, model interactions, and API endpoints
-2. **Frontend**: A React application that provides a user-friendly interface for interacting with the platform
-
-## Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
+- **Python 3.11+** & **Node.js 18+**
+- **PostgreSQL 13+** 
+- **[uv](https://github.com/astral-sh/uv)** package manager
 
-- Python 3.11+
-- Node.js 14+
-- PostgreSQL
-- [uv](https://github.com/astral-sh/uv) package manager
-
-### Installation
-
-1. Clone the repository:
+### 🐳 Docker Setup (Recommended)
 
 ```bash
+# Clone and start with Docker
 git clone https://github.com/yourusername/langchef.git
 cd langchef
+docker-compose up -d
+
+# Access at http://localhost:3000
 ```
 
-2. Set up the backend:
+### 🛠️ Manual Setup
 
+<details>
+<summary>Click to expand manual setup instructions</summary>
+
+#### Backend Setup
 ```bash
-cd langchef/backend
-# Install uv if you don't have it
+cd backend
 pip install uv
-
-# Create a virtual environment and install dependencies
-uv venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv venv .venv && source .venv/bin/activate
 uv pip install -e .
-```
 
-3. Set up the database:
-
-```bash
-# Create a PostgreSQL database
+# Database setup
 createdb langchef
-
-# Run migrations
 alembic upgrade head
-```
 
-4. Set up the frontend:
-
-```bash
-cd ../frontend
-npm install
-```
-
-5. Create a `.env` file in the backend directory with the following variables:
-
-```
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/langchef
-SECRET_KEY=your-secret-key-for-jwt
-OPENAI_API_KEY=your-openai-api-key
-```
-
-### Running the Application
-
-1. Start the backend:
-
-```bash
-cd langchef/backend
+# Start backend (port 8000)
 uvicorn main:app --reload
 ```
 
-2. Start the frontend:
-
+#### Frontend Setup
 ```bash
-cd langchef/frontend
+cd frontend
+npm install
+
+# Start frontend (port 3000)
 npm start
 ```
 
-3. Access the application at http://localhost:3000
+#### Environment Configuration
+Copy `.env.example` to `.env` and configure:
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/langchef
+SECRET_KEY=your-secure-secret-key  # Generate with: openssl rand -hex 32
+OPENAI_API_KEY=sk-...
 
-### Using Docker
-
-You can also run the application using Docker:
-
-```bash
-docker-compose up -d
+# Optional: AWS Integration
+AWS_ACCESS_KEY_ID=your-key
+AWS_SECRET_ACCESS_KEY=your-secret
+AWS_REGION=us-east-1
 ```
 
-## Usage
+</details>
 
-### Prompt Management
+## 🎯 Key Workflows
 
-- Create and manage prompts with versioning
-- Organize prompts by categories or tags
-- Track prompt performance across experiments
+<table>
+<tr>
+<td>
 
-### Dataset Management
+**📝 Prompt Engineering**
+- Create & version prompts
+- A/B test variations
+- Performance tracking
+- Template management
 
-- Upload datasets in various formats (JSON, CSV, JSONL, text)
-- Create and manage dataset versions
-- Associate datasets with experiments
+</td>
+<td>
 
-### Experimentation
+**📁 Dataset Operations** 
+- Multi-format uploads
+- Schema validation
+- Version control
+- Quality metrics
 
-- Run experiments with different prompts, models, and datasets
-- Track metrics like latency, token usage, and cost
-- Compare experiment results
+</td>
+</tr>
+<tr>
+<td>
 
-### Playground
+**🧪 Experimentation**
+- Controlled testing
+- Multi-model comparison
+- Statistical significance
+- Cost optimization
 
-- Interactively test prompts and models
-- Visualize results in real-time
-- Save successful configurations as experiments
+</td>
+<td>
 
-## Contributing
+**🎮 Interactive Playground**
+- Real-time testing
+- Model comparison
+- Configuration export
+- Result visualization
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+</td>
+</tr>
+</table>
 
-## License
+## 📄 Documentation
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+- **[Getting Started Guide](docs/development/getting-started.md)** - Comprehensive setup instructions
+- **[API Documentation](docs/api/)** - Complete API reference
+- **[Architecture Guide](docs/architecture/)** - System design and patterns
+- **[Security Guide](docs/security/)** - Security best practices
+- **[Claude Code Agents](docs/claude-agents/)** - AI assistant documentation
 
-## Acknowledgements
+## 🤝 Contributing
 
-- Inspired by [Langfuse](https://github.com/langfuse/langfuse)
-- Built with FastAPI, React, and Material-UI and Cursor 
+We welcome contributions! See our [development workflow guide](docs/development/development-workflow.md) for details.
+
+**Key Areas:**
+- 🐛 Bug fixes and improvements
+- 📚 Documentation enhancements  
+- ✨ New feature development
+- 🛡️ Security improvements
+
+## 📜 License & Acknowledgements
+
+**MIT License** - See [LICENSE](LICENSE) for details
+
+**Built with:**
+- 🔥 FastAPI + SQLAlchemy
+- ⚛️ React + Material-UI
+- 🐳 Docker + PostgreSQL
+- 🤖 Claude Code integration
+
+**Inspired by:** [Langfuse](https://github.com/langfuse/langfuse) and the broader LLMOps community

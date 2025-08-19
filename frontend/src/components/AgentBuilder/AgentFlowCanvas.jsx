@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -6,18 +6,93 @@ import ReactFlow, {
   addEdge,
   useNodesState,
   useEdgesState,
+  Panel,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
+// Import node types
 import LLMNode from './nodes/LLMNode';
 import SearchToolNode from './nodes/SearchToolNode';
+import AgentNode from './nodes/AgentNode';
+import CalculatorNode from './nodes/CalculatorNode';
+import ChatInputNode from './nodes/ChatInputNode';
+import ChatOutputNode from './nodes/ChatOutputNode';
+
 import ComponentPanel from './ComponentPanel';
 import PropertiesPanel from './PropertiesPanel';
 import TestingConsole from './TestingConsole';
 
+// Define node types mapping
 const nodeTypes = {
   llm: LLMNode,
   search: SearchToolNode,
+  agent: AgentNode,
+  calculator: CalculatorNode,
+  chatInput: ChatInputNode,
+  chatOutput: ChatOutputNode,
+};
+
+// Define templates
+const simpleAgentTemplate = {
+  nodes: [
+    {
+      id: 'chatInput1',
+      type: 'chatInput',
+      position: { x: 150, y: 250 },
+      data: { label: 'Chat Input' }
+    },
+    {
+      id: 'agent1',
+      type: 'agent',
+      position: { x: 450, y: 250 },
+      data: { 
+        label: 'Tool-calling Agent',
+        model: 'anthropic.claude-3-sonnet-20240229-v1:0',
+        provider: 'aws_bedrock',
+        toolCount: 2,
+        agentType: 'tool_calling',
+        temperature: 0.7,
+        topP: 1.0,
+        topK: 0,
+        systemPrompt: 'You are a helpful assistant with access to tools. Use them to help the user.'
+      }
+    },
+    {
+      id: 'calculator1',
+      type: 'calculator',
+      position: { x: 250, y: 430 },
+      data: { 
+        label: 'Calculator',
+        precision: 2
+      }
+    },
+    {
+      id: 'search1',
+      type: 'search',
+      position: { x: 650, y: 430 },
+      data: { 
+        label: 'Search Tool',
+        engine: 'google',
+        resultCount: 3
+      }
+    },
+    {
+      id: 'chatOutput1',
+      type: 'chatOutput',
+      position: { x: 750, y: 250 },
+      data: { 
+        label: 'Chat Output',
+        format: 'text'
+      }
+    }
+  ],
+  edges: [
+    { id: 'e1-2', source: 'chatInput1', target: 'agent1' },
+    { id: 'e2-3', source: 'agent1', target: 'chatOutput1' },
+    { id: 'e2-4', source: 'agent1', target: 'calculator1', animated: true, style: { stroke: '#f6ad55' } },
+    { id: 'e2-5', source: 'agent1', target: 'search1', animated: true, style: { stroke: '#63b3ed' } },
+  ],
+  description: 'A simple agent that can use a calculator and search tool'
 };
 
 const AgentFlowCanvas = () => {
@@ -25,6 +100,19 @@ const AgentFlowCanvas = () => {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNode, setSelectedNode] = useState(null);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
+  const [templates] = useState([simpleAgentTemplate]);
+
+  useEffect(() => {
+    // Load the default template when the component mounts
+    if (nodes.length === 0 && templates.length > 0) {
+      loadTemplate(templates[0]);
+    }
+  }, []);
+
+  const loadTemplate = useCallback((template) => {
+    setNodes(template.nodes);
+    setEdges(template.edges);
+  }, [setNodes, setEdges]);
 
   const onConnect = useCallback((params) => {
     setEdges((eds) => addEdge(params, eds));
@@ -66,25 +154,33 @@ const AgentFlowCanvas = () => {
       if (type === 'llm') {
         newNode.data = {
           ...newNode.data,
-          model: 'gpt-4',
+          model: 'anthropic.claude-3-sonnet-20240229-v1:0',
           temperature: 0.7,
-          availableModels: [
-            { id: 'gpt-4', name: 'GPT-4' },
-            { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
-            { id: 'claude-3-opus', name: 'Claude 3 Opus' },
-          ],
-          onModelChange: (e) => updateNodeData(nodeId, { model: e.target.value }),
-          onTemperatureChange: (e) => updateNodeData(nodeId, { temperature: parseFloat(e.target.value) }),
+          topP: 1.0,
+          topK: 0,
         };
       } else if (type === 'search') {
         newNode.data = {
           ...newNode.data,
           engine: 'google',
           resultCount: 3,
-          apiEndpoint: '',
-          onEngineChange: (e) => updateNodeData(nodeId, { engine: e.target.value }),
-          onResultCountChange: (e) => updateNodeData(nodeId, { resultCount: parseInt(e.target.value, 10) }),
-          onApiEndpointChange: (e) => updateNodeData(nodeId, { apiEndpoint: e.target.value }),
+        };
+      } else if (type === 'agent') {
+        newNode.data = {
+          ...newNode.data,
+          model: 'anthropic.claude-3-sonnet-20240229-v1:0',
+          provider: 'aws_bedrock',
+          agentType: 'tool_calling',
+          temperature: 0.7,
+          topP: 1.0,
+          topK: 0,
+          toolCount: 0,
+          systemPrompt: 'You are a helpful assistant.'
+        };
+      } else if (type === 'calculator') {
+        newNode.data = {
+          ...newNode.data,
+          precision: 2,
         };
       }
 
@@ -119,13 +215,11 @@ const AgentFlowCanvas = () => {
   const handleSaveFlow = () => {
     // Save flow to backend
     console.log("Saving flow:", { nodes, edges });
-    // API call would go here
   };
 
   const handleTestAgent = async (input) => {
     // This would be an API call to test the agent
     console.log("Testing agent with input:", input);
-    // Mock response
     return {
       content: `This is a simulated response for: "${input}"`
     };
@@ -134,7 +228,6 @@ const AgentFlowCanvas = () => {
   const handleDeployAgent = () => {
     // Deploy agent as API
     console.log("Deploying agent");
-    // API call would go here
   };
 
   return (

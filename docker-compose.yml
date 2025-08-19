@@ -55,9 +55,6 @@ services:
     volumes:
       # Development hot-reloading for frontend code
       - ./frontend/src:/app/src
-      # Make sure our custom files don't get overwritten by volume mounts
-      - ./src/components/AgentBuilder:/app/src/components/AgentBuilder
-      - ./src/components/AgentBuilder/nodes:/app/src/components/AgentBuilder/nodes
     ports:
       - "3001:3000"
     depends_on:
@@ -74,10 +71,7 @@ services:
       dockerfile: agent-api/Dockerfile
     container_name: langchef_agent_api
     volumes:
-      - ./src/models:/app/models
-      - ./src/controllers:/app/controllers
-      - ./src/routes:/app/routes
-      - ./src/server.js:/app/server.js
+      - ./agent-api:/app
     ports:
       - "5001:5000"
     environment:
