@@ -72,6 +72,67 @@ licensing conclusion deserves a fresh look before packs have any content.
 
 ## Open — engineering
 
+**BYOD — bring your own dataset.** *(New, 23 Aug. Probably the highest-leverage
+item on this list.)* Today the only way in is to generate goldens from a running
+app: collect traces, assemble JSONL in our shape, then label forty. Most teams
+already have a labelled test set sitting in a CSV, a Parquet file or an MLflow
+dataset — and cannot use it. BYOD is: point at rows you already own, declare
+which column is which, and start.
+
+Rows differ by what the system does, and the task class decides the schema, the
+metric, and whether an LLM judge is involved at all:
+
+| Task class | Row shape | Natural metric | Needs a judge? |
+|---|---|---|---|
+| `qna` / `generation` | question (+ context) → golden answer | judge verdict against a rubric | **Yes** — free-text target |
+| `retrieval` | query → ideal context / relevant doc ids | recall@k, MRR, nDCG | No |
+| `classification` | text → ideal label | accuracy, per-class P/R, multi-class κ | No |
+| `reranking` | query + candidates → ideal ordering | nDCG, MAP | No |
+| generic | input → target / label | depends on the above | depends |
+
+*The observation that matters:* **three of those four have a hard target, so they
+need no judge and no calibration at all.** For a classification or retrieval team,
+onboarding drops from "collect traces, write a rubric, label forty examples" to
+"point at the CSV" — minutes, not an afternoon. That is a far cheaper first
+contact than anything currently offered, and it is the obvious thing to pair with
+the MLflow integration below, since that is where such datasets already live.
+
+It also has a positioning consequence worth stating rather than discovering
+later: the calibration wedge — the differentiator the research is built on —
+**does not apply to those three classes.** With a hard label there is nothing to
+calibrate. For them LangChef is the paired statistics, the detection limit and
+the experiment discipline, not "the judge you can trust". Both are worth selling;
+they are not the same pitch, and conflating them in the docs would be dishonest.
+
+*The expensive part — and the actual decision:* **the core is binary.**
+`core/agreement.py` and `core/compare.py` both hard-refuse anything that is not
+`pass`/`fail`, and the κ variance in `kappa_interval` is written for a 2×2 table
+(`range(2)` throughout). Retrieval scores are continuous; classification is
+multi-class. Two ways out:
+
+- **(a) Reduce at ingestion.** Turn every task into pass/fail at load time —
+  recall@k ≥ threshold is a pass, predicted label == ideal label is a pass. Cheap,
+  and every statistic already built keeps working unchanged: McNemar, the paired
+  bootstrap, the minimum detectable effect, the stratified label plan. Loses
+  information, and the threshold is a real design choice.
+- **(b) Generalise the core.** Paired bootstrap or Wilcoxon signed-rank for
+  continuous scores, multi-class κ with an N×N confusion matrix. Correct, and it
+  touches the most heavily tested code in the repository.
+
+*Recommendation:* **(a) first, with the reduction recorded in the
+pre-registration** so the threshold is a declared part of the design rather than
+a hidden one — which is exactly what gate two is for. Then (b) for retrieval
+specifically, where collapsing recall@k to a boolean throws away the most.
+
+*Where it fits:* `application_class` already exists in the pack manifest and only
+`genai-rag` is defined. Task classes belong there — per-class schema, metrics and
+rubric library are pack content, which is the moat.
+
+*Start at:* `packs/` (a second pack, e.g. `classification`), a `[dataset]` column
+mapping in `evals/config.toml`, and a loader beside
+`src/langchef/workspace/formats.py` for CSV/Parquet in. Then decide (a) vs (b)
+before writing any statistics, because reversing that choice later is expensive.
+
 **MLflow integration.** *(New, 23 Aug.)* Read runs and params from an existing
 MLflow server; write calibration and comparison results back as metrics and
 artifacts. First on the integration register for two reasons: teams running
