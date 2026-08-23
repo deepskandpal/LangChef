@@ -38,19 +38,54 @@ connectors, the agent layer. See the roadmap below and
 
 ## Install
 
-Not published yet — the distribution builds and runs, but the name reservation
-needs an account (see [`docs/RESERVE-NAMES.md`](docs/RESERVE-NAMES.md)).
-From a checkout:
+[uv](https://docs.astral.sh/uv/) is the only prerequisite. It fetches the
+interpreter itself, so no system Python is involved and nothing is installed
+globally.
 
 ```sh
-git clone https://github.com/deepskandpal/langchef.git
+curl -LsSf https://astral.sh/uv/install.sh | sh      # if you don't have it yet
+```
+
+Nothing is published and the repository has not been pushed — the name
+reservation needs an account, see [`docs/RESERVE-NAMES.md`](docs/RESERVE-NAMES.md).
+Until that is done, clone from wherever your copy lives:
+
+```sh
+git clone ~/code/github/langchef            # or the GitHub URL, once reserved
 cd langchef
-uv sync            # installs Python 3.12 and the dependencies
+uv sync                                     # Python 3.12 + dependencies
 uv run langchef doctor
 ```
 
-[uv](https://docs.astral.sh/uv/) is the only prerequisite. It fetches the
-interpreter itself, so no system Python is involved.
+A green `doctor` means the interpreter is the pinned one, an expertise pack
+resolves, and no provider credential is sitting in your environment.
+
+---
+
+## Verify the build
+
+One command runs every check, and it is the same script CI runs — there is no
+second list to drift:
+
+```console
+$ ./scripts/verify.sh
+1. no provider credentials present        PASS
+2. pinned interpreter (3.12)              PASS
+3. dependencies match the lock            PASS
+4. lint                                   PASS
+5. format                                 PASS
+6. agent contract in sync                 PASS
+7. tests                                  PASS
+8. distribution builds                    PASS
+9. wheel runs from a clean env            PASS
+
+9 passed, 0 failed
+```
+
+Step 1 comes first on purpose: the suite exercises the deterministic core and
+replays recorded judge responses, so a provider key in the environment means a
+test could quietly start spending money. Any failure prints the last 25 lines
+of that step and exits non-zero.
 
 ---
 
@@ -152,17 +187,20 @@ that split becomes impossible. See [`DECISIONS.md`](DECISIONS.md) #5.
 
 ## Development
 
+`./scripts/verify.sh` is the whole thing. While iterating, the individual
+pieces:
+
 ```sh
-uv sync                                     # pinned interpreter + deps
-uv run pytest                               # the suite, with no API key
+uv run pytest                               # the whole suite, with no API key
+uv run pytest tests/test_boundaries.py -q   # just the layering rules
 uv run ruff check . && uv run ruff format .
 uv run python scripts/render_contract.py    # regenerate docs/AGENT-CONTRACT.md
-uv run python scripts/assert_no_credentials.py
+uv run langchef doctor                      # what the agent sees
 ```
 
-The test suite must pass with no provider credential in the environment, and CI
-asserts the absence rather than assuming it. Judge calls, when they arrive in
-M2, are recorded once and replayed forever, so no test can ever spend money.
+Judge calls, when they arrive in M2, are recorded once and replayed forever, so
+no test can ever spend money — and CI asserts the absence of a key rather than
+assuming it.
 
 ---
 

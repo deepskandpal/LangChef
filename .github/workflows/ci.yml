@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   test:
-    name: test (python 3.12)
+    name: verify (python 3.12)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,34 +22,7 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Pin the interpreter
-        run: uv python install          # honours .python-version — DECISIONS.md #2
-
-      # The suite exercises the deterministic core and replays recorded judge
-      # responses. A provider key in this job means a test could start spending
-      # money, so the job refuses to continue if one is visible.
-      - name: Assert no provider credentials are present
-        run: python3 scripts/assert_no_credentials.py
-
-      - name: Install
-        run: uv sync --locked
-
-      - name: Lint
-        run: uv run ruff check .
-
-      - name: Format
-        run: uv run ruff format --check .
-
-      - name: Agent contract is in sync with the code
-        run: uv run python scripts/render_contract.py --check
-
-      - name: Test
-        run: uv run pytest
-
-      - name: Build the distribution
-        run: uv build
-
-      - name: Smoke the built package
-        run: |
-          uv run --isolated --no-project --with dist/*.whl langchef --version
-          uv run --isolated --no-project --with dist/*.whl langchef contract > /dev/null
+      # Every check lives in scripts/verify.sh so that what runs here and what
+      # a person runs locally cannot drift apart. See that file for the list.
+      - name: Verify
+        run: ./scripts/verify.sh
