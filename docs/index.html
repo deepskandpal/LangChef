@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LangChef</title>
+<meta name="description" content="An installed eval engineer: a scheduled agent that calibrates your judge, runs the experiment and writes the memo, on infrastructure you already own.">
+<meta property="og:title" content="LangChef">
+<meta property="og:description" content="An installed eval engineer: a scheduled agent that calibrates your judge, runs the experiment and writes the memo, on infrastructure you already own.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=Spectral:ital,wght@0,600;1,400&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="shell">
+    <a class="wordmark" href="index.html"><span class="dot"></span>LangChef</a>
+    <nav class="topnav">
+      <a href="index.html" class="here">Overview</a>
+      <a href="quickstart.html">Quickstart</a>
+      <a href="concepts.html">Concepts</a>
+      <a href="cli.html">Commands</a>
+      <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="shell layout">
+
+<nav class="sidebar" aria-label="Documentation">
+  <h4>Documentation</h4>
+  <ul>
+    <li><a href="index.html">Overview</a></li>
+    <li><a href="quickstart.html">Quickstart</a></li>
+    <li><a href="concepts.html">Concepts</a></li>
+    <li><a href="cli.html">Command reference</a></li>
+  </ul>
+  <h4>In the repository</h4>
+  <ul>
+    <li><a href="AGENT-CONTRACT.md">Agent contract</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/DECISIONS.md">Decisions</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/dogfood/README.md">Dogfood</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">Work tracker</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef">Source on GitHub</a></li>
+  </ul>
+</nav>
+
+<main>
+
+<div class="hero">
+  <div class="eyebrow">An installed eval engineer</div>
+  <h1>Your evals, maintained by an agent that already lives in your repository.</h1>
+  <p class="lede">LangChef calibrates the judge, runs the experiment, and writes the memo — on your
+  compute and your keys. Every number comes from a deterministic CLI; the model spends its effort on
+  judgement, never on arithmetic.</p>
+  <div class="cta">
+    <a class="btn solid" href="quickstart.html">Get started</a>
+    <a class="btn ghost" href="https://github.com/deepskandpal/LangChef">View source</a>
+  </div>
+</div>
+
+<p class="thesis">Every product in this market is capable and most are cheap. They also all assume a
+human eval engineer exists to design the rubrics, interpret the numbers and maintain the suites.
+Below a certain size that person does not exist — which is why only about a third of teams running AI
+in production evaluate it online at all.</p>
+
+<h2>The one screen that explains it</h2>
+
+<p>Two comparisons from the project's own test harness. Both arms had a regression planted in them
+deliberately, so the right answer is known in advance.</p>
+
+<pre><code>$ langchef compare --variant stale-index
+base -&gt; stale-index on 90 shared golden(s)
+  baseline 83.3%   variant 63.3%
+  difference -20.0% [-27.8%, -12.2%]  p=0.0000
+  <span class="r">REGRESSION</span>
+
+$ langchef compare --variant truncated-context
+  difference +0.0% [+0.0%, +0.0%]  p=1.0000
+  <span class="o">INCONCLUSIVE</span>
+  (smallest effect this run could have seen: 6.0%)</code></pre>
+
+<p>The second one is the point. There <em>is</em> a regression in that arm — we planted a 3.3-point
+one — and ninety goldens cannot resolve it. The honest answer is not <em>“no regression found”</em>;
+it is <em>“nothing we could have seen”</em>, and LangChef says so by quoting the smallest effect the
+run could have detected. A tool that reported a clean bill of health there would be worse than no
+tool at all.</p>
+
+<h2>What makes it different</h2>
+
+<div class="grid2">
+  <div class="panel">
+    <h3>Calibration comes first</h3>
+    <p>A judge is a measuring instrument, not a metric. LangChef measures judge–human agreement
+    before it will let a pass rate mean anything, and reports Cohen's κ with an interval rather than
+    an accuracy figure that flatters every judge on a skewed suite.</p>
+  </div>
+  <div class="panel">
+    <h3>Refusals are exit codes</h3>
+    <p>An approval gate written into a prompt is a suggestion. Here an unapproved or edited rubric
+    exits <code>2</code>, and a comparison across two different measurement pins exits <code>5</code>.
+    An agent cannot argue with a non-zero exit.</p>
+  </div>
+  <div class="panel">
+    <h3>Nothing leaves your machine</h3>
+    <p>No data plane, no hosted dashboard, no vendor holding your traces. The CLI runs where your
+    code already runs, and the whole workspace is text a reviewer reads in a pull request.</p>
+  </div>
+  <div class="panel">
+    <h3>It runs with no API key</h3>
+    <p>The default judge is deterministic — token overlap against expected facts and retrieved
+    context. Real models are one config line away, but you can see the entire product work before
+    spending anything.</p>
+  </div>
+</div>
+
+<h2>Where it is today</h2>
+
+<p>M0 through M4 are done: the full loop runs, with 13 of 19 commands live. Production
+connectors, scheduling and unattended operation are next. The
+<a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">work tracker</a> is the current state, and
+<a href="https://github.com/deepskandpal/LangChef/blob/main/DECISIONS.md">DECISIONS.md</a> records the calls that got made and why.</p>
+
+<div class="callout warn">
+  <span class="k">Pre-alpha</span>
+  <p>Version 0.1.0. The workspace format and the CLI surface are still moving. The exit codes
+  are the part that is meant to be stable — they are a public contract and are never renumbered.</p>
+</div>
+
+</main>
+</div>
+
+<footer class="site">
+  <div class="shell">
+    <span>LangChef 0.1.0 — Apache-2.0</span>
+    <span>An installed eval engineer.</span>
+    <span><a href="https://github.com/deepskandpal/LangChef">Source</a></span>
+    <span>&copy; 2026 Deepak Kandpal</span>
+  </div>
+</footer>
+</body>
+</html>

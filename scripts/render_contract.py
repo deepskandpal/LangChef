@@ -40,7 +40,7 @@ MIDDLE = """
 ## Commands
 
 `implemented` tracks what exists today; `milestone` is where the rest lands
-(see [Build Order](https://claude.ai/code/artifact/b3e1d521-3f23-475d-8a63-b46c507860f1)).
+(see [`TRACKER.md`](../TRACKER.md)).
 """
 
 EXITS = """

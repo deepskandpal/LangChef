@@ -93,11 +93,12 @@ $ ./scripts/verify.sh
 4. lint                                   PASS
 5. format                                 PASS
 6. agent contract in sync                 PASS
-7. tests                                  PASS
-8. distribution builds                    PASS
-9. wheel runs from a clean env            PASS
+7. documentation site in sync             PASS
+8. tests                                  PASS
+9. distribution builds                    PASS
+10. wheel runs from a clean env           PASS
 
-9 passed, 0 failed
+10 passed, 0 failed
 ```
 
 Step 1 comes first on purpose: the suite exercises the deterministic core and
@@ -259,14 +260,20 @@ and no amount of downstream statistics repairs it.
 
 ## Background
 
-- [The Eval Gap](https://claude.ai/code/artifact/b9301ac6-23d0-4cbc-a7bc-980c3c31c3a4) — market analysis: who serves this today and why a gap survives cheap, capable tooling
-- [LangChef 2.0](https://claude.ai/code/artifact/0acce76f-c204-48a9-85d2-0f62d39a62b1) — the PRD: users, requirements, approval gates, success metrics
-- [Build Order](https://claude.ai/code/artifact/b3e1d521-3f23-475d-8a63-b46c507860f1) — the engineering sequence this repository follows
-- [`DECISIONS.md`](DECISIONS.md) — nine calls made before the first commit
-- [`docs/AGENT-CONTRACT.md`](docs/AGENT-CONTRACT.md) — generated; what the agent may read, write, spend and decide
+Documentation: **<https://deepskandpal.github.io/LangChef/>** — overview,
+quickstart, concepts, and a command reference generated from the contract.
 
-The 1.0 platform is not published. Its vocabulary carried over; its code did
-not — see the autopsy above for why.
+- [`DECISIONS.md`](DECISIONS.md) — eleven calls, each with the reasoning and the date
+- [`TRACKER.md`](TRACKER.md) — what is done, what is next, what is open
+- [`docs/AGENT-CONTRACT.md`](docs/AGENT-CONTRACT.md) — generated; what the agent may read, write, spend and decide
+- [`dogfood/README.md`](dogfood/README.md) — the planted regressions and what they prove
+
+The market analysis, the PRD and the engineering plan behind this repository are
+working documents and are not published. Their conclusions are in the docs above;
+`DECISIONS.md` carries the parts that constrain the code.
+
+The 1.0 platform is not published either. Its vocabulary carried over; its code
+did not.
 
 ---
 

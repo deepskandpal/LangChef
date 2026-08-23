@@ -47,9 +47,10 @@ step "3. dependencies match the lock"      uv sync --locked
 step "4. lint"                             uv run ruff check .
 step "5. format"                           uv run ruff format --check .
 step "6. agent contract in sync"           uv run python scripts/render_contract.py --check
-step "7. tests"                            uv run pytest
-step "8. distribution builds"              uv build
-step "9. wheel runs from a clean env"      smoke_wheel
+step "7. documentation site in sync"       uv run python scripts/build_docs.py --check
+step "8. tests"                            uv run pytest
+step "9. distribution builds"              uv build
+step "10. wheel runs from a clean env"     smoke_wheel
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ] || exit 1

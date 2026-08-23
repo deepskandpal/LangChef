@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Commands — LangChef</title>
+<meta name="description" content="Every LangChef command, generated from the agent contract in the binary.">
+<meta property="og:title" content="Commands — LangChef">
+<meta property="og:description" content="Every LangChef command, generated from the agent contract in the binary.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=Spectral:ital,wght@0,600;1,400&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="shell">
+    <a class="wordmark" href="index.html"><span class="dot"></span>LangChef</a>
+    <nav class="topnav">
+      <a href="index.html">Overview</a>
+      <a href="quickstart.html">Quickstart</a>
+      <a href="concepts.html">Concepts</a>
+      <a href="cli.html" class="here">Commands</a>
+      <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="shell layout">
+
+<nav class="sidebar" aria-label="Documentation">
+  <h4>Documentation</h4>
+  <ul>
+    <li><a href="index.html">Overview</a></li>
+    <li><a href="quickstart.html">Quickstart</a></li>
+    <li><a href="concepts.html">Concepts</a></li>
+    <li><a href="cli.html">Command reference</a></li>
+  </ul>
+  <h4>In the repository</h4>
+  <ul>
+    <li><a href="AGENT-CONTRACT.md">Agent contract</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/DECISIONS.md">Decisions</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/dogfood/README.md">Dogfood</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">Work tracker</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef">Source on GitHub</a></li>
+  </ul>
+</nav>
+
+<main>
+
+<div class="eyebrow">Reference</div>
+<h1>Commands</h1>
+<p class="lede">Generated from the contract inside the binary, so this table cannot claim a command
+that does not exist. 13 of 19 are live today.</p>
+
+<div class="callout">
+  <span class="k">Determinism</span>
+  <p><code>deterministic</code> — same inputs, same output, always.
+  <code>seeded</code> — random but reproducible from a recorded seed.
+  <code>cached</code> — results are keyed on content, rubric hash and model pin, so a rerun is free
+  and reproducible.</p>
+</div>
+
+<div class="scroller"><table>
+<thead><tr><th>Command</th><th>Summary</th><th>Determinism</th><th>Writes</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td class="mono">langchef contract</td><td>Emit this contract as JSON</td><td class="mono">deterministic</td><td>—</td><td><span class="pill yes">live</span></td></tr>
+<tr><td class="mono">langchef doctor</td><td>Verify environment, credentials, pins, budget</td><td class="mono">deterministic</td><td>—</td><td><span class="pill yes">live</span></td></tr>
+<tr><td class="mono">langchef packs list</td><td>List resolvable expertise packs</td><td class="mono">deterministic</td><td>—</td><td><span class="pill yes">live</span></td></tr>
+<tr><td class="mono">langchef init</td><td>Scaffold the workspace</td><td class="mono">deterministic</td><td><code>workspace</code></td><td><span class="pill yes">live</span></td></tr>
+<tr><td class="mono">langchef approve rubric</td><td>Record a human approval of the rubric as it stands. Gate one</td><td class="mono">deterministic</td><td><code>evals/config.toml</code></td><td><span class="pill yes">live</span></td></tr>
+<tr><td class="mono">langchef sample</td><td>Pull and stratify production traces</td><td class="mono">seeded</td><td><code>runs/&lt;id&gt;/sample.parquet</code></td><td><span class="pill no">M5</span></td></tr>
+<tr><td class="mono">langchef label plan</td><td>Choose the labelling subset that maximises information per label</td><td class="mono">deterministic</td><td><code>labels/&lt;judge&gt;.todo.jsonl</code></td><td><span class="pill yes">live</span></td></tr>
+<tr><td class="mono">langchef label import</td><td>Ingest returned human labels</td><td class="mono">deterministic</td><td><code>labels/&lt;judge&gt;.jsonl</code></td><td><span class="pill yes">live</span></td></tr>
+<tr><td class="mono">langchef judge run</td><td>Score examples against a pinned rubric</td><td class="mono">cached</td><td><code>runs/&lt;id&gt;/scores.parquet</code></td><td><span class="pill yes">live</span></td></tr>
+<tr><td class="mono">langchef calibrate report</td><td>Agreement: TPR, TNR, confusion matrix, Cohen&#x27;s kappa, disagreement taxonomy</td><td class="mono">deterministic</td><td><code>runs/&lt;id&gt;/calibration.json</code></td><td><span class="pill yes">live</span></td></tr>
+<tr><td class="mono">langchef calibrate diff</td><td>Re-score a revised rubric against the same labels, report the delta</td><td class="mono">deterministic</td><td><code>runs/&lt;id&gt;/delta.json</code></td><td><span class="pill no">M6</span></td></tr>
+<tr><td class="mono">langchef eval run</td><td>Run a suite over goldens</td><td class="mono">cached</td><td><code>runs/&lt;id&gt;/</code></td><td><span class="pill no">M6</span></td></tr>
+<tr><td class="mono">langchef baseline set | show</td><td>Pin a run as the reference</td><td class="mono">deterministic</td><td><code>baselines/</code></td><td><span class="pill yes">live</span></td></tr>
+<tr><td class="mono">langchef compare</td><td>Paired deltas, confidence intervals, regression flags, minimum detectable effect</td><td class="mono">deterministic</td><td><code>runs/&lt;id&gt;/compare.json</code></td><td><span class="pill yes">live</span></td></tr>
+<tr><td class="mono">langchef triage</td><td>Slice drill-down, deploy correlation, reproduction set</td><td class="mono">deterministic</td><td><code>findings/</code></td><td><span class="pill no">M6</span></td></tr>
+<tr><td class="mono">langchef power</td><td>Minimum detectable effect, sample size, horizon</td><td class="mono">deterministic</td><td>—</td><td><span class="pill no">M7</span></td></tr>
+<tr><td class="mono">langchef experiment design | check | readout</td><td>Pre-registration, integrity checks, gated readout</td><td class="mono">deterministic</td><td><code>experiments/</code></td><td><span class="pill no">M7</span></td></tr>
+<tr><td class="mono">langchef ledger append | query</td><td>The persistent record</td><td class="mono">deterministic</td><td><code>ledger/</code></td><td><span class="pill yes">live</span></td></tr>
+<tr><td class="mono">langchef memo render</td><td>Decision memo from run artifacts</td><td class="mono">deterministic</td><td><code>memos/</code></td><td><span class="pill yes">live</span></td></tr>
+</tbody></table></div>
+
+<h2>Exit codes</h2>
+<div class="scroller"><table>
+<thead><tr><th>Code</th><th>Meaning</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td class="num">0</td><td>ok</td><td>in use</td></tr>
+<tr><td class="num">1</td><td>unexpected error</td><td>in use</td></tr>
+<tr><td class="num">2</td><td>refused — an approval gate is unmet</td><td>in use</td></tr>
+<tr><td class="num">3</td><td>abstained — confidence below threshold</td><td><span class="pill no">reserved — not yet emitted</span></td></tr>
+<tr><td class="num">4</td><td>budget exhausted; report of what was left undone written</td><td><span class="pill no">reserved — not yet emitted</span></td></tr>
+<tr><td class="num">5</td><td>pin mismatch — judge model, version or rubric hash moved</td><td>in use</td></tr>
+</tbody></table></div>
+
+<h2>Global behaviour</h2>
+<ul>
+  <li>Every command writes one JSON document to stdout and its narration to stderr.</li>
+  <li>Workspace commands search upward for <code>evals/config.toml</code>, the way git finds a
+  repository — so they work from anywhere in your tree.</li>
+  <li><code>--suite</code> may be omitted when the workspace has exactly one.</li>
+  <li>Arms live in per-arm golden files: <code>goldens/&lt;suite&gt;.&lt;arm&gt;.jsonl</code>,
+  falling back to <code>goldens/&lt;suite&gt;.jsonl</code>.</li>
+</ul>
+
+<p>The machine-readable copy of all of this is
+<a href="AGENT-CONTRACT.md">docs/AGENT-CONTRACT.md</a>, or
+<code>langchef contract</code> at runtime.</p>
+
+</main>
+</div>
+
+<footer class="site">
+  <div class="shell">
+    <span>LangChef 0.1.0 — Apache-2.0</span>
+    <span>An installed eval engineer.</span>
+    <span><a href="https://github.com/deepskandpal/LangChef">Source</a></span>
+    <span>&copy; 2026 Deepak Kandpal</span>
+  </div>
+</footer>
+</body>
+</html>

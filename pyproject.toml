@@ -63,6 +63,10 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 # Holds the agent contract's prose and markdown tables verbatim; wrapping them
 # would change the rendered document.
 "scripts/render_contract.py" = ["E501"]
+# Holds the documentation site's prose and its preformatted code samples
+# verbatim. Whitespace inside <pre> is significant, so wrapping these lines
+# would change the rendered page.
+"scripts/build_docs.py" = ["E501"]
 # A data table. One fact per line reads as a table and diffs as one; wrapping
 # each tuple across four lines would hide the shape of the corpus.
 "dogfood/corpus.py" = ["E501"]

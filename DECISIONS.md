@@ -1,7 +1,7 @@
 # Decisions
 
 Nine calls made on **23 August 2026**, before the first line of product code, from
-§3 of the [Build Order](https://claude.ai/code/artifact/b3e1d521-3f23-475d-8a63-b46c507860f1).
+§3 of the Build Order, the engineering plan this repository follows.
 
 Each was cheap that day and expensive six weeks later. They are recorded here so
 they are not relitigated. Reopening one is allowed; doing it without writing a
