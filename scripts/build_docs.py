@@ -185,9 +185,9 @@ and the question is always the same one.</p>
   <li><strong>Someone eyeballs twenty outputs.</strong> Fast, and it does catch obvious breakage. It
   cannot see a five-point regression, and nobody claims otherwise.</li>
   <li><strong>A pass rate in a spreadsheet</strong>, produced by asking a model to grade the outputs.
-  Better — and the source of the two most common mistakes in this whole field, below.</li>
-  <li><strong>Nobody checks.</strong> This is the most common answer. Roughly a third of teams
-  running AI in production evaluate it on live traffic at all.</li>
+  Better — and where all three of the mistakes below come from.</li>
+  <li><strong>Nobody checks.</strong> This is the most common answer: only about a third of
+  teams running AI in production evaluate it on live traffic at all.</li>
 </ul>
 
 <p>None of this is a tooling problem. There are half a dozen capable evaluation platforms and
