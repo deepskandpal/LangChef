@@ -1,0 +1,12 @@
+[pack]
+name = "genai-rag"
+version = "0.1.0"
+application_class = "genai-rag"
+description = "Retrieval-augmented generation and question answering."
+requires_langchef = ">=0.1.0"
+
+# Contents arrive with M1 (rubric library) and M2 (calibration procedures).
+# The manifest exists now so the loader boundary is real rather than aspirational.
+[contents]
+judges = []
+playbooks = []
