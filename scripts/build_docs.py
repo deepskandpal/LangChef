@@ -769,6 +769,42 @@ langchef calibrate report 2&gt;/dev/null  <span class="c"># a script parses this
 """
 
 
+REDIRECTS = {
+    # Pages that were renamed. They stay reachable rather than 404ing: Pages
+    # caches HTML for ten minutes, so a reader with the old navigation open will
+    # click these for a while yet, and anyone who bookmarked or linked one
+    # should land on the replacement rather than a dead end.
+    "quickstart.html": ("start.html", "Your first evaluation"),
+    "concepts.html": ("numbers.html", "Reading the output"),
+}
+
+
+def redirect(target: str, label: str) -> str:
+    """A page that moved. Sends browsers on and tells crawlers where it went."""
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="0; url={target}">
+<meta name="robots" content="noindex">
+<link rel="canonical" href="{target}">
+<title>Moved — LangChef</title>
+{FONTS}
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="shell" style="padding: 72px 24px; max-width: 60ch;">
+  <div class="eyebrow">This page moved</div>
+  <h1>{label}</h1>
+  <p class="lede">These docs were rewritten. If you are not redirected automatically,
+  <a href="{target}">continue to {label}</a>.</p>
+</div>
+</body>
+</html>
+"""
+
+
 def fill(template: str, values: dict) -> str:
     """Substitute @@name@@ tokens.
 
@@ -828,14 +864,14 @@ def main() -> int:
 
     pages = build()
     pages[".nojekyll"] = ""
-    obsolete = ["quickstart.html", "concepts.html"]
+    for old, (target, label) in REDIRECTS.items():
+        pages[old] = redirect(target, label)
 
     stale = [
         name
         for name, text in pages.items()
         if not (SITE / name).is_file() or (SITE / name).read_text(encoding="utf-8") != text
     ]
-    stale += [name for name in obsolete if (SITE / name).is_file()]
     if args.check:
         if stale:
             print(f"stale: {', '.join(sorted(stale))} — run scripts/build_docs.py", file=sys.stderr)
@@ -846,10 +882,7 @@ def main() -> int:
     SITE.mkdir(parents=True, exist_ok=True)
     for name, text in pages.items():
         (SITE / name).write_text(text, encoding="utf-8")
-    # Pages that used to exist must be removed, or Pages keeps serving them.
-    for name in obsolete:
-        (SITE / name).unlink(missing_ok=True)
-    print(f"wrote {len(pages)} file(s) to docs/")
+    print(f"wrote {len(pages)} file(s) to docs/ ({len(REDIRECTS)} redirect(s))")
     return 0
 
 
