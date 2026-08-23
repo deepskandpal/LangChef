@@ -119,19 +119,43 @@ COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "power",
-        "Minimum detectable effect, sample size, horizon",
+        "Standalone power arithmetic (available today inside experiment design)",
         "deterministic",
         "-",
         "M7",
         False,
     ),
     Command(
-        "experiment design | check | readout",
-        "Pre-registration, integrity checks, gated readout",
+        "experiment design",
+        "Propose one or two designs with detection limit, sample size and cost",
         "deterministic",
-        "experiments/",
-        "M7",
-        False,
+        "experiments/<id>.toml",
+        "M4.5",
+        True,
+    ),
+    Command(
+        "experiment approve",
+        "Pre-register a design. Editing it afterwards revokes the approval",
+        "deterministic",
+        "experiments/<id>.toml",
+        "M4.5",
+        True,
+    ),
+    Command(
+        "experiment check | list",
+        "Does the run match what was registered?",
+        "deterministic",
+        "-",
+        "M4.5",
+        True,
+    ),
+    Command(
+        "experiment readout",
+        "Gated readout. Refuses an unapproved design or an unfinished run",
+        "deterministic",
+        "runs/<id>/readout.json",
+        "M4.5",
+        True,
     ),
     Command(
         "ledger append | query", "The persistent record", "deterministic", "ledger/", "M3", True
@@ -156,6 +180,11 @@ RULES: tuple[str, ...] = (
     "rather than rendering one.",
     "An inconclusive comparison is a finding, and is reported with the minimum "
     "detectable effect rather than as an absence of regression.",
+    "An experiment is designed before it runs. Reading out without an approved "
+    "pre-registration exits 2; reading out a run that departed from one marks the "
+    "result exploratory and recommends no decision.",
+    "A run under a pre-registered budget stops at the ceiling and exits 4 with a "
+    "list of what it did not score, rather than overrunning a spend nobody agreed to.",
 )
 
 

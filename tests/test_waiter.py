@@ -1,0 +1,291 @@
+"""M4.5 — the pre-registration store, and gate two through the CLI.
+
+The point of gate two is that it refuses. These tests are mostly about the
+refusals: an unapproved design, a design edited after approval, a run that did
+not finish, and a budget that ran out mid-run.
+"""
+
+import pytest
+
+from langchef.core.exits import Exit
+from langchef.workspace import experiments as store
+from langchef.workspace import scaffold
+from langchef.workspace.formats import read_json, write_jsonl
+from langchef.workspace.paths import WORKSPACE_DIR, Workspace
+
+CONTEXT = "Payment terms on every Northwind invoice are net thirty days."
+WRONG = "Payment is due immediately on receipt."
+SIZE = 30
+
+
+def golden(example_id, answer):
+    return {
+        "example_id": example_id,
+        "question": "Tell me the payment terms.",
+        "answer": answer,
+        "context": [CONTEXT],
+        "expected": "net thirty days",
+        "slices": {"topic": "billing"},
+    }
+
+
+def suite(correct):
+    return [golden(f"ex-{i:02}", CONTEXT if i < correct else WRONG) for i in range(SIZE)]
+
+
+# --- the store ----------------------------------------------------------------
+
+
+@pytest.fixture
+def workspace(tmp_path):
+    ws = Workspace(tmp_path / WORKSPACE_DIR)
+    scaffold.create(ws, name="waiter-test")
+    return ws
+
+
+def test_a_preregistration_round_trips_as_reviewable_toml(workspace):
+    written = store.write(
+        workspace,
+        "exp-1",
+        {
+            "kind": "superiority",
+            "n": 90,
+            "mde": 0.13,
+            "guardrails": ["one", "two"],
+            "cost": {"judge_calls": 53, "usd": None},
+        },
+    )
+    text = written.path.read_text(encoding="utf-8")
+    assert "[experiment]" in text and "[cost]" in text
+    assert "# LangChef pre-registration." in text  # a person is meant to read this
+
+    reloaded = store.load(workspace, "exp-1")
+    assert reloaded.design["n"] == 90
+    assert reloaded.design["guardrails"] == ["one", "two"]
+    assert reloaded.design["cost"]["judge_calls"] == 53
+    assert not reloaded.approved
+
+
+def test_writing_over_an_existing_preregistration_is_refused(workspace):
+    store.write(workspace, "exp-1", {"n": 10})
+    with pytest.raises(store.ExperimentError, match="already exists"):
+        store.write(workspace, "exp-1", {"n": 20})
+
+
+def test_approval_sticks_and_an_edit_revokes_it(workspace):
+    store.write(workspace, "exp-1", {"kind": "superiority", "n": 90, "margin": 0.03})
+    approved = store.approve(workspace, "exp-1")
+    assert approved.approved
+    before = approved.digest
+
+    text = approved.path.read_text(encoding="utf-8")
+    approved.path.write_text(text.replace("margin = 0.03", "margin = 0.15"), encoding="utf-8")
+
+    after = store.load(workspace, "exp-1")
+    assert after.digest != before
+    assert not after.approved  # no revoke command needed; it stops matching
+
+
+def test_a_null_cannot_be_written_into_a_preregistration(workspace):
+    with pytest.raises(store.ExperimentError, match="cannot contain a null"):
+        store.write(workspace, "exp-1", {"cost": {"usd": None, "note": [None]}})
+
+
+# --- gate two, through the CLI -------------------------------------------------
+
+
+@pytest.fixture
+def project(tmp_path, run_cli):
+    assert run_cli("init", "--name", "waiter", cwd=tmp_path).code == Exit.OK
+    evals = tmp_path / "evals"
+    write_jsonl(evals / "goldens" / "support.baseline.jsonl", suite(correct=24))
+    write_jsonl(evals / "goldens" / "support.variant.jsonl", suite(correct=18))
+    assert run_cli("approve", "rubric", cwd=tmp_path).code == Exit.OK
+    assert run_cli("judge", "run", "--arm", "baseline", "--run-id", "base", cwd=tmp_path).code == 0
+    assert run_cli("baseline", "set", "--run", "base", cwd=tmp_path).code == Exit.OK
+    return tmp_path
+
+
+def test_the_waiter_proposes_before_anything_runs(project, run_cli):
+    code, payload, _ = run_cli(
+        "experiment",
+        "design",
+        "--intent",
+        "is the variant better",
+        "--variant-arm",
+        "variant",
+        "--target-effect",
+        "0.02",
+        "--id",
+        "e1",
+        cwd=project,
+    )
+    assert code == Exit.OK
+    assert payload["approved"] is False
+    names = [c["name"] for c in payload["candidates"]]
+    assert names == ["as-it-stands", "powered"]  # 30 goldens cannot resolve 2 points
+    assert payload["candidates"][1]["n"] > payload["candidates"][0]["n"]
+    assert (project / "evals" / "experiments" / "e1.toml").is_file()
+
+
+def test_readout_refuses_an_unapproved_design(project, run_cli):
+    run_cli(
+        "experiment",
+        "design",
+        "--intent",
+        "x",
+        "--variant-arm",
+        "variant",
+        "--id",
+        "e1",
+        cwd=project,
+    )
+    assert run_cli("judge", "run", "--arm", "variant", "--run-id", "var", cwd=project).code == 0
+
+    code, payload, _ = run_cli("experiment", "readout", "e1", "--variant", "var", cwd=project)
+    assert code == Exit.REFUSED
+    assert "has not been approved" in payload["message"]
+
+
+def test_the_full_gated_readout(project, run_cli):
+    run_cli(
+        "experiment",
+        "design",
+        "--intent",
+        "is the variant better",
+        "--variant-arm",
+        "variant",
+        "--id",
+        "e1",
+        cwd=project,
+    )
+    assert run_cli("experiment", "approve", "e1", cwd=project).code == Exit.OK
+    assert run_cli("judge", "run", "--arm", "variant", "--run-id", "var", cwd=project).code == 0
+
+    code, checked, _ = run_cli("experiment", "check", "e1", "--variant", "var", cwd=project)
+    assert checked["ok"] and checked["violations"] == []
+
+    code, payload, _ = run_cli("experiment", "readout", "e1", "--variant", "var", cwd=project)
+    assert code == Exit.OK
+    assert payload["pre_registered"] is True
+    assert payload["exploratory"] is False
+    assert payload["readout_verdict"] == "regression"
+    assert (project / "evals" / "runs" / "var" / "readout.json").is_file()
+
+
+def test_a_non_inferiority_readout_tests_the_margin_not_the_estimate(project, run_cli):
+    run_cli(
+        "experiment",
+        "design",
+        "--intent",
+        "cheaper, quality must hold",
+        "--variant-arm",
+        "variant",
+        "--kind",
+        "non-inferiority",
+        "--margin",
+        "0.03",
+        "--id",
+        "e1",
+        cwd=project,
+    )
+    run_cli("experiment", "approve", "e1", cwd=project)
+    run_cli("judge", "run", "--arm", "variant", "--run-id", "var", cwd=project)
+
+    code, payload, _ = run_cli("experiment", "readout", "e1", "--variant", "var", cwd=project)
+    assert code == Exit.OK
+    assert payload["kind"] == "non_inferiority"
+    # A 20-point drop against a 3-point tolerance is not a close call.
+    assert payload["readout_verdict"] == "failed"
+
+
+def test_an_edited_design_stops_the_readout(project, run_cli):
+    run_cli(
+        "experiment",
+        "design",
+        "--intent",
+        "x",
+        "--variant-arm",
+        "variant",
+        "--kind",
+        "non-inferiority",
+        "--margin",
+        "0.03",
+        "--id",
+        "e1",
+        cwd=project,
+    )
+    run_cli("experiment", "approve", "e1", cwd=project)
+    run_cli("judge", "run", "--arm", "variant", "--run-id", "var", cwd=project)
+
+    path = project / "evals" / "experiments" / "e1.toml"
+    path.write_text(path.read_text().replace("margin = 0.03", "margin = 0.25"), encoding="utf-8")
+
+    code, payload, _ = run_cli("experiment", "readout", "e1", "--variant", "var", cwd=project)
+    assert code == Exit.REFUSED
+    assert "changed since it was approved" in payload["message"]
+
+
+def test_an_override_is_recorded_as_exploratory_not_hidden(project, run_cli):
+    run_cli(
+        "experiment",
+        "design",
+        "--intent",
+        "x",
+        "--variant-arm",
+        "variant",
+        "--id",
+        "e1",
+        cwd=project,
+    )
+    run_cli("judge", "run", "--arm", "variant", "--run-id", "var", cwd=project)
+
+    code, payload, _ = run_cli(
+        "experiment",
+        "readout",
+        "e1",
+        "--variant",
+        "var",
+        "--override",
+        "looked after the fact",
+        cwd=project,
+    )
+    assert code == Exit.OK
+    assert payload["exploratory"] is True
+    assert payload["pre_registered"] is False
+    assert payload["override"] == "looked after the fact"
+
+
+def test_a_budget_stops_the_run_and_reports_what_is_left(project, run_cli):
+    run_cli(
+        "experiment",
+        "design",
+        "--intent",
+        "x",
+        "--variant-arm",
+        "variant",
+        "--budget-calls",
+        "4",
+        "--id",
+        "e1",
+        cwd=project,
+    )
+    run_cli("experiment", "approve", "e1", cwd=project)
+
+    # Cold cache, so every example needs a call and the ceiling bites.
+    (project / "evals" / ".cache" / "judgements.jsonl").unlink(missing_ok=True)
+    code, payload, _ = run_cli(
+        "judge", "run", "--arm", "variant", "--run-id", "var", "--experiment", "e1", cwd=project
+    )
+    assert code == Exit.BUDGET
+    assert payload["stats"]["provider_calls"] == 4
+    assert payload["unscored"] == SIZE - 4
+
+    undone = read_json(project / "evals" / "runs" / "var" / "undone.json")
+    assert undone["scored"] + len(undone["unscored"]) == SIZE
+    assert undone["remedy"]
+
+    # And a half-finished run is not the registered design.
+    code, refused, _ = run_cli("experiment", "readout", "e1", "--variant", "var", cwd=project)
+    assert code == Exit.REFUSED
+    assert "stopping rule" in refused["message"]

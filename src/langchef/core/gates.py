@@ -59,5 +59,35 @@ def rubric_gate(approved: str | None, actual: str, name: str = "rubric") -> Gate
     )
 
 
+def experiment_gate(approved: str | None, actual: str, name: str) -> Gate:
+    """Gate two: the design in use must be the one that was pre-registered.
+
+    Same mechanism as the rubric, for the same reason. A design a person approved
+    and a design that ran are only the same experiment if nothing moved in
+    between, and the digest is what makes "nothing moved" checkable rather than
+    asserted.
+    """
+    if approved is None:
+        remedy = (
+            f"experiment {name} has not been approved — review the design, "
+            f"then run: langchef experiment approve {name}"
+        )
+    elif approved != actual:
+        remedy = (
+            f"the design for {name} changed since it was approved "
+            f"({approved} -> {actual}). Re-read it, then run: "
+            f"langchef experiment approve {name}"
+        )
+    else:
+        remedy = ""
+    return Gate(
+        name="experiment-preregistered",
+        met=approved is not None and approved == actual,
+        approved=approved,
+        actual=actual,
+        remedy=remedy,
+    )
+
+
 def unmet(gates: list[Gate]) -> list[Gate]:
     return [gate for gate in gates if not gate.met]

@@ -506,15 +506,51 @@ properly, including what to do when the number is bad.</p>
 <p>If agreement had come back below 0.4, the correct move is to stop, fix the rubric, and try again
 — not to carry on and report pass rates from a judge that disagrees with you.</p>
 
-<h2>Step 7 — Make the change and compare · 1 minute</h2>
+<h2>Step 7 — Have the experiment designed · 1 minute</h2>
+
+<p>You do not have to work out how many examples you need, or what size of change counts as real.
+Describe what you are doing and let the tool cost it:</p>
+
+<pre><code>$ langchef experiment design \
+    --intent "move to the replacement model, quality must hold within 3 points" \
+    --variant-arm new-model --kind non-inferiority --margin 0.03
+
+2 candidate design(s) for support
+ -&gt; as-it-stands   n=90     detects &gt;=13.2%  53 judge call(s)
+      note: These goldens cannot resolve 3.0%. The smallest effect this
+            design could detect is 13.2%.
+    powered        n=1745   detects &gt;=3.0%   1655 judge call(s)
+      note: Needs 1655 more golden(s) than the suite has (90).
+  This is a proposal. Nothing runs until: langchef experiment approve ...</code></pre>
+
+<p>That note is the answer most tools will not give you. <strong>Ninety examples cannot resolve a
+three-point change</strong> — and you now know it before spending anything, rather than after a
+run comes back inconclusive. Collect more goldens, or accept the detection limit deliberately.</p>
+
+<p>If you are trading quality for cost or latency, <code>--margin</code> is not optional: it is how
+much you are willing to lose, and it has to be set now. Deciding it after seeing the result is how a
+null result quietly becomes a green light.</p>
+
+<pre><code>langchef experiment approve support-new-model   <span class="c"># a person, on the record</span></code></pre>
+
+<p>The design lands in <code>evals/experiments/</code> as reviewable TOML with a content hash. Edit
+any part of it afterwards and the approval lapses by itself, which is what stops an experiment being
+reshaped around the result it produced.</p>
+
+<h2>Step 8 — Run it and read out · 1 minute</h2>
 
 <pre><code>langchef baseline set                       <span class="c"># pin the model you're on today</span>
 
 <span class="c"># re-answer the same questions on the replacement model, into</span>
 <span class="c"># evals/goldens/support.new-model.jsonl, then:</span>
 
-langchef judge run --arm new-model
-langchef compare --variant support-new-model</code></pre>
+langchef judge run --arm new-model --experiment support-new-model
+langchef experiment readout support-new-model</code></pre>
+
+<p>Running under the experiment holds it to the budget you approved: at the ceiling the run stops,
+exits 4, and writes exactly what it did not score — rather than quietly spending more than you
+agreed to. The readout refuses an unapproved design, and refuses a run that stopped short of the one
+you registered.</p>
 
 <p>The questions must be identical across both arms — same <code>example_id</code>, different
 answers. That pairing is what lets a small number of examples say anything at all.</p>
@@ -534,7 +570,7 @@ examples could never have detected anything smaller than a six-point swing, so i
 things by three points, this run was always going to shrug. Add examples, or accept that you are not
 going to resolve a change this small.</p>
 
-<h2>Step 8 — Write it up · 5 seconds</h2>
+<h2>Step 9 — Write it up · 5 seconds</h2>
 
 <pre><code>langchef memo render</code></pre>
 

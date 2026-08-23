@@ -54,7 +54,7 @@
 <div class="eyebrow">Reference</div>
 <h1>Commands</h1>
 <p class="lede">Generated from the contract inside the binary, so this table cannot claim a command
-that does not exist. 13 of 19 are live today. If you are here to learn the tool, start
+that does not exist. 17 of 22 are live today. If you are here to learn the tool, start
 with <a href="start.html">your first evaluation</a> instead.</p>
 
 <h2>The ones you will actually use</h2>
@@ -101,8 +101,11 @@ with <a href="start.html">your first evaluation</a> instead.</p>
 <tr><td class="mono">langchef baseline set | show</td><td>Pin a run as the reference</td><td class="mono">deterministic</td><td><code>baselines/</code></td><td><span class="pill yes">live</span></td></tr>
 <tr><td class="mono">langchef compare</td><td>Paired deltas, confidence intervals, regression flags, minimum detectable effect</td><td class="mono">deterministic</td><td><code>runs/&lt;id&gt;/compare.json</code></td><td><span class="pill yes">live</span></td></tr>
 <tr><td class="mono">langchef triage</td><td>Slice drill-down, deploy correlation, reproduction set</td><td class="mono">deterministic</td><td><code>findings/</code></td><td><span class="pill no">M6</span></td></tr>
-<tr><td class="mono">langchef power</td><td>Minimum detectable effect, sample size, horizon</td><td class="mono">deterministic</td><td>—</td><td><span class="pill no">M7</span></td></tr>
-<tr><td class="mono">langchef experiment design | check | readout</td><td>Pre-registration, integrity checks, gated readout</td><td class="mono">deterministic</td><td><code>experiments/</code></td><td><span class="pill no">M7</span></td></tr>
+<tr><td class="mono">langchef power</td><td>Standalone power arithmetic (available today inside experiment design)</td><td class="mono">deterministic</td><td>—</td><td><span class="pill no">M7</span></td></tr>
+<tr><td class="mono">langchef experiment design</td><td>Propose one or two designs with detection limit, sample size and cost</td><td class="mono">deterministic</td><td><code>experiments/&lt;id&gt;.toml</code></td><td><span class="pill yes">live</span></td></tr>
+<tr><td class="mono">langchef experiment approve</td><td>Pre-register a design. Editing it afterwards revokes the approval</td><td class="mono">deterministic</td><td><code>experiments/&lt;id&gt;.toml</code></td><td><span class="pill yes">live</span></td></tr>
+<tr><td class="mono">langchef experiment check | list</td><td>Does the run match what was registered?</td><td class="mono">deterministic</td><td>—</td><td><span class="pill yes">live</span></td></tr>
+<tr><td class="mono">langchef experiment readout</td><td>Gated readout. Refuses an unapproved design or an unfinished run</td><td class="mono">deterministic</td><td><code>runs/&lt;id&gt;/readout.json</code></td><td><span class="pill yes">live</span></td></tr>
 <tr><td class="mono">langchef ledger append | query</td><td>The persistent record</td><td class="mono">deterministic</td><td><code>ledger/</code></td><td><span class="pill yes">live</span></td></tr>
 <tr><td class="mono">langchef memo render</td><td>Decision memo from run artifacts</td><td class="mono">deterministic</td><td><code>memos/</code></td><td><span class="pill yes">live</span></td></tr>
 </tbody></table></div>

@@ -71,6 +71,8 @@ class RunResult:
     judgements: tuple[Judgement, ...]
     pin: Pin
     stats: dict
+    budget_exhausted: bool = False
+    unscored: tuple[str, ...] = ()
 
     def verdicts(self) -> list[str]:
         return [j.verdict for j in self.judgements]
@@ -87,16 +89,36 @@ def run(
     cache: Cache,
     strong_model: str | None = None,
     escalate_below: float = ESCALATE_BELOW,
+    budget_calls: int | None = None,
 ) -> RunResult:
-    """Score every example, escalating only the unsure ones."""
+    """Score every example, escalating only the unsure ones.
+
+    ``budget_calls`` is a ceiling on calls to the provider, not on examples: a
+    cached example is free and does not count. When the ceiling is reached the
+    run stops where it is and reports what was left unscored, because a partial
+    result you know the shape of is worth more than a bill you did not agree to.
+    """
     judgements: list[Judgement] = []
     escalated: list[str] = []
+    unscored: list[str] = []
     called = 0
+    exhausted = False
+
+    def affordable() -> bool:
+        return budget_calls is None or called < budget_calls
 
     for example in examples:
+        if exhausted:
+            unscored.append(example.example_id)
+            continue
+
         key = judgement_key(example, rubric, cheap_model, "cheap")
         judgement = cache.get(key)
         if judgement is None:
+            if not affordable():
+                exhausted = True
+                unscored.append(example.example_id)
+                continue
             judgement = provider.judge(example, rubric, cheap_model)
             called += 1
             cache.put(key, judgement, "cheap", rubric.ref)
@@ -104,12 +126,16 @@ def run(
         if strong_model and judgement.confidence < escalate_below:
             strong_key = judgement_key(example, rubric, strong_model, "strong")
             stronger = cache.get(strong_key)
-            if stronger is None:
+            if stronger is None and affordable():
                 stronger = provider.judge(example, rubric, strong_model)
                 called += 1
                 cache.put(strong_key, stronger, "strong", rubric.ref)
-            escalated.append(example.example_id)
-            judgement = stronger
+            # An unaffordable escalation keeps the cheap verdict rather than
+            # dropping the example: a low-confidence answer is still an answer,
+            # and the stats record how many went un-escalated.
+            if stronger is not None:
+                escalated.append(example.example_id)
+                judgement = stronger
 
         judgements.append(judgement)
 
@@ -132,7 +158,12 @@ def run(
             "fail": fails,
             "pass": len(judgements) - fails,
             "fail_rate": fails / len(judgements) if judgements else float("nan"),
+            "budget_calls": budget_calls,
+            "budget_exhausted": exhausted,
+            "unscored": len(unscored),
         },
+        budget_exhausted=exhausted,
+        unscored=tuple(unscored),
     )
 
 

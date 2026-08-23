@@ -24,6 +24,9 @@ class JudgeSettings:
     escalate_below: float = 0.6
     rubric: str = "answer-quality"
     cassettes: str | None = None
+    # Costing a design needs a price. There is no sane default across
+    # providers, so an absent price is reported as absent rather than guessed.
+    price_per_call_usd: float | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +72,11 @@ def load(workspace: Workspace) -> Settings:
             escalate_below=float(judge.get("escalate_below", 0.6)),
             rubric=str(judge.get("rubric", "answer-quality")),
             cassettes=judge.get("cassettes"),
+            price_per_call_usd=(
+                float(judge["price_per_call_usd"])
+                if judge.get("price_per_call_usd") is not None
+                else None
+            ),
         ),
         approved_rubric=approvals.get("rubric"),
         level=float(compare.get("level", 0.95)),

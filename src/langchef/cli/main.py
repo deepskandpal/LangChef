@@ -13,6 +13,7 @@ import typer
 
 from langchef import __version__
 from langchef.cli.calibrate_cmd import calibrate_app, label_app
+from langchef.cli.design_cmd import experiment_app
 from langchef.cli.experiment_cmd import baseline_app, compare
 from langchef.cli.judge_cmd import judge_app
 from langchef.cli.memo_cmd import ledger_app, memo_app
@@ -46,6 +47,7 @@ app.add_typer(baseline_app, name="baseline")
 app.add_typer(memo_app, name="memo")
 app.add_typer(ledger_app, name="ledger")
 app.add_typer(approve_app, name="approve")
+app.add_typer(experiment_app, name="experiment")
 
 SUPPORTED_PYTHON = ((3, 12), (3, 13))
 

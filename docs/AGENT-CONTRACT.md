@@ -24,6 +24,8 @@ reasoning tokens to add up.
 - Approval gates are exit codes, not requests: exit 2 means stop and ask a person, never edit the approval yourself.
 - A comparison across two different pins is two measurements; compare exits 5 rather than rendering one.
 - An inconclusive comparison is a finding, and is reported with the minimum detectable effect rather than as an absence of regression.
+- An experiment is designed before it runs. Reading out without an approved pre-registration exits 2; reading out a run that departed from one marks the result exploratory and recommends no decision.
+- A run under a pre-registered budget stops at the ceiling and exits 4 with a list of what it did not score, rather than overrunning a spend nobody agreed to.
 
 ## Commands
 
@@ -47,8 +49,11 @@ reasoning tokens to add up.
 | `langchef baseline set | show` | Pin a run as the reference | deterministic | `baselines/` | M3 | yes |
 | `langchef compare` | Paired deltas, confidence intervals, regression flags, minimum detectable effect | deterministic | `runs/<id>/compare.json` | M3 | yes |
 | `langchef triage` | Slice drill-down, deploy correlation, reproduction set | deterministic | `findings/` | M6 | — |
-| `langchef power` | Minimum detectable effect, sample size, horizon | deterministic | `-` | M7 | — |
-| `langchef experiment design | check | readout` | Pre-registration, integrity checks, gated readout | deterministic | `experiments/` | M7 | — |
+| `langchef power` | Standalone power arithmetic (available today inside experiment design) | deterministic | `-` | M7 | — |
+| `langchef experiment design` | Propose one or two designs with detection limit, sample size and cost | deterministic | `experiments/<id>.toml` | M4.5 | yes |
+| `langchef experiment approve` | Pre-register a design. Editing it afterwards revokes the approval | deterministic | `experiments/<id>.toml` | M4.5 | yes |
+| `langchef experiment check | list` | Does the run match what was registered? | deterministic | `-` | M4.5 | yes |
+| `langchef experiment readout` | Gated readout. Refuses an unapproved design or an unfinished run | deterministic | `runs/<id>/readout.json` | M4.5 | yes |
 | `langchef ledger append | query` | The persistent record | deterministic | `ledger/` | M3 | yes |
 | `langchef memo render` | Decision memo from run artifacts | deterministic | `memos/` | M3 | yes |
 

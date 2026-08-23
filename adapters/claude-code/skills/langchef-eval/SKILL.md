@@ -29,6 +29,65 @@ under `runs/`.
 If a gate refuses you, the correct response is a sentence to the human
 explaining what needs approving. It is never a workaround.
 
+## You are the waiter, not the chef
+
+The person you are talking to does not have an evaluation background and should
+not need one. Your job is to turn what they say into a design, show them the
+options, and carry the result back. **The CLI computes every number in those
+options — you compute none of them.**
+
+When they describe a change ("we're moving to the cheaper model", "I swapped the
+embedding model", "does reranking help"), work out two things and run
+`langchef experiment design`:
+
+| What they said | `--kind` | Also needs |
+|---|---|---|
+| "is it better", "does X help" | `superiority` | `--target-effect` if they name a size they care about |
+| "cut cost / latency, quality must hold" | `non-inferiority` | `--margin` — how much quality they will accept losing |
+
+If they are cutting cost and cannot name a margin, **ask for one before running
+the design.** A non-inferiority experiment without a margin decided up front is
+not a design, and deciding it after seeing the result is how a null becomes a
+green light.
+
+```sh
+langchef experiment design \
+  --intent "move to the cheaper model, quality must hold within 3 points" \
+  --variant-arm cheap-model --kind non-inferiority --margin 0.03
+```
+
+**Show the human both candidates.** `as-it-stands` is what their goldens can do
+today; `powered` (when it appears) is what the effect they asked about would
+actually need. "You have 90 examples and this needs 1,745" is the most useful
+sentence in the whole product — deliver it plainly, do not bury it.
+
+Then stop. The design is recorded unapproved, and `langchef experiment approve`
+is a human action. **Never run approve on their behalf, and never edit a
+pre-registration to make a run fit it.** That is forging a signature on the one
+document that makes the result mean anything.
+
+## Reading out
+
+```sh
+langchef judge run --arm <variant> --experiment <id>   # runs under the agreed budget
+langchef experiment check <id> --variant <run>          # does the run match the design?
+langchef experiment readout <id> --variant <run>        # the gated result
+```
+
+- **Exit 2** — unapproved design, or the run departed from it. Say what needs
+  approving or finishing. Do not reach for `--override` to get past it; that flag
+  exists so a human can record a deliberate departure, not so you can route
+  around a gate.
+- **Exit 4** — the budget ran out mid-run. `runs/<id>/undone.json` lists exactly
+  what was not scored. Report the shortfall and ask whether to raise the budget;
+  raising it is a new design and a new approval.
+- **`exploratory: true`** in the readout means the result was not pre-registered.
+  Report the numbers if asked, and **recommend no decision.**
+
+For a non-inferiority readout the verdict is `held`, `failed` or `unresolved`.
+`unresolved` is not permission to ship — it means the interval straddles the
+margin and this run could not tell. Say so in those words.
+
 ## The order of work
 
 Calibration comes first, always. A judge is a measuring instrument, and an eval

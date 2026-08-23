@@ -1,6 +1,6 @@
 # Tracker
 
-**Updated 23 August 2026** · `main` at M1–M4 · CI green · 155 tests · 9/9 verify steps
+**Updated 23 August 2026** · `main` at M1–M4.5 · CI green · 180 tests · 10/10 verify steps
 
 The point of this file is that work can be picked up cold. Every open item says
 what it is, why it matters, and which file to open first. Closed items stay for
@@ -18,6 +18,7 @@ deleted if they did not.
 | M2 | Judge runner | **done** | hashed rubrics, provider shim ×3, content-addressed cache, two tiers, pins |
 | M3 | Workspace | **done** | `init`, formats, runs, ledger, paired `compare`, memos |
 | M4 | Agent layer | **done** | Claude Code skill + commands, gate one enforced at exit 2 |
+| M4.5 | The waiter | **done** | `experiment design`/`approve`/`check`/`readout`, pre-registration in TOML, gate two at exit 2, budgets at exit 4 |
 | M5 | Unattended | next | scheduling, weekly recalibration, spend caps, connectors + sampling |
 | M6 | Job one | not started | eval suites, `calibrate diff`, triage, variance-derived thresholds |
 | M7 | Experiments | not started | pre-registration, integrity checks, gated readout, `power` |
@@ -52,12 +53,14 @@ is only documented as never **re**numbered), or reword `1` to plain "error" and
 let the message carry it. *Start at:* `src/langchef/core/exits.py`.
 *Settle before other people's automation depends on the codes.*
 
-**Exit codes 3 and 4 are advertised and never emitted.** `langchef contract`
-promises `3 = abstained` and `4 = budget exhausted`; both have zero call sites.
-The command table already models this honestly with `"implemented": false` — the
-exit-code table does not. *Options:* mark them reserved in the contract output,
-or land them with M5, which is where spend caps live anyway.
-*Start at:* `src/langchef/core/contract.py`.
+**Exit code 3 is advertised and never emitted.** *(Half-resolved 23 Aug.)*
+`4 = budget exhausted` is now real: a run under a pre-registered budget stops at
+the ceiling, writes `runs/<id>/undone.json`, and exits 4. `3 = abstained` still
+has zero call sites — nothing currently declines to judge on low confidence, it
+escalates to the strong model instead. *Options:* emit 3 when the strong tier is
+also unsure and no verdict should be recorded, or mark it reserved in the
+contract output the way unimplemented commands already are.
+*Start at:* `src/langchef/judge/runner.py`.
 
 **Revisit the open-core split.** `DECISIONS.md` #8 put the CLI under Apache-2.0
 and kept expertise packs proprietary. That was designed around paid pilots, and
@@ -68,18 +71,6 @@ licensing conclusion deserves a fresh look before packs have any content.
 ---
 
 ## Open — engineering
-
-**No planning layer — "the waiter" is missing.** *(New, 23 Aug.)* Under the
-diner framing the harness should take a stated intent in plain language and
-propose one or two experiment designs — metric, sample size, minimum detectable
-effect, estimated spend — written to the workspace as a pre-registration for a
-human to approve or reject. Nothing does this today: the shipped skill teaches an
-agent to *run* the loop, not to *design* one. This is also the missing surface for
-PRD gate two, which already requires an approved pre-registered design with no way
-to produce one, and it is where exit code 4 (budget exhausted, declared and never
-emitted) becomes real. Until it exists the user still designs the experiment —
-which is the operator role the whole thesis says does not exist downmarket.
-*Start at:* `adapters/claude-code/skills/` and a new `langchef experiment design`.
 
 **MLflow integration.** *(New, 23 Aug.)* Read runs and params from an existing
 MLflow server; write calibration and comparison results back as metrics and
