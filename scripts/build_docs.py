@@ -56,7 +56,7 @@ SIDEBAR = f"""
   </ul>
   <h4>In the repository</h4>
   <ul>
-    <li><a href="AGENT-CONTRACT.md">Agent contract</a></li>
+    <li><a href="{BLOB}/docs/AGENT-CONTRACT.md">Agent contract</a></li>
     <li><a href="{BLOB}/DECISIONS.md">Decisions</a></li>
     <li><a href="{BLOB}/dogfood/README.md">Dogfood</a></li>
     <li><a href="{BLOB}/TRACKER.md">Work tracker</a></li>
@@ -437,7 +437,7 @@ that does not exist. @@live@@ of @@total@@ are live today.</p>
 </ul>
 
 <p>The machine-readable copy of all of this is
-<a href="AGENT-CONTRACT.md">docs/AGENT-CONTRACT.md</a>, or
+<a href="@@blob@@/docs/AGENT-CONTRACT.md">docs/AGENT-CONTRACT.md</a>, or
 <code>langchef contract</code> at runtime.</p>
 """
 
