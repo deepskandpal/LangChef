@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Integrations — LangChef</title>
+<meta name="description" content="What LangChef reads from and writes to — MLflow first, then tracing tools and CI. Status is marked honestly: shipped means it works today.">
+<meta property="og:title" content="Integrations — LangChef">
+<meta property="og:description" content="What LangChef reads from and writes to — MLflow first, then tracing tools and CI. Status is marked honestly: shipped means it works today.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=Spectral:ital,wght@0,600;1,400&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="shell">
+    <a class="wordmark" href="index.html"><span class="dot"></span>LangChef</a>
+    <nav class="topnav">
+      <a href="index.html">Overview</a>
+      <a href="start.html">Start here</a>
+      <a href="numbers.html">Reading the output</a>
+      <a href="cli.html">Commands</a>
+      <a href="integrations.html" class="here">Integrations</a>
+      <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="shell layout">
+
+<nav class="sidebar" aria-label="Documentation">
+  <h4>Documentation</h4>
+  <ul>
+    <li><a href="index.html">Overview</a></li>
+    <li><a href="start.html">Your first evaluation</a></li>
+    <li><a href="numbers.html">Reading the output</a></li>
+    <li><a href="cli.html">Command reference</a></li>
+    <li><a href="integrations.html">Integrations</a></li>
+  </ul>
+  <h4>In the repository</h4>
+  <ul>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/docs/AGENT-CONTRACT.md">Agent contract</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/DECISIONS.md">Decisions</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/dogfood/README.md">Dogfood</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">Work tracker</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef">Source on GitHub</a></li>
+  </ul>
+</nav>
+
+<main>
+
+<div class="eyebrow">Integrations</div>
+<h1>What LangChef talks to</h1>
+<p class="lede">LangChef decides what to measure and whether the answer means anything. It is not
+trying to replace the tools you already run — if your runs live in MLflow, they stay in MLflow.</p>
+
+<div class="callout warn">
+  <span class="k">Read the status column</span>
+  <p><strong>Shipped</strong> means it works today on <code>main</code>. Everything else is a
+  statement of intent and nothing more. Track the order of work in the
+  <a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">tracker</a>; open an issue if you need one moved up.</p>
+</div>
+
+<div class="scroller"><table>
+<thead><tr><th>Integration</th><th>Kind</th><th>Status</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td><strong>MLflow</strong></td><td>Experiment tracking</td><td><span class="pill no">next up</span></td><td>Read runs and params from an existing MLflow server; write calibration and comparison results back as metrics and artifacts, so LangChef's numbers land where your team already looks. MLflow 3's <code>align()</code> is one of only two things in the ecosystem that automates judge-human agreement — interoperating with it beats competing with it.</td></tr>
+<tr><td><strong>litellm</strong></td><td>Model providers</td><td><span class="pill yes">shipped</span></td><td>One shim over every provider litellm speaks — Anthropic, OpenAI, Google, Bedrock, Vertex, local. Install with <code>uv sync --extra providers</code>. Nothing else in the codebase imports a provider SDK, so this is the only file to rewrite if it goes bad.</td></tr>
+<tr><td><strong>Claude Code</strong></td><td>Harness</td><td><span class="pill yes">shipped</span></td><td>The calibration playbook as a skill, plus commands that drive the CLI. The approval gates live in the CLI rather than the prompt, so they hold whether or not the agent cooperates.</td></tr>
+<tr><td><strong>Parquet + DuckDB</strong></td><td>Storage &amp; query</td><td><span class="pill no">partial</span></td><td>Per-example scores are written as Parquet today. DuckDB as the read-side query engine over the workspace — never as the store — arrives with the connectors.</td></tr>
+<tr><td><strong>Langfuse</strong></td><td>Tracing</td><td><span class="pill no">planned</span></td><td>Pull production traces as evaluation examples instead of hand-assembling goldens. The obvious second integration: it is open source, self-hostable, and the topology matches — your traces stay where they are.</td></tr>
+<tr><td><strong>OpenTelemetry (GenAI semconv)</strong></td><td>Tracing</td><td><span class="pill no">planned</span></td><td>Reading traces through the OTel GenAI semantic conventions rather than per-vendor SDKs would cover several tracing tools at once. Worth doing before Langfuse-specific work if the conventions have settled.</td></tr>
+<tr><td><strong>Arize Phoenix</strong></td><td>Tracing</td><td><span class="pill no">considering</span></td><td>Open source, widely deployed, and its hosted sibling ships the closest competing agent. Reading from it is straightforward; the question is whether its users want this.</td></tr>
+<tr><td><strong>LangSmith</strong></td><td>Tracing &amp; eval</td><td><span class="pill no">considering</span></td><td>Large install base among teams already on LangChain. Pulling datasets and traces out is feasible; writing results back into a vendor data plane is against the grain here.</td></tr>
+<tr><td><strong>Braintrust</strong></td><td>Eval platform</td><td><span class="pill no">considering</span></td><td>Overlaps rather than complements — its Loop assistant occupies the rung below this one. An import path for teams migrating is more plausible than a live integration.</td></tr>
+<tr><td><strong>GitHub Actions</strong></td><td>CI</td><td><span class="pill no">planned</span></td><td>Run the loop on a schedule in CI for teams without an agent harness, opening a pull request with the memo. The scheduled loop is the product; the harness is one way to run it.</td></tr>
+</tbody></table></div>
+
+<h2>Why MLflow is first</h2>
+
+<p>Two reasons, and neither is popularity.</p>
+
+<p>The first is where teams already are. A team running retrieval, ranking or a classifier
+alongside their GenAI feature almost certainly has an MLflow server, because the classical-ML
+tooling around it largely died off in 2025 and MLflow is what survived. Asking them to keep results
+somewhere else is asking them to maintain two records of the same thing.</p>
+
+<p>The second is that MLflow 3 ships <code>align()</code> — one of only two things in the ecosystem
+that automates judge-versus-human agreement at all. That makes it the nearest thing to a competitor
+on the one problem LangChef leads with, which is exactly why interoperating beats competing:
+a team that has already aligned a judge in MLflow should be able to bring it, not redo it.</p>
+
+<h2>What an integration is allowed to do</h2>
+
+<ul>
+  <li><strong>Read-only by default.</strong> Connectors sample and read; they do not write to your
+  production systems.</li>
+  <li><strong>No data plane.</strong> Traces are read where they live. Nothing transits infrastructure
+  belonging to this project, because there isn't any.</li>
+  <li><strong>The workspace stays the record.</strong> An integration may mirror results outward —
+  metrics into MLflow, a memo into a pull request — but the source of truth is the text in your
+  repository. If you drop an integration, you keep everything.</li>
+</ul>
+
+<h2>Asking for one</h2>
+
+<p>The list is short on purpose and the order is not fixed. If a tool your team depends on is
+missing or sitting in "considering", say so on the
+<a href="https://github.com/deepskandpal/LangChef/issues">issue tracker</a> — what teams actually run beats what looks strategic
+from here.</p>
+
+</main>
+</div>
+
+<footer class="site">
+  <div class="shell">
+    <span>LangChef 0.1.0 — Apache-2.0</span>
+    <span>An installed eval engineer.</span>
+    <span><a href="https://github.com/deepskandpal/LangChef">Source</a></span>
+    <span>&copy; 2026 Deepak Kandpal</span>
+  </div>
+</footer>
+</body>
+</html>

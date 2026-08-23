@@ -22,6 +22,7 @@
       <a href="start.html">Start here</a>
       <a href="numbers.html">Reading the output</a>
       <a href="cli.html">Commands</a>
+      <a href="integrations.html">Integrations</a>
       <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
     </nav>
   </div>
@@ -36,6 +37,7 @@
     <li><a href="start.html">Your first evaluation</a></li>
     <li><a href="numbers.html">Reading the output</a></li>
     <li><a href="cli.html">Command reference</a></li>
+    <li><a href="integrations.html">Integrations</a></li>
   </ul>
   <h4>In the repository</h4>
   <ul>
@@ -113,6 +115,39 @@ them.</p>
 retrieval, correctness for generation — and the judge must name the one it failed on, so failures
 stay attributable instead of pooled.</p>
 
+<h2>You are the diner, not the chef</h2>
+
+<p>The name is about who does the cooking. You say what you want in plain language. The harness —
+Claude Code, or whatever agent your team already runs — takes the order and comes back with one or
+two ways to test it. You pick one and agree what it may spend. The kitchen runs the sampling, the
+judging and the statistics out of sight. What arrives is a dish and one question: <strong>is this
+good enough to ship?</strong></p>
+
+<p>That question is the only judgement the design asks of you, and it is the only one that does not
+need an evaluation background. Everything before it — which metric, how many examples, whether the
+judge can be trusted, whether the difference is real — is kitchen work.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>In the restaurant</th><th>Here</th><th>Who does it</th></tr></thead>
+<tbody>
+<tr><td>"Paneer, and make it slightly spicy"</td><td>What "good" means for your app — the rubric</td><td>You, once</td></tr>
+<tr><td>The kitchen learns your palate</td><td>Judge calibration against ~40 of your own labels</td><td>You taste, it learns</td></tr>
+<tr><td>The waiter suggests a dish or two</td><td>One or two experiment designs</td><td>The harness</td></tr>
+<tr><td>You order, and see the price</td><td>Approve the design and its budget, before any traffic</td><td>You</td></tr>
+<tr><td>The kitchen cooks</td><td>Sampling, judging, statistics, comparison</td><td>The <code>langchef</code> CLI</td></tr>
+<tr><td>The dish arrives</td><td>A decision memo</td><td>—</td></tr>
+<tr><td>Do you like it?</td><td>Ship it, or don't</td><td>You</td></tr>
+</tbody></table></div>
+
+<div class="callout">
+  <span class="k">And you are a regular, not a walk-in</span>
+  <p>The part that matters is what happens when you are not in the room. Once the kitchen knows your
+  palate it keeps watching — when your provider retires a model, when traffic drifts, when the judge
+  starts disagreeing with you again, it notices on a schedule and tells you <em>before</em> you order
+  something you will not like. A tool that only works when you are driving it is a tool you have to
+  remember to drive.</p>
+</div>
+
 <h2>What you get back</h2>
 
 <div class="grid2">
@@ -147,6 +182,10 @@ checked.</p>
 
 <p>Skip it if you already have an eval team and a calibrated judge — you have solved this — or if
 your feature is still changing shape weekly. Come back when it settles.</p>
+
+<p>It does not replace the tools you already run. If your runs live in MLflow, they stay in MLflow;
+LangChef is the thing that decides what to measure and whether the answer means anything. See
+<a href="integrations.html">integrations</a>.</p>
 
 <div class="callout warn">
   <span class="k">Pre-alpha — version 0.1.0</span>

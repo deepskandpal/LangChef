@@ -69,6 +69,29 @@ licensing conclusion deserves a fresh look before packs have any content.
 
 ## Open — engineering
 
+**No planning layer — "the waiter" is missing.** *(New, 23 Aug.)* Under the
+diner framing the harness should take a stated intent in plain language and
+propose one or two experiment designs — metric, sample size, minimum detectable
+effect, estimated spend — written to the workspace as a pre-registration for a
+human to approve or reject. Nothing does this today: the shipped skill teaches an
+agent to *run* the loop, not to *design* one. This is also the missing surface for
+PRD gate two, which already requires an approved pre-registered design with no way
+to produce one, and it is where exit code 4 (budget exhausted, declared and never
+emitted) becomes real. Until it exists the user still designs the experiment —
+which is the operator role the whole thesis says does not exist downmarket.
+*Start at:* `adapters/claude-code/skills/` and a new `langchef experiment design`.
+
+**MLflow integration.** *(New, 23 Aug.)* Read runs and params from an existing
+MLflow server; write calibration and comparison results back as metrics and
+artifacts. First on the integration register for two reasons: teams running
+retrieval or ranking alongside a GenAI feature already have MLflow, since most of
+the classical-ML tooling around it died off in 2025; and MLflow 3's `align()` is
+one of only two things in the ecosystem automating judge–human agreement, which
+makes it the nearest competitor on the problem this leads with and the one worth
+interoperating with rather than competing against. *Start at:*
+`src/langchef/connect/` (empty package) and `scripts/build_docs.py`
+(`INTEGRATIONS`, which is the published register).
+
 **No per-criterion comparison between arms.** *(Top of the list.)* The judge
 already names the criterion it failed on for every example and it is recorded in
 `runs/<id>/scores.parquet`, but `compare` only reports one overall verdict. For a

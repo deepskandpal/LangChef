@@ -39,6 +39,7 @@ PAGES = (
     ("start.html", "Start here"),
     ("numbers.html", "Reading the output"),
     ("cli.html", "Commands"),
+    ("integrations.html", "Integrations"),
 )
 
 FONTS = (
@@ -58,6 +59,7 @@ SIDEBAR = f"""
     <li><a href="start.html">Your first evaluation</a></li>
     <li><a href="numbers.html">Reading the output</a></li>
     <li><a href="cli.html">Command reference</a></li>
+    <li><a href="integrations.html">Integrations</a></li>
   </ul>
   <h4>In the repository</h4>
   <ul>
@@ -120,6 +122,25 @@ def shell(page: str, title: str, body: str, description: str) -> str:
 </body>
 </html>
 """
+
+
+def integration_rows() -> str:
+    pills = {
+        "shipped": '<span class="pill yes">shipped</span>',
+        "partial": '<span class="pill no">partial</span>',
+        "next": '<span class="pill no">next up</span>',
+        "planned": '<span class="pill no">planned</span>',
+        "considering": '<span class="pill no">considering</span>',
+    }
+    return "\n".join(
+        "<tr>"
+        f"<td><strong>{html.escape(name)}</strong></td>"
+        f"<td>{html.escape(kind)}</td>"
+        f"<td>{pills[status]}</td>"
+        f"<td>{detail}</td>"
+        "</tr>"
+        for name, kind, status, detail in INTEGRATIONS
+    )
 
 
 def command_rows() -> str:
@@ -224,6 +245,39 @@ them.</p>
 retrieval, correctness for generation — and the judge must name the one it failed on, so failures
 stay attributable instead of pooled.</p>
 
+<h2>You are the diner, not the chef</h2>
+
+<p>The name is about who does the cooking. You say what you want in plain language. The harness —
+Claude Code, or whatever agent your team already runs — takes the order and comes back with one or
+two ways to test it. You pick one and agree what it may spend. The kitchen runs the sampling, the
+judging and the statistics out of sight. What arrives is a dish and one question: <strong>is this
+good enough to ship?</strong></p>
+
+<p>That question is the only judgement the design asks of you, and it is the only one that does not
+need an evaluation background. Everything before it — which metric, how many examples, whether the
+judge can be trusted, whether the difference is real — is kitchen work.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>In the restaurant</th><th>Here</th><th>Who does it</th></tr></thead>
+<tbody>
+<tr><td>"Paneer, and make it slightly spicy"</td><td>What "good" means for your app — the rubric</td><td>You, once</td></tr>
+<tr><td>The kitchen learns your palate</td><td>Judge calibration against ~40 of your own labels</td><td>You taste, it learns</td></tr>
+<tr><td>The waiter suggests a dish or two</td><td>One or two experiment designs</td><td>The harness</td></tr>
+<tr><td>You order, and see the price</td><td>Approve the design and its budget, before any traffic</td><td>You</td></tr>
+<tr><td>The kitchen cooks</td><td>Sampling, judging, statistics, comparison</td><td>The <code>langchef</code> CLI</td></tr>
+<tr><td>The dish arrives</td><td>A decision memo</td><td>—</td></tr>
+<tr><td>Do you like it?</td><td>Ship it, or don't</td><td>You</td></tr>
+</tbody></table></div>
+
+<div class="callout">
+  <span class="k">And you are a regular, not a walk-in</span>
+  <p>The part that matters is what happens when you are not in the room. Once the kitchen knows your
+  palate it keeps watching — when your provider retires a model, when traffic drifts, when the judge
+  starts disagreeing with you again, it notices on a schedule and tells you <em>before</em> you order
+  something you will not like. A tool that only works when you are driving it is a tool you have to
+  remember to drive.</p>
+</div>
+
 <h2>What you get back</h2>
 
 <div class="grid2">
@@ -258,6 +312,10 @@ checked.</p>
 
 <p>Skip it if you already have an eval team and a calibrated judge — you have solved this — or if
 your feature is still changing shape weekly. Come back when it settles.</p>
+
+<p>It does not replace the tools you already run. If your runs live in MLflow, they stay in MLflow;
+LangChef is the thing that decides what to measure and whether the answer means anything. See
+<a href="integrations.html">integrations</a>.</p>
 
 <div class="callout warn">
   <span class="k">Pre-alpha — version @@version@@</span>
@@ -726,6 +784,60 @@ is deliberate. A confident result from an unchecked judge is worse than no resul
 question is never an appendix.</p>
 """
 
+INTEGRATIONS_PAGE = """
+<div class="eyebrow">Integrations</div>
+<h1>What LangChef talks to</h1>
+<p class="lede">LangChef decides what to measure and whether the answer means anything. It is not
+trying to replace the tools you already run — if your runs live in MLflow, they stay in MLflow.</p>
+
+<div class="callout warn">
+  <span class="k">Read the status column</span>
+  <p><strong>Shipped</strong> means it works today on <code>main</code>. Everything else is a
+  statement of intent and nothing more. Track the order of work in the
+  <a href="@@blob@@/TRACKER.md">tracker</a>; open an issue if you need one moved up.</p>
+</div>
+
+<div class="scroller"><table>
+<thead><tr><th>Integration</th><th>Kind</th><th>Status</th><th>What it does</th></tr></thead>
+<tbody>
+@@rows@@
+</tbody></table></div>
+
+<h2>Why MLflow is first</h2>
+
+<p>Two reasons, and neither is popularity.</p>
+
+<p>The first is where teams already are. A team running retrieval, ranking or a classifier
+alongside their GenAI feature almost certainly has an MLflow server, because the classical-ML
+tooling around it largely died off in 2025 and MLflow is what survived. Asking them to keep results
+somewhere else is asking them to maintain two records of the same thing.</p>
+
+<p>The second is that MLflow 3 ships <code>align()</code> — one of only two things in the ecosystem
+that automates judge-versus-human agreement at all. That makes it the nearest thing to a competitor
+on the one problem LangChef leads with, which is exactly why interoperating beats competing:
+a team that has already aligned a judge in MLflow should be able to bring it, not redo it.</p>
+
+<h2>What an integration is allowed to do</h2>
+
+<ul>
+  <li><strong>Read-only by default.</strong> Connectors sample and read; they do not write to your
+  production systems.</li>
+  <li><strong>No data plane.</strong> Traces are read where they live. Nothing transits infrastructure
+  belonging to this project, because there isn't any.</li>
+  <li><strong>The workspace stays the record.</strong> An integration may mirror results outward —
+  metrics into MLflow, a memo into a pull request — but the source of truth is the text in your
+  repository. If you drop an integration, you keep everything.</li>
+</ul>
+
+<h2>Asking for one</h2>
+
+<p>The list is short on purpose and the order is not fixed. If a tool your team depends on is
+missing or sitting in "considering", say so on the
+<a href="@@repo@@/issues">issue tracker</a> — what teams actually run beats what looks strategic
+from here.</p>
+"""
+
+
 CLI = """
 <div class="eyebrow">Reference</div>
 <h1>Commands</h1>
@@ -796,6 +908,87 @@ langchef calibrate report 2&gt;/dev/null  <span class="c"># a script parses this
 </ul>
 """
 
+
+# The integration register. Status is deliberately honest: "shipped" means it
+# works today on main, everything else is a commitment of intent and nothing
+# more. A docs page that implies an integration exists is worse than no page.
+INTEGRATIONS = (
+    (
+        "MLflow",
+        "Experiment tracking",
+        "next",
+        "Read runs and params from an existing MLflow server; write calibration and comparison "
+        "results back as metrics and artifacts, so LangChef's numbers land where your team already "
+        "looks. MLflow 3's <code>align()</code> is one of only two things in the ecosystem that "
+        "automates judge-human agreement — interoperating with it beats competing with it.",
+    ),
+    (
+        "litellm",
+        "Model providers",
+        "shipped",
+        "One shim over every provider litellm speaks — Anthropic, OpenAI, Google, Bedrock, Vertex, "
+        "local. Install with <code>uv sync --extra providers</code>. Nothing else in the codebase "
+        "imports a provider SDK, so this is the only file to rewrite if it goes bad.",
+    ),
+    (
+        "Claude Code",
+        "Harness",
+        "shipped",
+        "The calibration playbook as a skill, plus commands that drive the CLI. The approval gates "
+        "live in the CLI rather than the prompt, so they hold whether or not the agent cooperates.",
+    ),
+    (
+        "Parquet + DuckDB",
+        "Storage & query",
+        "partial",
+        "Per-example scores are written as Parquet today. DuckDB as the read-side query engine over "
+        "the workspace — never as the store — arrives with the connectors.",
+    ),
+    (
+        "Langfuse",
+        "Tracing",
+        "planned",
+        "Pull production traces as evaluation examples instead of hand-assembling goldens. The "
+        "obvious second integration: it is open source, self-hostable, and the topology matches — "
+        "your traces stay where they are.",
+    ),
+    (
+        "OpenTelemetry (GenAI semconv)",
+        "Tracing",
+        "planned",
+        "Reading traces through the OTel GenAI semantic conventions rather than per-vendor SDKs "
+        "would cover several tracing tools at once. Worth doing before Langfuse-specific work if "
+        "the conventions have settled.",
+    ),
+    (
+        "Arize Phoenix",
+        "Tracing",
+        "considering",
+        "Open source, widely deployed, and its hosted sibling ships the closest competing agent. "
+        "Reading from it is straightforward; the question is whether its users want this.",
+    ),
+    (
+        "LangSmith",
+        "Tracing & eval",
+        "considering",
+        "Large install base among teams already on LangChain. Pulling datasets and traces out is "
+        "feasible; writing results back into a vendor data plane is against the grain here.",
+    ),
+    (
+        "Braintrust",
+        "Eval platform",
+        "considering",
+        "Overlaps rather than complements — its Loop assistant occupies the rung below this one. "
+        "An import path for teams migrating is more plausible than a live integration.",
+    ),
+    (
+        "GitHub Actions",
+        "CI",
+        "planned",
+        "Run the loop on a schedule in CI for teams without an agent harness, opening a pull "
+        "request with the memo. The scheduled loop is the product; the harness is one way to run it.",
+    ),
+)
 
 REDIRECTS = {
     # Pages that were renamed. They stay reachable rather than 404ing: Pages
@@ -875,6 +1068,13 @@ def build() -> dict[str, str]:
             fill(NUMBERS, common),
             "Every number LangChef prints, in plain English: judge agreement, catch rate, false "
             "alarms, the verdict, and the smallest change your run could have detected.",
+        ),
+        "integrations.html": shell(
+            "integrations.html",
+            "Integrations — LangChef",
+            fill(INTEGRATIONS_PAGE, {**common, "rows": integration_rows()}),
+            "What LangChef reads from and writes to — MLflow first, then tracing tools and CI. "
+            "Status is marked honestly: shipped means it works today.",
         ),
         "cli.html": shell(
             "cli.html",
