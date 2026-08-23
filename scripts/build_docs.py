@@ -162,10 +162,9 @@ def exit_rows() -> str:
 INDEX = """
 <div class="hero">
   <div class="eyebrow">Evaluation for teams without an evaluation team</div>
-  <h1>You changed the model, the retriever, or the fine-tune. Is the app better or worse?</h1>
-  <p class="lede">Most teams shipping an LLM feature cannot answer that with a straight face.
-  LangChef is a command-line tool that answers it properly — and, just as often, tells you honestly
-  that your test set was never big enough to tell.</p>
+  <h1>Did that change make it better or worse?</h1>
+  <p class="lede">Model swaps, retriever changes, fine-tunes. LangChef gives you a straight answer —
+  or tells you your test set was never big enough to have one.</p>
   <div class="cta">
     <a class="btn solid" href="start.html">Your first evaluation</a>
     <a class="btn ghost" href="@@repo@@">View source</a>
@@ -174,204 +173,100 @@ INDEX = """
 
 <h2>The situation</h2>
 
-<p>You maintain something built on a model: retrieval-augmented search over your own documents, a
-support-ticket classifier, an agent that calls a few tools. It works. Then one of these happens.</p>
+<p>You maintain a retrieval app, a classifier, or an agent that calls a few tools. It works. Then:</p>
 
 <ul>
-  <li><strong>Your provider retires the model you shipped on.</strong> You did not choose this. You
-  have weeks to move, and the replacement behaves differently on your traffic in ways no release
-  note mentions.</li>
-  <li><strong>You swap the embedding model or add a reranker.</strong> Retrieval changes underneath
-  the generator, which is now answering from different context than it was yesterday.</li>
-  <li><strong>You change chunking.</strong> Same documents, different pieces of them reaching the
-  model.</li>
-  <li><strong>You replace a frontier model with a fine-tuned small one</strong> to cut the bill or
-  the latency. Here the question is not "is it better" — it is "did quality hold".</li>
-  <li><strong>You give an agent another tool or another step.</strong> More capability, more places
-  to fail quietly.</li>
-  <li>And yes, occasionally, someone still edits a prompt.</li>
+  <li>your provider <strong>retires the model you shipped on</strong> — you did not choose this, and
+  you have weeks;</li>
+  <li>you <strong>swap the embedding model</strong>, add a reranker, or change chunking, and
+  retrieval shifts underneath the generator;</li>
+  <li>you <strong>distil to a fine-tuned small model</strong> to cut the bill, where the question is
+  not "is it better" but "did quality hold";</li>
+  <li>you give an <strong>agent another tool</strong>, or someone edits a prompt.</li>
 </ul>
 
-<p>Every one of those is the same question wearing a different hat: did that make the app better or
-worse, and how would you know?</p>
+<p>Same question every time, and it usually gets answered by eyeballing twenty outputs, or by a pass
+rate in a spreadsheet that moved three points, or not at all — which is the most common answer, and
+why only about a third of teams running AI in production evaluate it on live traffic.</p>
 
-<p>Today it usually gets answered in one of three ways:</p>
+<p>This is not a tooling problem. Half a dozen capable eval platforms exist and several are free.
+What is missing is the <em>person</em> who knows whether your grader can be trusted and how many
+examples a number needs before it means anything. LangChef stands in for them.</p>
 
-<ul>
-  <li><strong>Someone eyeballs twenty outputs.</strong> Fast, and it does catch obvious breakage. It
-  cannot see a five-point regression, and nobody claims otherwise.</li>
-  <li><strong>A pass rate in a spreadsheet</strong>, produced by asking a model to grade the outputs.
-  Better — and where all three of the mistakes below come from.</li>
-  <li><strong>Nobody checks.</strong> This is the most common answer: only about a third of
-  teams running AI in production evaluate it on live traffic at all.</li>
-</ul>
+<h2>Four ways this goes wrong</h2>
 
-<p>None of this is a tooling problem. There are half a dozen capable evaluation platforms and
-several are free. What is missing is the <em>person</em> — someone who knows whether your grader can
-be trusted, how many examples you need before a number means anything, and whether a three-point
-drop is a regression or noise. Below a certain size that person does not exist and cannot be
-justified as a hire. LangChef is meant to stand in for them.</p>
+<h3>The grader nobody graded</h3>
+<p>Your judge marks 95% of answers good, which sounds healthy. If only 5% of your answers are
+genuinely bad, a judge that marks <em>everything</em> good also scores 95% — and from that number
+alone you cannot tell the two apart.</p>
+<p class="answer"><strong>LangChef:</strong> you label forty examples once. It then reports whether
+the judge agrees with you more than luck explains, how often it misses real problems, how often it
+cries wolf, and which kinds of answer it gets wrong.</p>
 
-<h2>Three ways this goes wrong</h2>
+<h3>The difference that isn't there</h3>
+<p>83% to 80% on ninety examples. That swing is comfortably inside what randomness produces when
+nothing changed — but the number moved, and somebody has to make a call.</p>
+<p class="answer"><strong>LangChef:</strong> returns regression, improvement, or <em>can't tell</em>,
+with the range the true difference sits in. When it can't tell, it says how small a change this test
+set could ever have caught.</p>
 
-<h3>1. The grader nobody graded</h3>
+<h3>The ruler that moved</h3>
+<p>You tightened the grading prompt on Tuesday. Monday's 83% and Wednesday's 88% were never
+measuring the same thing, but they still line up on a chart.</p>
+<p class="answer"><strong>LangChef:</strong> records which rubric and model produced every number,
+and refuses to compare two runs measured differently. It stops rather than drawing the chart.</p>
 
-<p>Say you ask a model to mark each answer good or bad, and it marks 95% of them good. That sounds
-like a healthy system.</p>
-
-<p>Now suppose only 5% of your answers are genuinely bad. A grader that blindly marks
-<em>everything</em> good also scores 95%. From that number alone you cannot tell the two apart — and
-one of them is worthless.</p>
-
-<div class="callout">
-  <span class="k">The general version</span>
-  <p>An LLM judge is a measuring instrument, and almost nobody checks it against a human before
-  trusting what it measures. Every number downstream inherits whatever it gets wrong.</p>
-</div>
-
-<p><strong>What LangChef does:</strong> asks you to label about forty examples yourself, once. Then
-it tells you in plain words whether the grader agrees with you more than luck would explain, how
-often it misses real problems, how often it cries wolf — and which kinds of answers it gets wrong.
-If the grader is not good enough to build on, you find out before you build on it.</p>
-
-<h3>2. The difference that isn't there</h3>
-
-<p>Your pass rate was 83%. After the change it is 80%. Regression?</p>
-
-<p>On ninety test cases: you cannot tell. A swing that size is comfortably inside what randomness
-produces when nothing has changed at all. But nothing in a spreadsheet says so. The number moved,
-somebody has to make a call, and the call gets made on a feeling.</p>
-
-<div class="callout">
-  <span class="k">The general version</span>
-  <p>A small test set cannot resolve a small difference. The honest response to "did it get worse"
-  is sometimes "this test set could never have told you".</p>
-</div>
-
-<p><strong>What LangChef does:</strong> returns one of three answers — <strong>regression</strong>,
-<strong>improvement</strong>, or <strong>can't tell</strong> — with the range the true difference
-probably sits in. When the answer is "can't tell", it also tells you the smallest change this test
-set <em>could</em> have caught, so you know whether to add examples or move on.</p>
-
-<h3>3. The ruler that moved</h3>
-
-<p>You tightened the grading prompt on Tuesday. Monday's run scored 83%, Wednesday's scored 88%.
-Plotted together, that looks like progress.</p>
-
-<p>It isn't a comparison at all. You changed the instrument between the two readings, so the two
-numbers were never measuring the same thing — but nothing stops them lining up on a chart.</p>
-
-<div class="callout">
-  <span class="k">The general version</span>
-  <p>Two measurements are only comparable if the thing doing the measuring held still.</p>
-</div>
-
-<p><strong>What LangChef does:</strong> records exactly which rubric and which model produced every
-number, and <em>refuses</em> to compare two runs that were measured differently. It stops with an
-error instead of drawing the chart.</p>
-
-<h3>4. You know it broke — but not which half</h3>
-
-<p>You swap the embedding model and answer quality drops four points. Is the generator worse, or is
-it being handed worse context to work from?</p>
-
-<p>Those have nothing in common as fixes. One sends you to the prompt, the other to your index. A
-single pass rate over the whole pipeline cannot tell them apart, and averaging them together is how
-teams spend a week tuning a generator that was never the problem.</p>
-
-<div class="callout">
-  <span class="k">The general version</span>
-  <p>A retrieval app is two systems in a trench coat. One number across both hides which of them
-  moved.</p>
-</div>
-
-<p><strong>What LangChef does:</strong> your rubric has one criterion per failure mode — is the fact
-right (generation), is it actually supported by what was retrieved (retrieval), did it refuse when
-the answer was sitting in the context. The judge must name the criterion it failed on for every
-example, so the failures are attributable rather than pooled. The calibration report already groups
-by criterion and by slice of traffic; comparing criterion-by-criterion <em>between</em> two runs is
-the next thing being built — see the <a href="@@blob@@/TRACKER.md">tracker</a>.</p>
-
-<h2>The vocabulary, once</h2>
-
-<p>Five words that the rest of these docs use. If you already know them, skip ahead.</p>
-
-<div class="scroller"><table>
-<thead><tr><th>Word</th><th>What it means here</th></tr></thead>
-<tbody>
-<tr><td><strong>Example</strong></td><td>One question your app was asked, the answer it gave, and what it retrieved to answer it. Also called a <em>golden</em>. You need 50–100.</td></tr>
-<tr><td><strong>Arm</strong></td><td>One version of your app. Usually <code>baseline</code> versus the thing you changed — a new model, a new retriever, a fine-tune.</td></tr>
-<tr><td><strong>Rubric</strong></td><td>What "a good answer" means, written down. Roughly what you'd tell a new teammate on their first day. It's a Markdown file you review like code.</td></tr>
-<tr><td><strong>Judge</strong></td><td>The thing that reads an answer and says pass or fail. Usually a model with your rubric in the prompt. Sometimes just string matching.</td></tr>
-<tr><td><strong>Label</strong></td><td>Your own verdict on an example — pass or fail — recorded by hand. The ground truth the judge is checked against.</td></tr>
-<tr><td><strong>Calibration</strong></td><td>Comparing the judge's verdicts to your labels to find out how much the judge can be trusted.</td></tr>
-</tbody></table></div>
-
-<p>One more that shows up in output: a <strong>run</strong> is a single scoring pass over one arm's
-examples.</p>
+<h3>Not knowing which half broke</h3>
+<p>Quality drops four points after an embedding swap. Is the generator worse, or is it being handed
+worse context? Those have nothing in common as fixes, and one pass rate over both cannot separate
+them.</p>
+<p class="answer"><strong>LangChef:</strong> one rubric criterion per failure mode — grounding for
+retrieval, correctness for generation — and the judge must name the one it failed on, so failures
+stay attributable instead of pooled.</p>
 
 <h2>What you get back</h2>
 
 <div class="grid2">
   <div class="panel">
-    <h3>A verdict you can act on</h3>
-    <p>Regression, improvement, or can't-tell — with a range, and with the size of the smallest
-    change this run could have detected. Never a bare number with no error bars.</p>
+    <h3>A verdict, with error bars</h3>
+    <p>Regression, improvement, or can't-tell — never a bare number. Plus the smallest change the
+    run could have detected, which turns a shrug into a plan.</p>
   </div>
   <div class="panel">
     <h3>An answer for "did quality hold"</h3>
-    <p>Cutting cost with a fine-tuned small model is not a hunt for an improvement — it is a check
-    that the drop is inside a tolerance you set first. The range is what you read for that; see
-    <a href="numbers.html">reading the output</a>.</p>
+    <p>Cutting cost with a small model isn't a hunt for an improvement. It's a check that the drop
+    sits inside a tolerance you set first. <a href="numbers.html">How to read that</a>.</p>
   </div>
   <div class="panel">
     <h3>A memo, not a dashboard</h3>
     <p>One page that opens with whether the judge can be trusted, then the result, then what the run
-    could <em>not</em> rule out. Every figure traces to a file on disk.</p>
-  </div>
-  <div class="panel">
-    <h3>A record that accumulates</h3>
-    <p>An append-only log of every run, calibration and decision. Six months later you can see what
-    was believed at the time and why a call was made.</p>
+    could not rule out. Every figure traces to a file on disk.</p>
   </div>
   <div class="panel">
     <h3>Nothing leaves your machine</h3>
-    <p>No hosted service, no vendor holding your traces, no account. It runs where your code runs,
-    on your keys, and the whole workspace is text you review in a pull request.</p>
+    <p>No hosted service, no account, no vendor holding your traces. It runs where your code runs,
+    and the workspace is text you review in a pull request.</p>
   </div>
 </div>
 
-<h2>What this is not</h2>
+<h2>What it is not, and who it is not for</h2>
 
-<ul>
-  <li><strong>Not a benchmark suite.</strong> It does not ship test cases. Your examples come from
-  your traffic, because a benchmark of somebody else's questions tells you nothing about yours.</li>
-  <li><strong>Not a dashboard.</strong> There is no UI and no hosted anything.</li>
-  <li><strong>Not a replacement for reading your outputs.</strong> It tells you whether a change
-  moved the needle; it will not tell you what to build next.</li>
-  <li><strong>Not magic about labels.</strong> Somebody has to say what good means and mark forty
-  examples once. There is no way around that, and anyone claiming otherwise is selling you a judge
-  nobody checked.</li>
-</ul>
+<p>It ships no test cases — your examples come from your traffic, because a benchmark of someone
+else's questions tells you nothing about yours. There is no UI. And somebody does have to say what
+"good" means and mark forty examples: anyone promising otherwise is selling you a judge nobody
+checked.</p>
 
-<h2>Is this for you?</h2>
-
-<p><strong>Probably yes</strong> if you maintain a retrieval app, a classifier or an agent in
-production, you have no evaluation engineer, and you can spare an afternoon once plus about ten
-minutes per change. It is built for the case where a model migration lands on your desk and nobody
-can tell you whether the replacement is safe.</p>
-
-<p><strong>Probably not</strong> if you already have an eval team and a calibrated judge — you have
-solved this — or if your feature is still changing shape weekly, in which case come back when it
-settles.</p>
+<p>Skip it if you already have an eval team and a calibrated judge — you have solved this — or if
+your feature is still changing shape weekly. Come back when it settles.</p>
 
 <div class="callout warn">
   <span class="k">Pre-alpha — version @@version@@</span>
-  <p>@@live@@ of @@total@@ commands are live. The workspace format and the command surface are still
-  moving; the exit codes are the part meant to be stable. See the
-  <a href="@@blob@@/TRACKER.md">work tracker</a> for what is done and what is open.</p>
+  <p>@@live@@ of @@total@@ commands are live. The workspace format and command surface still move;
+  the exit codes are the part meant to be stable. The
+  <a href="@@blob@@/TRACKER.md">tracker</a> has what is done and what is open.</p>
 </div>
 """
+
 
 START = """
 <div class="eyebrow">Start here</div>
@@ -406,6 +301,19 @@ search app with faults deliberately planted in it, so you can watch the tool fin
 
 <pre><code>uv run python -m dogfood.build
 uv run pytest tests/test_dogfood.py -v</code></pre>
+
+<h2>Words used on this page</h2>
+
+<div class="scroller"><table>
+<thead><tr><th>Word</th><th>What it means here</th></tr></thead>
+<tbody>
+<tr><td><strong>Example</strong></td><td>One question your app was asked, the answer it gave, and what it retrieved. Also called a <em>golden</em>. You need 50–100.</td></tr>
+<tr><td><strong>Rubric</strong></td><td>What "a good answer" means, written down — roughly what you'd tell a new teammate. A Markdown file you review like code.</td></tr>
+<tr><td><strong>Judge</strong></td><td>The thing that reads an answer and says pass or fail. Usually a model with your rubric in the prompt.</td></tr>
+<tr><td><strong>Label</strong></td><td>Your own verdict on an example. The ground truth the judge is checked against.</td></tr>
+<tr><td><strong>Calibration</strong></td><td>Comparing the judge's verdicts to your labels, to find out how far it can be trusted.</td></tr>
+<tr><td><strong>Arm</strong></td><td>One version of your app — usually <code>baseline</code> against the thing you changed.</td></tr>
+</tbody></table></div>
 
 <h2>Step 1 — Collect examples · 10 minutes</h2>
 

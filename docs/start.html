@@ -82,6 +82,19 @@ search app with faults deliberately planted in it, so you can watch the tool fin
 <pre><code>uv run python -m dogfood.build
 uv run pytest tests/test_dogfood.py -v</code></pre>
 
+<h2>Words used on this page</h2>
+
+<div class="scroller"><table>
+<thead><tr><th>Word</th><th>What it means here</th></tr></thead>
+<tbody>
+<tr><td><strong>Example</strong></td><td>One question your app was asked, the answer it gave, and what it retrieved. Also called a <em>golden</em>. You need 50–100.</td></tr>
+<tr><td><strong>Rubric</strong></td><td>What "a good answer" means, written down — roughly what you'd tell a new teammate. A Markdown file you review like code.</td></tr>
+<tr><td><strong>Judge</strong></td><td>The thing that reads an answer and says pass or fail. Usually a model with your rubric in the prompt.</td></tr>
+<tr><td><strong>Label</strong></td><td>Your own verdict on an example. The ground truth the judge is checked against.</td></tr>
+<tr><td><strong>Calibration</strong></td><td>Comparing the judge's verdicts to your labels, to find out how far it can be trusted.</td></tr>
+<tr><td><strong>Arm</strong></td><td>One version of your app — usually <code>baseline</code> against the thing you changed.</td></tr>
+</tbody></table></div>
+
 <h2>Step 1 — Collect examples · 10 minutes</h2>
 
 <p>An example is one question, the answer your app gave, and the context it retrieved. Pull 50–100

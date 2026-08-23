@@ -175,6 +175,12 @@ pre .a { color: var(--accent); }
 .callout.warn { border-left-color: var(--hold); }
 .callout.warn .k { color: var(--hold); }
 
+.answer {
+  border-left: 2px solid var(--accent); padding-left: 15px;
+  color: var(--muted); margin: 0 0 26px; font-size: 16px;
+}
+.answer strong { color: var(--ink); }
+
 .scroller { overflow-x: auto; margin: 0 0 22px; }
 table { width: 100%; border-collapse: collapse; font-size: 15.5px; }
 th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
