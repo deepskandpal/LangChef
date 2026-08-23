@@ -30,18 +30,26 @@ COMMANDS: tuple[Command, ...] = (
     Command("packs list", "List resolvable expertise packs", "deterministic", "-", "M0", True),
     Command(
         "init",
-        "Scaffold the workspace from an onboarding interview",
+        "Scaffold the workspace",
         "deterministic",
         "workspace",
         "M3",
-        False,
+        True,
+    ),
+    Command(
+        "approve rubric",
+        "Record a human approval of the rubric as it stands. Gate one",
+        "deterministic",
+        "evals/config.toml",
+        "M4",
+        True,
     ),
     Command(
         "sample",
         "Pull and stratify production traces",
         "seeded",
         "runs/<id>/sample.parquet",
-        "M3",
+        "M5",
         False,
     ),
     Command(
@@ -50,7 +58,7 @@ COMMANDS: tuple[Command, ...] = (
         "deterministic",
         "labels/<judge>.todo.jsonl",
         "M1",
-        False,
+        True,
     ),
     Command(
         "label import",
@@ -58,7 +66,7 @@ COMMANDS: tuple[Command, ...] = (
         "deterministic",
         "labels/<judge>.jsonl",
         "M1",
-        False,
+        True,
     ),
     Command(
         "judge run",
@@ -66,7 +74,7 @@ COMMANDS: tuple[Command, ...] = (
         "cached",
         "runs/<id>/scores.parquet",
         "M2",
-        False,
+        True,
     ),
     Command(
         "calibrate report",
@@ -74,14 +82,14 @@ COMMANDS: tuple[Command, ...] = (
         "deterministic",
         "runs/<id>/calibration.json",
         "M1",
-        False,
+        True,
     ),
     Command(
         "calibrate diff",
         "Re-score a revised rubric against the same labels, report the delta",
         "deterministic",
         "runs/<id>/delta.json",
-        "M2",
+        "M6",
         False,
     ),
     Command("eval run", "Run a suite over goldens", "cached", "runs/<id>/", "M6", False),
@@ -90,16 +98,16 @@ COMMANDS: tuple[Command, ...] = (
         "Pin a run as the reference",
         "deterministic",
         "baselines/",
-        "M6",
-        False,
+        "M3",
+        True,
     ),
     Command(
         "compare",
-        "Deltas, confidence intervals, regression flags at variance-derived thresholds",
+        "Paired deltas, confidence intervals, regression flags, minimum detectable effect",
         "deterministic",
         "runs/<id>/compare.json",
-        "M6",
-        False,
+        "M3",
+        True,
     ),
     Command(
         "triage",
@@ -126,10 +134,10 @@ COMMANDS: tuple[Command, ...] = (
         False,
     ),
     Command(
-        "ledger append | query", "The persistent record", "deterministic", "ledger/", "M5", False
+        "ledger append | query", "The persistent record", "deterministic", "ledger/", "M3", True
     ),
     Command(
-        "memo render", "Decision memo from run artifacts", "deterministic", "memos/", "M3", False
+        "memo render", "Decision memo from run artifacts", "deterministic", "memos/", "M3", True
     ),
 )
 
@@ -142,6 +150,12 @@ RULES: tuple[str, ...] = (
     "so a rerun is free and reproducible.",
     "Writes are limited to the eval workspace and notification channels; "
     "anything further goes through a pull request.",
+    "Approval gates are exit codes, not requests: exit 2 means stop and ask a "
+    "person, never edit the approval yourself.",
+    "A comparison across two different pins is two measurements; compare exits 5 "
+    "rather than rendering one.",
+    "An inconclusive comparison is a finding, and is reported with the minimum "
+    "detectable effect rather than as an absence of regression.",
 )
 
 

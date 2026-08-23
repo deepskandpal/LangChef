@@ -1,0 +1,10 @@
+{
+  "name": "langchef",
+  "description": "An installed eval engineer: calibrate the judge, run the experiment, write the memo. Every number comes from the langchef CLI, never from the model.",
+  "version": "0.1.0",
+  "author": { "name": "Deepak Kandpal" },
+  "homepage": "https://github.com/deepskandpal/LangChef",
+  "repository": "https://github.com/deepskandpal/LangChef",
+  "license": "Apache-2.0",
+  "keywords": ["evaluation", "llm-as-judge", "calibration", "experimentation"]
+}

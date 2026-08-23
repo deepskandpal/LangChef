@@ -16,23 +16,35 @@ dashboard.
 
 ---
 
-## Status — M0, the ground
+## Status — M4, a working loop end to end
 
-This repository is four days old and deliberately small. M0 exists to make the
-decisions that get expensive later and to prove the shape works end to end, not
-to ship product.
+The whole loop runs: score a suite, choose what a person should label, take
+their labels back, report how far the judge can be trusted, compare two arms,
+and write the memo. **No API key, no network, no model** — the default judge is
+deterministic, so a fresh clone runs the entire flow on any machine.
 
 **Works today**
 
-- `langchef --version`, `langchef contract`, `langchef doctor`, `langchef packs list`
-- The output contract: JSON to stdout, narration to stderr, gates as exit codes
-- The expertise-pack loader and manifest schema, with one pack resolving
-- CI that installs a pinned interpreter, refuses to run if a provider credential
-  is visible, and keeps the generated contract document in sync with the code
+- `init`, `approve rubric`, `judge run`, `label plan`, `label import`,
+  `calibrate report`, `baseline set | show`, `compare`, `memo render`,
+  `ledger append | query`, plus `doctor`, `contract`, `packs list`
+- Calibration statistics — Cohen's kappa with an interval, TPR/TNR/PPV/NPV with
+  Wilson intervals, MCC, and a disagreement taxonomy that only flags a slice
+  when its interval clears the base rate
+- Paired experiment comparison — exact McNemar, bootstrap interval, and a
+  minimum detectable effect on every inconclusive result
+- A judgement cache keyed on content, rubric hash and model pin, so a rerun is
+  free; two-tier judging, with a strong model re-scoring only the unsure cases
+- Gate one, enforced: an unapproved or edited rubric exits 2, and a comparison
+  across moved pins exits 5
+- A [dogfood](dogfood/) app with three planted regressions and a self-test that
+  asserts the harness finds two of them and honestly reports that it cannot
+  resolve the third
 
-**Not built yet** — judge running, calibration statistics, the eval workspace,
-connectors, the agent layer. See the roadmap below and
-[`docs/AGENT-CONTRACT.md`](docs/AGENT-CONTRACT.md) for where each command lands.
+**Not built yet** — production connectors and sampling, scheduling and
+unattended operation, eval suites and triage, experiment pre-registration. See
+the roadmap below and [`docs/AGENT-CONTRACT.md`](docs/AGENT-CONTRACT.md) for
+where each command lands.
 
 ---
 
@@ -46,12 +58,8 @@ globally.
 curl -LsSf https://astral.sh/uv/install.sh | sh      # if you don't have it yet
 ```
 
-Nothing is published and the repository has not been pushed — the name
-reservation needs an account, see [`docs/RESERVE-NAMES.md`](docs/RESERVE-NAMES.md).
-Until that is done, clone from wherever your copy lives:
-
 ```sh
-git clone ~/code/github/langchef            # or the GitHub URL, once reserved
+git clone https://github.com/deepskandpal/LangChef.git langchef
 cd langchef
 uv sync                                     # Python 3.12 + dependencies
 uv run langchef doctor
@@ -59,6 +67,16 @@ uv run langchef doctor
 
 A green `doctor` means the interpreter is the pinned one, an expertise pack
 resolves, and no provider credential is sitting in your environment.
+
+Nothing is on PyPI yet — see [`docs/RESERVE-NAMES.md`](docs/RESERVE-NAMES.md).
+
+To try the whole thing on an app whose failures are already known, run the
+[dogfood](dogfood/):
+
+```sh
+uv run python -m dogfood.build
+uv run pytest tests/test_dogfood.py -v
+```
 
 ---
 
@@ -92,14 +110,28 @@ of that step and exits non-zero.
 ## What it looks like
 
 ```console
-$ langchef doctor                 # stderr — written for you
-ok   python       3.12.14 (supported: 3.12, 3.13)
-ok   uv           /home/dk/.local/bin/uv
-ok   packs        genai-rag@0.1.0
-note workspace    no evals/ here — run langchef init (M3)
-ok   credentials  0 provider key(s) present: none
-doctor: ok
+$ langchef calibrate report       # stderr — written for you
+calibration for support-baseline on 40 labelled example(s)
+  kappa      0.68  0.44..0.92
+  TPR        80.0%  (12/15)
+  FPR        12.0%
+  disagreed  6 ({'false_alarm': 3, 'miss': 3})
+
+$ langchef compare --variant support-stale-index
+support-baseline -> support-stale-index on 90 shared golden(s)
+  baseline 83.3%   variant 63.3%
+  difference -20.0% [-27.8%, -12.2%]  p=0.0000
+  REGRESSION
+
+$ langchef compare --variant support-truncated-context
+  difference +0.0% [+0.0%, +0.0%]  p=1.0000
+  INCONCLUSIVE
+  (smallest effect this run could have seen: 6.0%)
 ```
+
+That last one is the product in one screen. There *is* a regression in that arm
+— we planted a 3.3-point one — and the honest answer at this sample size is not
+"no regression found", it is "nothing we could have seen".
 
 ```console
 $ langchef doctor 2>/dev/null     # stdout — written for the agent (abridged)
@@ -164,20 +196,22 @@ An agent cannot argue with a non-zero exit.
 src/langchef/
   cli/          typer commands — thin, no logic
   core/         statistics, calibration, metrics — no I/O, no LLM, no network
-  judge/        runner, cache, providers.py            (M2)
-  connect/      duckdb-first read-only connectors      (M3)
-  workspace/    formats, ledger, run directories       (M3)
-  render/       memo markdown + ledger html            (M3)
+  judge/        rubric, providers.py, cache, two-tier runner
+  connect/      duckdb-first read-only connectors      (M5)
+  workspace/    paths, formats, config, runs, ledger, scaffold
+  render/       decision memos
   packs/        loader + manifest schema — the boundary
-packs/genai-rag/    the first expertise pack
-adapters/           harness packaging — disposable      (M4)
-dogfood/            RAG app, traffic generator, planted regressions
+packs/genai-rag/       the first expertise pack
+adapters/claude-code/  skill + commands — disposable packaging
+dogfood/               RAG app with three planted regressions
 ```
 
 One rule holds the design together: **`core/` imports nothing from `judge/`,
-`connect/` or `packs/`**, and is stdlib-only until M1 brings numpy and scipy in
-deliberately. Both halves are enforced by `tests/test_boundaries.py`, which is
-what makes every number in the product testable with no API key and no network.
+`connect/` or `packs/`**, and nothing third-party beyond numpy and scipy. That
+is enforced by `tests/test_boundaries.py`, which is what makes every number in
+the product testable with no API key and no network. A matching test keeps
+litellm inside `judge/providers.py`, so there is exactly one file to rewrite if
+it goes bad.
 
 The other marked directory is `packs/`. It stays separable because the core is
 Apache-2.0 and the expertise packs are not; if pack logic leaks into the core,
@@ -208,14 +242,14 @@ assuming it.
 
 | | Milestone | What exists at the end |
 |---|---|---|
-| **M0** | Ground | This repository: decisions, contract, toolchain, CI |
-| M1 | Calibration math | Judge–human agreement — TPR, TNR, Cohen's κ, disagreement taxonomy. No LLM |
-| M2 | Judge runner | Batched scoring, content-addressed cache, two-tier escalation, pins |
-| — | *Gate* | *Three design partners committed to a paid pilot* |
-| M3 | Workspace | `langchef init`, file formats, run ledger, decision memos |
-| M4 | Agent layer | Claude Code plugin, calibration playbook as a skill, gate one enforced |
-| M5 | Unattended | Scheduling, weekly recalibration, spend caps, the quality ledger |
-| M6 | Job one | Eval suites, baselines, variance-derived thresholds, triage |
+| **M0** ✅ | Ground | This repository: decisions, contract, toolchain, CI |
+| **M1** ✅ | Calibration math | Judge–human agreement — TPR, TNR, Cohen's κ, disagreement taxonomy. No LLM |
+| **M2** ✅ | Judge runner | Batched scoring, content-addressed cache, two-tier escalation, pins |
+| **M3** ✅ | Workspace | `langchef init`, file formats, run ledger, comparison, decision memos |
+| **M4** ✅ | Agent layer | Claude Code plugin, calibration playbook as a skill, gate one enforced |
+| M5 | Unattended | Scheduling, weekly recalibration, spend caps, connectors and sampling |
+| M6 | Job one | Eval suites, variance-derived thresholds, triage, rubric diffing |
+| M7 | Experiments | Pre-registration, integrity checks, gated readout, power |
 
 Calibration comes first on purpose. A judge is a measuring instrument, not a
 metric; an eval suite built on an uncalibrated judge produces confident garbage,
@@ -231,9 +265,8 @@ and no amount of downstream statistics repairs it.
 - [`DECISIONS.md`](DECISIONS.md) — nine calls made before the first commit
 - [`docs/AGENT-CONTRACT.md`](docs/AGENT-CONTRACT.md) — generated; what the agent may read, write, spend and decide
 
-The 1.0 platform lives on at
-[`langchef-legacy`](https://github.com/deepskandpal/langchef-legacy). Its
-vocabulary carried over; its code did not.
+The 1.0 platform is not published. Its vocabulary carried over; its code did
+not — see the autopsy above for why.
 
 ---
 

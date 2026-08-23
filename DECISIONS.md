@@ -19,6 +19,19 @@ name and the vocabulary — prompts, datasets, experiments, results — and keep
 nothing else. Cheap to reverse today, impossible to reverse once the new repo
 has history.
 
+### Amended 23 August 2026 — the repository was reused, not created fresh.
+
+**Reopened and closed differently.** The new code was force-pushed over
+`deepskandpal/LangChef`, replacing the 1.0 history in place. The rename to
+`langchef-legacy` never happened.
+
+What held: the 1.0 code is reference material and none of it carried over. What
+changed: keeping the old repository keeps the name, the URL and whatever
+inbound links exist, and the alternative — a second repository with a worse name
+— was paying a permanent cost to preserve a history nobody was going to read.
+The 1.0 history is not lost; it is a full clone on the author's machine at
+`b6fe9f0`, and restoring it is one push.
+
 ## 2. Python 3.12, pinned by uv. Not the system 3.14.
 
 **Closed.** `.python-version` holds `3.12`; `requires-python = ">=3.12,<3.14"`.
@@ -86,3 +99,42 @@ boundary and disagreement cases.
 Not an optimisation to add later. The model pin is part of the judge cache key,
 so retrofitting tiering invalidates every cached judgement in every workspace.
 It costs an hour in M2 and a migration afterwards.
+
+---
+
+## 10. Open source from the start. No paid-pilot gate.
+
+**Decided 23 August 2026.** Apache-2.0, public repository, published before the
+product is finished.
+
+The Build Order gated M3 on three design partners committed to a paid pilot.
+That gate is withdrawn. Asking for money before anyone can see the thing work
+inverts the order: this is a tool whose entire claim — that it finds regressions
+a team would otherwise ship — can be demonstrated in a clone, offline, in about
+a minute. Let it be demonstrated. Value first, commitment after.
+
+This does not reopen #8. The core is Apache-2.0 and the expertise packs are
+still separately licensed, and #5's module boundary is what keeps that possible.
+What changed is the sequencing of the commercial ask, not the licence split —
+though the split is now worth revisiting on its own terms, since the wedge is a
+tool people adopt rather than a pilot they buy.
+
+## 11. Comparisons are paired, and the null result carries a number.
+
+**Decided 23 August 2026**, when `compare` was pulled forward from M6 to M3 to
+make the loop runnable end to end.
+
+Both arms of an eval experiment score the same goldens, so the pairs are the
+unit: exact McNemar over the discordant pairs, not a two-sample proportion test.
+Treating the arms as independent throws the pairing away and inflates the
+variance, which is a reliable way to answer a question nobody asked with great
+confidence while real regressions come back "not significant".
+
+The second half matters more. Every inconclusive result is reported with the
+minimum detectable effect, computed from the *discordant* rate rather than the
+pass rate, because that is what carries the information under McNemar. "No
+significant difference" on its own is not a finding; "no difference we could
+see, and this run could not have resolved anything under six points" is. The
+dogfood exists partly to keep this honest: one of its three planted regressions
+is deliberately below what the sample can resolve, and the test suite asserts
+that LangChef says so rather than reporting a clean bill of health.

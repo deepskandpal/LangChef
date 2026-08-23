@@ -17,7 +17,17 @@ classifiers = [
 ]
 dependencies = [
   "typer>=0.15,<1.0",
+  # M1 brings the numerical stack in deliberately (DECISIONS.md #7).
+  "numpy>=2.1,<3",
+  "scipy>=1.14,<2",
+  # DECISIONS.md #4 — parquet for bulk per-example scores only.
+  "pyarrow>=18,<22",
 ]
+
+[project.optional-dependencies]
+# One shim, one dependency (DECISIONS.md #6). Kept out of the base install so
+# the CLI and its statistics work with no provider SDK present at all.
+providers = ["litellm>=1.55,<2"]
 
 [project.urls]
 Homepage = "https://github.com/deepskandpal/langchef"
@@ -30,6 +40,9 @@ langchef = "langchef.cli.main:app"
 dev = [
   "pytest>=8.3",
   "ruff>=0.8",
+  # Independent implementation for the known-answer tests (DECISIONS.md #7).
+  # A test dependency on purpose: core hand-rolls every statistic it ships.
+  "scikit-learn>=1.5,<2",
 ]
 
 [build-system]
@@ -50,7 +63,13 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 # Holds the agent contract's prose and markdown tables verbatim; wrapping them
 # would change the rendered document.
 "scripts/render_contract.py" = ["E501"]
+# A data table. One fact per line reads as a table and diffs as one; wrapping
+# each tuple across four lines would hide the shape of the corpus.
+"dogfood/corpus.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# The dogfood lives at the repository root rather than in src/, because it is a
+# thing under test, not a thing we ship.
+pythonpath = ["."]

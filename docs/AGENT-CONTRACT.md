@@ -21,6 +21,9 @@ reasoning tokens to add up.
 - No number without a run artifact: any figure in a memo must trace to a file under runs/.
 - Judge results are cached on input hash + rubric hash + model pin, so a rerun is free and reproducible.
 - Writes are limited to the eval workspace and notification channels; anything further goes through a pull request.
+- Approval gates are exit codes, not requests: exit 2 means stop and ask a person, never edit the approval yourself.
+- A comparison across two different pins is two measurements; compare exits 5 rather than rendering one.
+- An inconclusive comparison is a finding, and is reported with the minimum detectable effect rather than as an absence of regression.
 
 ## Commands
 
@@ -32,21 +35,22 @@ reasoning tokens to add up.
 | `langchef contract` | Emit this contract as JSON | deterministic | `-` | M0 | yes |
 | `langchef doctor` | Verify environment, credentials, pins, budget | deterministic | `-` | M0 | yes |
 | `langchef packs list` | List resolvable expertise packs | deterministic | `-` | M0 | yes |
-| `langchef init` | Scaffold the workspace from an onboarding interview | deterministic | `workspace` | M3 | — |
-| `langchef sample` | Pull and stratify production traces | seeded | `runs/<id>/sample.parquet` | M3 | — |
-| `langchef label plan` | Choose the labelling subset that maximises information per label | deterministic | `labels/<judge>.todo.jsonl` | M1 | — |
-| `langchef label import` | Ingest returned human labels | deterministic | `labels/<judge>.jsonl` | M1 | — |
-| `langchef judge run` | Score examples against a pinned rubric | cached | `runs/<id>/scores.parquet` | M2 | — |
-| `langchef calibrate report` | Agreement: TPR, TNR, confusion matrix, Cohen's kappa, disagreement taxonomy | deterministic | `runs/<id>/calibration.json` | M1 | — |
-| `langchef calibrate diff` | Re-score a revised rubric against the same labels, report the delta | deterministic | `runs/<id>/delta.json` | M2 | — |
+| `langchef init` | Scaffold the workspace | deterministic | `workspace` | M3 | yes |
+| `langchef approve rubric` | Record a human approval of the rubric as it stands. Gate one | deterministic | `evals/config.toml` | M4 | yes |
+| `langchef sample` | Pull and stratify production traces | seeded | `runs/<id>/sample.parquet` | M5 | — |
+| `langchef label plan` | Choose the labelling subset that maximises information per label | deterministic | `labels/<judge>.todo.jsonl` | M1 | yes |
+| `langchef label import` | Ingest returned human labels | deterministic | `labels/<judge>.jsonl` | M1 | yes |
+| `langchef judge run` | Score examples against a pinned rubric | cached | `runs/<id>/scores.parquet` | M2 | yes |
+| `langchef calibrate report` | Agreement: TPR, TNR, confusion matrix, Cohen's kappa, disagreement taxonomy | deterministic | `runs/<id>/calibration.json` | M1 | yes |
+| `langchef calibrate diff` | Re-score a revised rubric against the same labels, report the delta | deterministic | `runs/<id>/delta.json` | M6 | — |
 | `langchef eval run` | Run a suite over goldens | cached | `runs/<id>/` | M6 | — |
-| `langchef baseline set | show` | Pin a run as the reference | deterministic | `baselines/` | M6 | — |
-| `langchef compare` | Deltas, confidence intervals, regression flags at variance-derived thresholds | deterministic | `runs/<id>/compare.json` | M6 | — |
+| `langchef baseline set | show` | Pin a run as the reference | deterministic | `baselines/` | M3 | yes |
+| `langchef compare` | Paired deltas, confidence intervals, regression flags, minimum detectable effect | deterministic | `runs/<id>/compare.json` | M3 | yes |
 | `langchef triage` | Slice drill-down, deploy correlation, reproduction set | deterministic | `findings/` | M6 | — |
 | `langchef power` | Minimum detectable effect, sample size, horizon | deterministic | `-` | M7 | — |
 | `langchef experiment design | check | readout` | Pre-registration, integrity checks, gated readout | deterministic | `experiments/` | M7 | — |
-| `langchef ledger append | query` | The persistent record | deterministic | `ledger/` | M5 | — |
-| `langchef memo render` | Decision memo from run artifacts | deterministic | `memos/` | M3 | — |
+| `langchef ledger append | query` | The persistent record | deterministic | `ledger/` | M3 | yes |
+| `langchef memo render` | Decision memo from run artifacts | deterministic | `memos/` | M3 | yes |
 
 ## Exit codes
 

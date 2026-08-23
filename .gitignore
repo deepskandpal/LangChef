@@ -8,3 +8,7 @@ build/
 .ruff_cache/
 .env
 .DS_Store
+
+# Dogfood artifacts — regenerate with `uv run python -m dogfood.build`.
+dogfood/workspace/
+dogfood/truth/

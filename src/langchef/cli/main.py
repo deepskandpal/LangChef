@@ -7,18 +7,24 @@ Every command writes one JSON document to stdout and its narration to stderr.
 import platform
 import shutil
 import sys
-from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from langchef import __version__
+from langchef.cli.calibrate_cmd import calibrate_app, label_app
+from langchef.cli.experiment_cmd import baseline_app, compare
+from langchef.cli.judge_cmd import judge_app
+from langchef.cli.memo_cmd import ledger_app, memo_app
+from langchef.cli.workspace_cmd import approve_app, init
 from langchef.core import contract as contract_mod
 from langchef.core.credentials import present as credentials_present
 from langchef.core.emit import emit, say
 from langchef.core.exits import Exit
 from langchef.packs import discover, search_path
 from langchef.packs.loader import ENV_VAR as PACK_PATH_VAR
+from langchef.workspace.paths import WorkspaceError
+from langchef.workspace.paths import find as find_workspace
 
 app = typer.Typer(
     name="langchef",
@@ -28,6 +34,18 @@ app = typer.Typer(
 )
 packs_app = typer.Typer(help="Expertise packs.", no_args_is_help=True)
 app.add_typer(packs_app, name="packs")
+
+# The commands live in their own modules; this file assembles them and holds
+# nothing but the two that describe the tool itself.
+app.command("init")(init)
+app.command("compare")(compare)
+app.add_typer(judge_app, name="judge")
+app.add_typer(label_app, name="label")
+app.add_typer(calibrate_app, name="calibrate")
+app.add_typer(baseline_app, name="baseline")
+app.add_typer(memo_app, name="memo")
+app.add_typer(ledger_app, name="ledger")
+app.add_typer(approve_app, name="approve")
 
 SUPPORTED_PYTHON = ((3, 12), (3, 13))
 
@@ -65,6 +83,10 @@ def contract() -> None:
 def doctor() -> None:
     """Verify environment, credentials, pins and pack resolution."""
     version_info = sys.version_info[:2]
+    try:
+        workspace_root = str(find_workspace().root)
+    except WorkspaceError:
+        workspace_root = None
     packs = discover()
     credentials = credentials_present()
     credential_names = ", ".join(credentials) or "none"
@@ -92,10 +114,8 @@ def doctor() -> None:
         {
             "name": "workspace",
             "required": False,
-            "ok": (Path.cwd() / "evals").is_dir(),
-            "detail": "evals/ present"
-            if (Path.cwd() / "evals").is_dir()
-            else "no evals/ here — run langchef init (M3)",
+            "ok": workspace_root is not None,
+            "detail": f"{workspace_root}" if workspace_root else "none found — run langchef init",
         },
         {
             "name": "credentials",
@@ -111,6 +131,7 @@ def doctor() -> None:
             "ok": ok,
             "version": __version__,
             "python": platform.python_version(),
+            "workspace": workspace_root,
             "pack_search_path": [str(p) for p in search_path()],
             "packs": [p.ref for p in packs],
             "credentials_present": credentials,
