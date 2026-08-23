@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reading the output — LangChef</title>
+<meta name="description" content="Every number LangChef prints, in plain English: judge agreement, catch rate, false alarms, the verdict, and the smallest change your run could have detected.">
+<meta property="og:title" content="Reading the output — LangChef">
+<meta property="og:description" content="Every number LangChef prints, in plain English: judge agreement, catch rate, false alarms, the verdict, and the smallest change your run could have detected.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=Spectral:ital,wght@0,600;1,400&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="shell">
+    <a class="wordmark" href="index.html"><span class="dot"></span>LangChef</a>
+    <nav class="topnav">
+      <a href="index.html">Overview</a>
+      <a href="start.html">Start here</a>
+      <a href="numbers.html" class="here">Reading the output</a>
+      <a href="cli.html">Commands</a>
+      <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="shell layout">
+
+<nav class="sidebar" aria-label="Documentation">
+  <h4>Documentation</h4>
+  <ul>
+    <li><a href="index.html">Overview</a></li>
+    <li><a href="start.html">Your first evaluation</a></li>
+    <li><a href="numbers.html">Reading the output</a></li>
+    <li><a href="cli.html">Command reference</a></li>
+  </ul>
+  <h4>In the repository</h4>
+  <ul>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/docs/AGENT-CONTRACT.md">Agent contract</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/DECISIONS.md">Decisions</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/dogfood/README.md">Dogfood</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">Work tracker</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef">Source on GitHub</a></li>
+  </ul>
+</nav>
+
+<main>
+
+<div class="eyebrow">Reading the output</div>
+<h1>What every number means</h1>
+<p class="lede">Plain English first, the textbook name second. You do not need any of this to use the
+tool — it is here for when a number looks wrong and you want to know what it is telling you.</p>
+
+<h2>Can this judge be trusted?</h2>
+
+<pre><code>calibration for base on 40 labelled example(s)
+  kappa      0.68  0.44..0.92
+  TPR        80.0%  (12/15)
+  FPR        12.0%
+  disagreed  6 ({'false_alarm': 3, 'miss': 3})</code></pre>
+
+<h3>Agreement — the <code>kappa</code> line</h3>
+
+<p><strong>How much the judge agrees with you, after subtracting the agreement you would get by
+luck.</strong> Runs from 0 (no better than guessing) to 1 (perfect).</p>
+
+<p>Why not just "it agreed with me 90% of the time"? Because on a suite where 95% of answers are
+fine, a judge that says "fine" to everything agrees with you 95% of the time and is worthless. This
+number sees through that; a raw percentage does not.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Agreement</th><th>Reading</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td class="num">0.8 and up</td><td>strong</td><td>Trust the results downstream.</td></tr>
+<tr><td class="num">0.6 – 0.8</td><td>usable</td><td>Fine to act on. Quote the range alongside any finding.</td></tr>
+<tr><td class="num">0.4 – 0.6</td><td>weak</td><td>Fix the rubric before running experiments on it.</td></tr>
+<tr><td class="num">below 0.4</td><td>not usable</td><td>Stop. Do not report pass rates from this judge.</td></tr>
+</tbody></table></div>
+
+<p class="dim"><em>Textbook name: Cohen's κ.</em></p>
+
+<h3>Catch rate — the <code>TPR</code> line</h3>
+
+<p><strong>Of the problems you found by hand, how many did the judge also flag?</strong> Here, 12 of
+the 15. The other three shipped past it.</p>
+
+<p>The counts matter as much as the percentage: "80%" reads like a solid measurement until you see
+it rests on fifteen examples. That is why the tool always prints <code>(12/15)</code> next to it.</p>
+
+<p class="dim"><em>Textbook name: true positive rate, or recall.</em></p>
+
+<h3>False alarm rate — the <code>FPR</code> line</h3>
+
+<p><strong>Of the answers that were actually fine, how many did the judge flag anyway?</strong> Every
+one of these is somebody investigating a non-problem. A judge with a high false alarm rate gets
+ignored within about two weeks, which is worse than having no judge.</p>
+
+<p class="dim"><em>Textbook name: false positive rate.</em></p>
+
+<h3>The range after each number</h3>
+
+<p><code>0.44..0.92</code> is not decoration. It is the honest width of what forty labels can tell
+you: the true agreement is probably somewhere in there. <strong>A wide range means "label more
+examples", not "the judge is inconsistent".</strong></p>
+
+<p class="dim"><em>Textbook name: a 95% confidence interval — Wilson for rates, asymptotic for
+agreement.</em></p>
+
+<h3>Where it disagreed</h3>
+
+<p>The report also groups the disagreements: which rubric criterion the judge cited when it was
+wrong, and whether any slice of your traffic is worse than the rest. A line like
+<code>topic=returns disagrees 33% of the time against a 15% base rate</code> is the actionable form
+of "the judge is unreliable".</p>
+
+<div class="callout">
+  <span class="k">Watch for "separated": false</span>
+  <p>A slice can look twice as bad as average and still be marked <code>separated: false</code>. That
+  means the finding rests on too few examples to distinguish from ordinary variation, and the memo
+  deliberately leaves it out rather than sending you to chase noise.</p>
+</div>
+
+<h2>Did the change help?</h2>
+
+<pre><code>base -&gt; variant on 90 shared golden(s)
+  baseline 83.3%   variant 63.3%
+  difference -20.0% [-27.8%, -12.2%]  p=0.0000
+  REGRESSION</code></pre>
+
+<h3>The verdict</h3>
+
+<div class="scroller"><table>
+<thead><tr><th>Verdict</th><th>Means</th></tr></thead>
+<tbody>
+<tr><td><strong>REGRESSION</strong></td><td>The change made things worse, and the evidence is strong enough to act on.</td></tr>
+<tr><td><strong>IMPROVEMENT</strong></td><td>The change made things better, same standard of evidence.</td></tr>
+<tr><td><strong>INCONCLUSIVE</strong></td><td>This test set cannot tell the two versions apart. <strong>Not the same as "no difference".</strong></td></tr>
+</tbody></table></div>
+
+<h3>The difference, and its range</h3>
+
+<p><code>-20.0% [-27.8%, -12.2%]</code> — the pass rate dropped twenty points, and the true drop is
+probably between twelve and twenty-eight. The verdict is decided by the range, not the p-value: a
+direction only counts when the whole range agrees with it.</p>
+
+<h3>How many examples actually changed</h3>
+
+<p>Both versions answered the same questions, so what matters is how many <em>flipped</em>. If 200
+examples pass under both versions and 3 flip, the entire evidence is in those 3. The tool reports
+that count, and everything is computed from it.</p>
+
+<p class="dim"><em>Textbook name: discordant pairs, tested with an exact McNemar test. The pairing is
+why this is not a two-sample proportion test — treating the arms as independent throws away the fact
+that they answered identical questions, and real regressions then come back "not significant".</em></p>
+
+<h3>The smallest change this run could have caught</h3>
+
+<pre><code>  INCONCLUSIVE
+  (smallest effect this run could have seen: 6.0%)</code></pre>
+
+<p><strong>The single most useful number in the tool.</strong> It converts a shrug into a plan. Your
+run could not have detected anything under six points — so if you were hoping to catch a two-point
+regression, you need more examples, and no amount of re-reading this output will change that.</p>
+
+<p>Roughly: to halve the smallest detectable change, you need about four times the examples.</p>
+
+<p class="dim"><em>Textbook name: minimum detectable effect, computed from the flip rate rather than
+the pass rate, because under a paired test that is what carries the information.</em></p>
+
+<h2>Was this even a fair comparison?</h2>
+
+<p>Every run records the rubric hash, the provider and the models that produced it. Together those
+are the <strong>pin</strong> — the exact ruler used.</p>
+
+<pre><code>$ langchef compare --variant later-run
+langchef: <span class="r">pin mismatch</span> — rubric 'answer-quality@290335165c70'
+-&gt; 'answer-quality@b12aabd7ee8e' — these are two measurements, not a
+comparison. Re-run the older arm under the current pin.</code></pre>
+
+<p>You edited the rubric between the runs, so the numbers were produced by different instruments.
+The tool stops rather than drawing the chart. Re-score the older version under the current rubric
+and compare again — the cache makes that cheap.</p>
+
+<h2>When the tool refuses</h2>
+
+<p>Refusals are exit codes, so a script or an agent cannot talk its way past them.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Code</th><th>What happened</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td class="num">0</td><td>Fine.</td><td>—</td></tr>
+<tr><td class="num">1</td><td>Something is missing or malformed.</td><td>Read the message; it names the fix.</td></tr>
+<tr><td class="num">2</td><td>Nobody has approved the rubric, or it changed since they did.</td><td>Read the rubric, then <code>langchef approve rubric</code>.</td></tr>
+<tr><td class="num">5</td><td>The two runs were measured differently.</td><td>Re-run the older arm under the current pin.</td></tr>
+</tbody></table></div>
+
+<p>Codes <code>3</code> and <code>4</code> are reserved for abstention and spend caps and are not
+emitted yet. The full table, generated from the binary, is on the
+<a href="cli.html">commands page</a>.</p>
+
+<div class="callout">
+  <span class="k">If an agent is driving</span>
+  <p>Exit 2 means stop and ask a person. It never means find another way round — editing the
+  approval in <code>config.toml</code> is forging a signature, and the shipped Claude Code skill says
+  so in as many words.</p>
+</div>
+
+<h2>The memo</h2>
+
+<p><code>langchef memo render</code> assembles all of the above into one page, in a fixed order:
+whether the judge can be trusted, then the result, then what the run could not rule out. That order
+is deliberate. A confident result from an unchecked judge is worse than no result, so the trust
+question is never an appendix.</p>
+
+</main>
+</div>
+
+<footer class="site">
+  <div class="shell">
+    <span>LangChef 0.1.0 — Apache-2.0</span>
+    <span>An installed eval engineer.</span>
+    <span><a href="https://github.com/deepskandpal/LangChef">Source</a></span>
+    <span>&copy; 2026 Deepak Kandpal</span>
+  </div>
+</footer>
+</body>
+</html>

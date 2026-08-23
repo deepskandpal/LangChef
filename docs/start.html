@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your first evaluation — LangChef</title>
+<meta name="description" content="A worked example from install to verdict: collect examples, write the rubric, label forty, find out if your judge is trustworthy, then compare two versions.">
+<meta property="og:title" content="Your first evaluation — LangChef">
+<meta property="og:description" content="A worked example from install to verdict: collect examples, write the rubric, label forty, find out if your judge is trustworthy, then compare two versions.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=Spectral:ital,wght@0,600;1,400&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="shell">
+    <a class="wordmark" href="index.html"><span class="dot"></span>LangChef</a>
+    <nav class="topnav">
+      <a href="index.html">Overview</a>
+      <a href="start.html" class="here">Start here</a>
+      <a href="numbers.html">Reading the output</a>
+      <a href="cli.html">Commands</a>
+      <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="shell layout">
+
+<nav class="sidebar" aria-label="Documentation">
+  <h4>Documentation</h4>
+  <ul>
+    <li><a href="index.html">Overview</a></li>
+    <li><a href="start.html">Your first evaluation</a></li>
+    <li><a href="numbers.html">Reading the output</a></li>
+    <li><a href="cli.html">Command reference</a></li>
+  </ul>
+  <h4>In the repository</h4>
+  <ul>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/docs/AGENT-CONTRACT.md">Agent contract</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/DECISIONS.md">Decisions</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/dogfood/README.md">Dogfood</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">Work tracker</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef">Source on GitHub</a></li>
+  </ul>
+</nav>
+
+<main>
+
+<div class="eyebrow">Start here</div>
+<h1>Your first evaluation</h1>
+<p class="lede">A worked example, start to finish. About forty-five minutes the first time, most of
+it spent labelling. Ten minutes per change after that.</p>
+
+<div class="callout">
+  <span class="k">The scenario</span>
+  <p>Your support assistant answers customer questions from your help centre. You want to retrieve
+  five document chunks instead of three, because someone thinks answers are getting cut short. Does
+  that actually help?</p>
+</div>
+
+<h2>Install — 2 minutes</h2>
+
+<p><a href="https://docs.astral.sh/uv/">uv</a> is the only prerequisite. It fetches its own Python,
+so nothing is installed globally and no system package is touched.</p>
+
+<pre><code>curl -LsSf https://astral.sh/uv/install.sh | sh   <span class="c"># if you don't have it</span>
+
+git clone https://github.com/deepskandpal/LangChef.git langchef
+cd langchef
+uv sync
+uv run langchef doctor</code></pre>
+
+<p>Want to see the whole thing work before pointing it at your own app? The repository ships a small
+search app with faults deliberately planted in it, so you can watch the tool find them:</p>
+
+<pre><code>uv run python -m dogfood.build
+uv run pytest tests/test_dogfood.py -v</code></pre>
+
+<h2>Step 1 — Collect examples · 10 minutes</h2>
+
+<p>An example is one question, the answer your app gave, and the context it retrieved. Pull 50–100
+from your logs. Real questions, not invented ones — invented questions are always easier than the
+ones users actually ask.</p>
+
+<pre><code>cd your-project
+langchef init</code></pre>
+
+<p>That creates an <code>evals/</code> directory. Put your examples in
+<code>evals/goldens/support.baseline.jsonl</code>, one JSON object per line:</p>
+
+<pre><code>{"example_id": "q-001",
+ "question": "How long do refunds take?",
+ "answer": "Refunds are issued within ten working days of the parcel arriving back.",
+ "context": ["Refunds are issued within ten working days of the parcel arriving back."],
+ "expected": "ten working days",
+ "slices": {"topic": "returns"}}</code></pre>
+
+<p><code>expected</code> is the fact a correct answer has to contain — you know this because you
+picked the question. <code>slices</code> are optional tags; they are how the tool later tells you
+"this only breaks on billing questions".</p>
+
+<h2>Step 2 — Say what "good" means · 10 minutes</h2>
+
+<p><code>langchef init</code> wrote a starter rubric at
+<code>evals/rubrics/answer-quality.md</code>. Open it and make it yours. It is Markdown, each
+<code>###</code> heading is one criterion, and the judge has to name the criterion it failed on:</p>
+
+<pre><code>### Correctness
+
+The answer states the fact the question asked for. An answer that is
+merely adjacent to the right topic fails this criterion.
+
+### Groundedness
+
+Every claim is supported by the retrieved context. An answer that is
+correct but not present in the context still fails: on a retrieval
+system that is a lucky guess, and it will not stay lucky.
+
+### Directness
+
+The answer answers. Hedging into uselessness when the context contains
+the answer fails here.</code></pre>
+
+<p>This is the highest-leverage twenty minutes in the whole process. A vague rubric produces a vague
+judge, and no amount of statistics downstream repairs that.</p>
+
+<h2>Step 3 — Sign it off · 10 seconds</h2>
+
+<p>Nothing will run until a person has read the rubric and approved it:</p>
+
+<pre><code>$ langchef judge run --arm baseline
+langchef: <span class="r">refused</span> — an approval gate is unmet — no rubric approved yet
+
+$ langchef approve rubric
+approved answer-quality@290335165c70
+  - Correctness
+  - Groundedness
+  - Directness</code></pre>
+
+<p>That hash is the point. If you edit the rubric later, the hash changes, the approval lapses
+automatically, and the next run stops until you re-read it. This is what prevents trap three — the
+ruler moving without anyone noticing.</p>
+
+<h2>Step 4 — Score them · 30 seconds</h2>
+
+<pre><code>$ langchef judge run --arm baseline
+judge: n=90  provider_calls=90  pass=75  fail=15</code></pre>
+
+<p>Out of the box this uses a judge that needs no API key and no network — it checks whether the
+expected fact is present, whether the answer is grounded in the retrieved context, and whether it
+hedged. It is a real technique and a reasonable starting point, and it has a real weakness you are
+about to discover in step 6.</p>
+
+<p>To use a real model instead, set two lines in <code>evals/config.toml</code>:</p>
+
+<pre><code>[judge]
+provider = "litellm"
+cheap_model = "anthropic/claude-haiku-4-5"
+strong_model = "anthropic/claude-sonnet-5"   <span class="c"># re-scores only the unsure cases</span></code></pre>
+
+<h2>Step 5 — Label forty yourself · 20 minutes</h2>
+
+<p>This is the only manual work, and it is not optional. It is the <em>only</em> way to find out
+whether the judge is worth anything.</p>
+
+<pre><code>$ langchef label plan --budget 40
+40 of 90 examples planned for labelling
+  by stratum: {'fail': 15, 'pass': 25}
+  -&gt; evals/labels/answer-quality.todo.jsonl</code></pre>
+
+<p>It does not pick forty at random. It takes every example the judge flagged plus a sample of the
+ones it passed, because a random sample of a suite with a 17% failure rate spends most of your
+attention confirming things that were already fine.</p>
+
+<p>Open that file, read each answer, and set <code>"verdict"</code> to <code>"pass"</code> or
+<code>"fail"</code> — your honest opinion, not what you think the judge said. Then:</p>
+
+<pre><code>langchef label import evals/labels/answer-quality.todo.jsonl</code></pre>
+
+<h2>Step 6 — Find out if your judge is any good · 5 seconds</h2>
+
+<pre><code>$ langchef calibrate report
+calibration for base on 40 labelled example(s)
+  kappa      0.68  0.44..0.92
+  TPR        80.0%  (12/15)
+  FPR        12.0%
+  disagreed  6 ({'false_alarm': 3, 'miss': 3})</code></pre>
+
+<p>In plain words: <strong>this judge is usable but not great.</strong> It caught 12 of the 15
+problems you found, cried wolf on 12% of the good answers, and agrees with you meaningfully more
+than chance would explain. <a href="numbers.html">Reading the output</a> decodes each of those lines
+properly, including what to do when the number is bad.</p>
+
+<p>If agreement had come back below 0.4, the correct move is to stop, fix the rubric, and try again
+— not to carry on and report pass rates from a judge that disagrees with you.</p>
+
+<h2>Step 7 — Make the change and compare · 1 minute</h2>
+
+<pre><code>langchef baseline set                       <span class="c"># pin what you have as the reference</span>
+
+<span class="c"># now switch retrieval to top-5, regenerate answers into</span>
+<span class="c"># evals/goldens/support.top-5.jsonl, then:</span>
+
+langchef judge run --arm top-5
+langchef compare --variant support-top-5</code></pre>
+
+<p>One of three things comes back.</p>
+
+<pre><code>  baseline 83.3%   variant 63.3%
+  difference -20.0% [-27.8%, -12.2%]  p=0.0000
+  <span class="r">REGRESSION</span></code></pre>
+<p>It broke something. The range says the true damage is somewhere between 12 and 28 points.</p>
+
+<pre><code>  difference +0.0% [+0.0%, +0.0%]  p=1.0000
+  <span class="o">INCONCLUSIVE</span>
+  (smallest effect this run could have seen: 6.0%)</code></pre>
+<p>This is the one people misread. It does <em>not</em> mean the change was safe. It means ninety
+examples could never have detected anything smaller than a six-point swing, so if your change moved
+things by three points, this run was always going to shrug. Add examples, or accept that you are not
+going to resolve a change this small.</p>
+
+<h2>Step 8 — Write it up · 5 seconds</h2>
+
+<pre><code>langchef memo render</code></pre>
+
+<p>A one-page Markdown memo in <code>evals/memos/</code>. It opens with whether the judge can be
+trusted, because a confident result from an unchecked judge is worse than no result. Then the
+finding, then what the run could not rule out. Commit it next to the change it justifies.</p>
+
+<h2>After the first time</h2>
+
+<p>Steps 1–6 are setup. From then on, each change costs you two commands and about a minute:</p>
+
+<pre><code>langchef judge run --arm my-change
+langchef compare --variant support-my-change</code></pre>
+
+<p>Re-label every month or so, or whenever you touch the rubric — the judge's trustworthiness drifts
+as your traffic changes, and the tool will keep quoting the last calibration until you refresh it.</p>
+
+<h2>Handing it to an agent</h2>
+
+<p>If you use Claude Code, the adapter ships the whole playbook above as a skill, so the agent runs
+the loop and reads the results the way this page describes:</p>
+
+<pre><code>claude plugin install ./adapters/claude-code</code></pre>
+
+<p>The approval gate stays in the CLI rather than in the prompt, so it holds whether or not the
+agent cooperates.</p>
+
+</main>
+</div>
+
+<footer class="site">
+  <div class="shell">
+    <span>LangChef 0.1.0 — Apache-2.0</span>
+    <span>An installed eval engineer.</span>
+    <span><a href="https://github.com/deepskandpal/LangChef">Source</a></span>
+    <span>&copy; 2026 Deepak Kandpal</span>
+  </div>
+</footer>
+</body>
+</html>

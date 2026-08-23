@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LangChef</title>
-<meta name="description" content="An installed eval engineer: a scheduled agent that calibrates your judge, runs the experiment and writes the memo, on infrastructure you already own.">
+<meta name="description" content="Find out whether a change to your LLM feature made it better or worse — and when your test set is too small to tell. For teams with no evaluation engineer.">
 <meta property="og:title" content="LangChef">
-<meta property="og:description" content="An installed eval engineer: a scheduled agent that calibrates your judge, runs the experiment and writes the memo, on infrastructure you already own.">
+<meta property="og:description" content="Find out whether a change to your LLM feature made it better or worse — and when your test set is too small to tell. For teams with no evaluation engineer.">
 <meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,8 +19,8 @@
     <a class="wordmark" href="index.html"><span class="dot"></span>LangChef</a>
     <nav class="topnav">
       <a href="index.html" class="here">Overview</a>
-      <a href="quickstart.html">Quickstart</a>
-      <a href="concepts.html">Concepts</a>
+      <a href="start.html">Start here</a>
+      <a href="numbers.html">Reading the output</a>
       <a href="cli.html">Commands</a>
       <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
     </nav>
@@ -33,8 +33,8 @@
   <h4>Documentation</h4>
   <ul>
     <li><a href="index.html">Overview</a></li>
-    <li><a href="quickstart.html">Quickstart</a></li>
-    <li><a href="concepts.html">Concepts</a></li>
+    <li><a href="start.html">Your first evaluation</a></li>
+    <li><a href="numbers.html">Reading the output</a></li>
     <li><a href="cli.html">Command reference</a></li>
   </ul>
   <h4>In the repository</h4>
@@ -50,83 +50,169 @@
 <main>
 
 <div class="hero">
-  <div class="eyebrow">An installed eval engineer</div>
-  <h1>Your evals, maintained by an agent that already lives in your repository.</h1>
-  <p class="lede">LangChef calibrates the judge, runs the experiment, and writes the memo — on your
-  compute and your keys. Every number comes from a deterministic CLI; the model spends its effort on
-  judgement, never on arithmetic.</p>
+  <div class="eyebrow">Evaluation for teams without an evaluation team</div>
+  <h1>You changed the prompt. Is the app better or worse?</h1>
+  <p class="lede">Most teams shipping an LLM feature cannot answer that with a straight face.
+  LangChef is a command-line tool that answers it properly — and, just as often, tells you honestly
+  that your test set cannot.</p>
   <div class="cta">
-    <a class="btn solid" href="quickstart.html">Get started</a>
+    <a class="btn solid" href="start.html">Your first evaluation</a>
     <a class="btn ghost" href="https://github.com/deepskandpal/LangChef">View source</a>
   </div>
 </div>
 
-<p class="thesis">Every product in this market is capable and most are cheap. They also all assume a
-human eval engineer exists to design the rubrics, interpret the numbers and maintain the suites.
-Below a certain size that person does not exist — which is why only about a third of teams running AI
-in production evaluate it online at all.</p>
+<h2>The situation</h2>
 
-<h2>The one screen that explains it</h2>
+<p>You maintain something built on a model. Retrieval-augmented search over your own documents, a
+support-ticket classifier, a summariser inside a bigger product. It works. Then somebody bumps the
+chunk size, or a model version moves under you, or a prompt gets tightened to fix one complaint —
+and the question is always the same one.</p>
 
-<p>Two comparisons from the project's own test harness. Both arms had a regression planted in them
-deliberately, so the right answer is known in advance.</p>
+<p>Today that question usually gets answered in one of three ways:</p>
 
-<pre><code>$ langchef compare --variant stale-index
-base -&gt; stale-index on 90 shared golden(s)
-  baseline 83.3%   variant 63.3%
-  difference -20.0% [-27.8%, -12.2%]  p=0.0000
-  <span class="r">REGRESSION</span>
+<ul>
+  <li><strong>Someone eyeballs twenty outputs.</strong> Fast, and it does catch obvious breakage. It
+  cannot see a five-point regression, and nobody claims otherwise.</li>
+  <li><strong>A pass rate in a spreadsheet</strong>, produced by asking a model to grade the outputs.
+  Better — and the source of the two most common mistakes in this whole field, below.</li>
+  <li><strong>Nobody checks.</strong> This is the most common answer. Roughly a third of teams
+  running AI in production evaluate it on live traffic at all.</li>
+</ul>
 
-$ langchef compare --variant truncated-context
-  difference +0.0% [+0.0%, +0.0%]  p=1.0000
-  <span class="o">INCONCLUSIVE</span>
-  (smallest effect this run could have seen: 6.0%)</code></pre>
+<p>None of this is a tooling problem. There are half a dozen capable evaluation platforms and
+several are free. What is missing is the <em>person</em> — someone who knows whether your grader can
+be trusted, how many examples you need before a number means anything, and whether a three-point
+drop is a regression or noise. Below a certain size that person does not exist and cannot be
+justified as a hire. LangChef is meant to stand in for them.</p>
 
-<p>The second one is the point. There <em>is</em> a regression in that arm — we planted a 3.3-point
-one — and ninety goldens cannot resolve it. The honest answer is not <em>“no regression found”</em>;
-it is <em>“nothing we could have seen”</em>, and LangChef says so by quoting the smallest effect the
-run could have detected. A tool that reported a clean bill of health there would be worse than no
-tool at all.</p>
+<h2>Three ways this goes wrong</h2>
 
-<h2>What makes it different</h2>
+<h3>1. The grader nobody graded</h3>
+
+<p>Say you ask a model to mark each answer good or bad, and it marks 95% of them good. That sounds
+like a healthy system.</p>
+
+<p>Now suppose only 5% of your answers are genuinely bad. A grader that blindly marks
+<em>everything</em> good also scores 95%. From that number alone you cannot tell the two apart — and
+one of them is worthless.</p>
+
+<div class="callout">
+  <span class="k">The general version</span>
+  <p>An LLM judge is a measuring instrument, and almost nobody checks it against a human before
+  trusting what it measures. Every number downstream inherits whatever it gets wrong.</p>
+</div>
+
+<p><strong>What LangChef does:</strong> asks you to label about forty examples yourself, once. Then
+it tells you in plain words whether the grader agrees with you more than luck would explain, how
+often it misses real problems, how often it cries wolf — and which kinds of answers it gets wrong.
+If the grader is not good enough to build on, you find out before you build on it.</p>
+
+<h3>2. The difference that isn't there</h3>
+
+<p>Your pass rate was 83%. After the change it is 80%. Regression?</p>
+
+<p>On ninety test cases: you cannot tell. A swing that size is comfortably inside what randomness
+produces when nothing has changed at all. But nothing in a spreadsheet says so. The number moved,
+somebody has to make a call, and the call gets made on a feeling.</p>
+
+<div class="callout">
+  <span class="k">The general version</span>
+  <p>A small test set cannot resolve a small difference. The honest response to "did it get worse"
+  is sometimes "this test set could never have told you".</p>
+</div>
+
+<p><strong>What LangChef does:</strong> returns one of three answers — <strong>regression</strong>,
+<strong>improvement</strong>, or <strong>can't tell</strong> — with the range the true difference
+probably sits in. When the answer is "can't tell", it also tells you the smallest change this test
+set <em>could</em> have caught, so you know whether to add examples or move on.</p>
+
+<h3>3. The ruler that moved</h3>
+
+<p>You tightened the grading prompt on Tuesday. Monday's run scored 83%, Wednesday's scored 88%.
+Plotted together, that looks like progress.</p>
+
+<p>It isn't a comparison at all. You changed the instrument between the two readings, so the two
+numbers were never measuring the same thing — but nothing stops them lining up on a chart.</p>
+
+<div class="callout">
+  <span class="k">The general version</span>
+  <p>Two measurements are only comparable if the thing doing the measuring held still.</p>
+</div>
+
+<p><strong>What LangChef does:</strong> records exactly which rubric and which model produced every
+number, and <em>refuses</em> to compare two runs that were measured differently. It stops with an
+error instead of drawing the chart.</p>
+
+<h2>The vocabulary, once</h2>
+
+<p>Five words that the rest of these docs use. If you already know them, skip ahead.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Word</th><th>What it means here</th></tr></thead>
+<tbody>
+<tr><td><strong>Example</strong></td><td>One question your app was asked, the answer it gave, and what it retrieved to answer it. Also called a <em>golden</em>. You need 50–100.</td></tr>
+<tr><td><strong>Rubric</strong></td><td>What "a good answer" means, written down. Roughly what you'd tell a new teammate on their first day. It's a Markdown file you review like code.</td></tr>
+<tr><td><strong>Judge</strong></td><td>The thing that reads an answer and says pass or fail. Usually a model with your rubric in the prompt. Sometimes just string matching.</td></tr>
+<tr><td><strong>Label</strong></td><td>Your own verdict on an example — pass or fail — recorded by hand. The ground truth the judge is checked against.</td></tr>
+<tr><td><strong>Calibration</strong></td><td>Comparing the judge's verdicts to your labels to find out how much the judge can be trusted.</td></tr>
+</tbody></table></div>
+
+<p>Two more that show up in output: a <strong>run</strong> is one scoring pass over your examples,
+and an <strong>arm</strong> is which version produced them — usually <code>baseline</code> against
+whatever you changed.</p>
+
+<h2>What you get back</h2>
 
 <div class="grid2">
   <div class="panel">
-    <h3>Calibration comes first</h3>
-    <p>A judge is a measuring instrument, not a metric. LangChef measures judge–human agreement
-    before it will let a pass rate mean anything, and reports Cohen's κ with an interval rather than
-    an accuracy figure that flatters every judge on a skewed suite.</p>
+    <h3>A verdict you can act on</h3>
+    <p>Regression, improvement, or can't-tell — with a range, and with the size of the smallest
+    change this run could have detected. Never a bare number with no error bars.</p>
   </div>
   <div class="panel">
-    <h3>Refusals are exit codes</h3>
-    <p>An approval gate written into a prompt is a suggestion. Here an unapproved or edited rubric
-    exits <code>2</code>, and a comparison across two different measurement pins exits <code>5</code>.
-    An agent cannot argue with a non-zero exit.</p>
+    <h3>A memo, not a dashboard</h3>
+    <p>One page that opens with whether the judge can be trusted, then the result, then what the run
+    could <em>not</em> rule out. Every figure traces to a file on disk.</p>
+  </div>
+  <div class="panel">
+    <h3>A record that accumulates</h3>
+    <p>An append-only log of every run, calibration and decision. Six months later you can see what
+    was believed at the time and why a call was made.</p>
   </div>
   <div class="panel">
     <h3>Nothing leaves your machine</h3>
-    <p>No data plane, no hosted dashboard, no vendor holding your traces. The CLI runs where your
-    code already runs, and the whole workspace is text a reviewer reads in a pull request.</p>
-  </div>
-  <div class="panel">
-    <h3>It runs with no API key</h3>
-    <p>The default judge is deterministic — token overlap against expected facts and retrieved
-    context. Real models are one config line away, but you can see the entire product work before
-    spending anything.</p>
+    <p>No hosted service, no vendor holding your traces, no account. It runs where your code runs,
+    on your keys, and the whole workspace is text you review in a pull request.</p>
   </div>
 </div>
 
-<h2>Where it is today</h2>
+<h2>What this is not</h2>
 
-<p>M0 through M4 are done: the full loop runs, with 13 of 19 commands live. Production
-connectors, scheduling and unattended operation are next. The
-<a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">work tracker</a> is the current state, and
-<a href="https://github.com/deepskandpal/LangChef/blob/main/DECISIONS.md">DECISIONS.md</a> records the calls that got made and why.</p>
+<ul>
+  <li><strong>Not a benchmark suite.</strong> It does not ship test cases. Your examples come from
+  your traffic, because a benchmark of somebody else's questions tells you nothing about yours.</li>
+  <li><strong>Not a dashboard.</strong> There is no UI and no hosted anything.</li>
+  <li><strong>Not a replacement for reading your outputs.</strong> It tells you whether a change
+  moved the needle; it will not tell you what to build next.</li>
+  <li><strong>Not magic about labels.</strong> Somebody has to say what good means and mark forty
+  examples once. There is no way around that, and anyone claiming otherwise is selling you a judge
+  nobody checked.</li>
+</ul>
+
+<h2>Is this for you?</h2>
+
+<p><strong>Probably yes</strong> if you maintain an LLM feature in production, you have no
+evaluation engineer, and you can spare an afternoon once plus about ten minutes per change.</p>
+
+<p><strong>Probably not</strong> if you already have an eval team and a calibrated judge — you have
+solved this — or if your feature is still changing shape weekly, in which case come back when it
+settles.</p>
 
 <div class="callout warn">
-  <span class="k">Pre-alpha</span>
-  <p>Version 0.1.0. The workspace format and the CLI surface are still moving. The exit codes
-  are the part that is meant to be stable — they are a public contract and are never renumbered.</p>
+  <span class="k">Pre-alpha — version 0.1.0</span>
+  <p>13 of 19 commands are live. The workspace format and the command surface are still
+  moving; the exit codes are the part meant to be stable. See the
+  <a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">work tracker</a> for what is done and what is open.</p>
 </div>
 
 </main>

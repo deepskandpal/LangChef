@@ -19,8 +19,8 @@
     <a class="wordmark" href="index.html"><span class="dot"></span>LangChef</a>
     <nav class="topnav">
       <a href="index.html">Overview</a>
-      <a href="quickstart.html">Quickstart</a>
-      <a href="concepts.html">Concepts</a>
+      <a href="start.html">Start here</a>
+      <a href="numbers.html">Reading the output</a>
       <a href="cli.html" class="here">Commands</a>
       <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
     </nav>
@@ -33,8 +33,8 @@
   <h4>Documentation</h4>
   <ul>
     <li><a href="index.html">Overview</a></li>
-    <li><a href="quickstart.html">Quickstart</a></li>
-    <li><a href="concepts.html">Concepts</a></li>
+    <li><a href="start.html">Your first evaluation</a></li>
+    <li><a href="numbers.html">Reading the output</a></li>
     <li><a href="cli.html">Command reference</a></li>
   </ul>
   <h4>In the repository</h4>
@@ -52,14 +52,33 @@
 <div class="eyebrow">Reference</div>
 <h1>Commands</h1>
 <p class="lede">Generated from the contract inside the binary, so this table cannot claim a command
-that does not exist. 13 of 19 are live today.</p>
+that does not exist. 13 of 19 are live today. If you are here to learn the tool, start
+with <a href="start.html">your first evaluation</a> instead.</p>
+
+<h2>The ones you will actually use</h2>
+
+<div class="scroller"><table>
+<thead><tr><th>Command</th><th>When</th></tr></thead>
+<tbody>
+<tr><td class="mono">langchef init</td><td>Once, in your project.</td></tr>
+<tr><td class="mono">langchef approve rubric</td><td>After you write or edit the rubric.</td></tr>
+<tr><td class="mono">langchef judge run --arm X</td><td>Every time you want a version scored.</td></tr>
+<tr><td class="mono">langchef label plan --budget 40</td><td>Once at the start, then monthly.</td></tr>
+<tr><td class="mono">langchef label import FILE</td><td>After you have filled the plan in.</td></tr>
+<tr><td class="mono">langchef calibrate report</td><td>After importing labels. Tells you if the judge is trustworthy.</td></tr>
+<tr><td class="mono">langchef baseline set</td><td>Once you have a version worth comparing against.</td></tr>
+<tr><td class="mono">langchef compare --variant X</td><td>The question you came here to answer.</td></tr>
+<tr><td class="mono">langchef memo render</td><td>To write the decision down.</td></tr>
+</tbody></table></div>
+
+<h2>Everything, generated from the contract</h2>
 
 <div class="callout">
   <span class="k">Determinism</span>
   <p><code>deterministic</code> — same inputs, same output, always.
   <code>seeded</code> — random but reproducible from a recorded seed.
-  <code>cached</code> — results are keyed on content, rubric hash and model pin, so a rerun is free
-  and reproducible.</p>
+  <code>cached</code> — results are keyed on content, rubric hash and model, so re-running an
+  unchanged suite is free.</p>
 </div>
 
 <div class="scroller"><table>
@@ -87,6 +106,7 @@ that does not exist. 13 of 19 are live today.</p>
 </tbody></table></div>
 
 <h2>Exit codes</h2>
+
 <div class="scroller"><table>
 <thead><tr><th>Code</th><th>Meaning</th><th>Status</th></tr></thead>
 <tbody>
@@ -98,19 +118,27 @@ that does not exist. 13 of 19 are live today.</p>
 <tr><td class="num">5</td><td>pin mismatch — judge model, version or rubric hash moved</td><td>in use</td></tr>
 </tbody></table></div>
 
-<h2>Global behaviour</h2>
-<ul>
-  <li>Every command writes one JSON document to stdout and its narration to stderr.</li>
-  <li>Workspace commands search upward for <code>evals/config.toml</code>, the way git finds a
-  repository — so they work from anywhere in your tree.</li>
-  <li><code>--suite</code> may be omitted when the workspace has exactly one.</li>
-  <li>Arms live in per-arm golden files: <code>goldens/&lt;suite&gt;.&lt;arm&gt;.jsonl</code>,
-  falling back to <code>goldens/&lt;suite&gt;.jsonl</code>.</li>
-</ul>
+<h2>Two streams</h2>
 
-<p>The machine-readable copy of all of this is
-<a href="https://github.com/deepskandpal/LangChef/blob/main/docs/AGENT-CONTRACT.md">docs/AGENT-CONTRACT.md</a>, or
-<code>langchef contract</code> at runtime.</p>
+<p>Every command writes JSON to stdout for a program, and plain text to stderr for you. There is no
+<code>--format</code> flag; <code>--help</code> is the one exception, because it is written for
+people.</p>
+
+<pre><code>langchef calibrate report              <span class="c"># you read this</span>
+langchef calibrate report 2&gt;/dev/null  <span class="c"># a script parses this</span></code></pre>
+
+<h2>Other behaviour worth knowing</h2>
+
+<ul>
+  <li>Workspace commands search upward for <code>evals/config.toml</code>, the way git finds a
+  repository, so they work from anywhere in your tree.</li>
+  <li><code>--suite</code> can be omitted when there is only one.</li>
+  <li>Each version's answers live in its own file:
+  <code>goldens/&lt;suite&gt;.&lt;arm&gt;.jsonl</code>.</li>
+  <li>The rules an agent reads at runtime are in
+  <a href="https://github.com/deepskandpal/LangChef/blob/main/docs/AGENT-CONTRACT.md">docs/AGENT-CONTRACT.md</a>, or
+  <code>langchef contract</code>.</li>
+</ul>
 
 </main>
 </div>

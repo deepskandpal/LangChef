@@ -1,9 +1,32 @@
 # LangChef
 
-**An installed eval engineer.** A scheduled agent that lives in your repository,
-runs inside the coding harness you already pay for, on your compute and your
-keys, and does the work an evaluation engineer would do — calibrate the judges,
-run the evals, design the experiments, write the memo.
+**You changed the prompt. Is the app better or worse?**
+
+Most teams shipping an LLM feature cannot answer that with a straight face.
+LangChef is a command-line tool that answers it properly — and, just as often,
+tells you honestly that your test set was never big enough to tell.
+
+It is built for the engineer who maintains a retrieval app, a classifier or a
+summariser, has no evaluation background, and has no evaluation team to ask. You
+label about forty examples once. From then on it tells you whether your LLM
+judge can be trusted, and whether each change was a real regression, a real
+improvement, or noise.
+
+**Documentation: <https://deepskandpal.github.io/LangChef/>** — start with
+[your first evaluation](https://deepskandpal.github.io/LangChef/start.html).
+
+### The three mistakes it exists to prevent
+
+**Trusting a grader nobody graded.** Your judge marks 95% of answers good. If
+only 5% of your answers are genuinely bad, a judge that marks *everything* good
+scores 95% too — and from that number alone you cannot tell them apart.
+
+**Reading meaning into a three-point swing.** 83% to 80% on ninety examples is
+well inside what randomness produces. Nothing in a spreadsheet says so.
+
+**Comparing two runs measured differently.** Edit the grading prompt between
+runs and the two numbers were never measuring the same thing — but they still
+line up on a chart.
 
 Every product in this market is capable and most of them are cheap. They also
 all assume a human eval engineer exists to design the rubrics, interpret the
@@ -11,8 +34,6 @@ numbers and maintain the suites. Below a certain size that person does not
 exist, which is why only about a third of teams running AI in production
 evaluate it online at all. LangChef is the missing person, not another
 dashboard.
-
-> They bring the agent and the compute. We bring the expertise.
 
 ---
 
