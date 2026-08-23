@@ -56,9 +56,12 @@ it spent labelling. Ten minutes per change after that.</p>
 
 <div class="callout">
   <span class="k">The scenario</span>
-  <p>Your support assistant answers customer questions from your help centre. You want to retrieve
-  five document chunks instead of three, because someone thinks answers are getting cut short. Does
-  that actually help?</p>
+  <p>Your support assistant answers customer questions from your help centre, retrieval-augmented
+  over your docs. Your provider is retiring the model you shipped on, so you have to move to the
+  replacement. Does answer quality hold?</p>
+  <p>The same loop covers every other change in the stack — a new embedding model, different
+  chunking, a reranker, a fine-tuned small model swapped in to cut the bill. Only the arm you
+  compare against changes.</p>
 </div>
 
 <h2>Install — 2 minutes</h2>
@@ -83,7 +86,7 @@ uv run pytest tests/test_dogfood.py -v</code></pre>
 
 <p>An example is one question, the answer your app gave, and the context it retrieved. Pull 50–100
 from your logs. Real questions, not invented ones — invented questions are always easier than the
-ones users actually ask.</p>
+ones users actually ask, and a model migration tends to break on exactly the awkward ones.</p>
 
 <pre><code>cd your-project
 langchef init</code></pre>
@@ -124,6 +127,16 @@ system that is a lucky guess, and it will not stay lucky.
 The answer answers. Hedging into uselessness when the context contains
 the answer fails here.</code></pre>
 
+<p>Notice what those three criteria are doing: <strong>one per failure mode, and they map onto the
+stages of your pipeline.</strong> Correctness is the generator. Groundedness is retrieval — an
+answer that is right but absent from the retrieved context means your index got lucky. Directness
+catches the model refusing when the answer was sitting right there, which is the classic way a
+smaller or newer model regresses.</p>
+
+<p>Because the judge has to name the criterion it failed on, failures stay attributable instead of
+pooling into one number. When the new model scores worse, you can see whether it is answering badly
+or being handed bad context.</p>
+
 <p>This is the highest-leverage twenty minutes in the whole process. A vague rubric produces a vague
 judge, and no amount of statistics downstream repairs that.</p>
 
@@ -154,12 +167,17 @@ expected fact is present, whether the answer is grounded in the retrieved contex
 hedged. It is a real technique and a reasonable starting point, and it has a real weakness you are
 about to discover in step 6.</p>
 
-<p>To use a real model instead, set two lines in <code>evals/config.toml</code>:</p>
+<p>To use a real model as the judge instead, set a few lines in
+<code>evals/config.toml</code>:</p>
 
 <pre><code>[judge]
 provider = "litellm"
 cheap_model = "anthropic/claude-haiku-4-5"
 strong_model = "anthropic/claude-sonnet-5"   <span class="c"># re-scores only the unsure cases</span></code></pre>
+
+<p>Any provider litellm speaks works here. One rule worth keeping: <strong>do not judge a model with
+itself.</strong> If you are migrating to a model, grading its answers with that same model measures
+its self-consistency, not its quality — which is another reason step 6 exists.</p>
 
 <h2>Step 5 — Label forty yourself · 20 minutes</h2>
 
@@ -199,13 +217,16 @@ properly, including what to do when the number is bad.</p>
 
 <h2>Step 7 — Make the change and compare · 1 minute</h2>
 
-<pre><code>langchef baseline set                       <span class="c"># pin what you have as the reference</span>
+<pre><code>langchef baseline set                       <span class="c"># pin the model you're on today</span>
 
-<span class="c"># now switch retrieval to top-5, regenerate answers into</span>
-<span class="c"># evals/goldens/support.top-5.jsonl, then:</span>
+<span class="c"># re-answer the same questions on the replacement model, into</span>
+<span class="c"># evals/goldens/support.new-model.jsonl, then:</span>
 
-langchef judge run --arm top-5
-langchef compare --variant support-top-5</code></pre>
+langchef judge run --arm new-model
+langchef compare --variant support-new-model</code></pre>
+
+<p>The questions must be identical across both arms — same <code>example_id</code>, different
+answers. That pairing is what lets a small number of examples say anything at all.</p>
 
 <p>One of three things comes back.</p>
 
@@ -237,8 +258,10 @@ finding, then what the run could not rule out. Commit it next to the change it j
 <pre><code>langchef judge run --arm my-change
 langchef compare --variant support-my-change</code></pre>
 
-<p>Re-label every month or so, or whenever you touch the rubric — the judge's trustworthiness drifts
-as your traffic changes, and the tool will keep quoting the last calibration until you refresh it.</p>
+<p>Re-label every month or so, and whenever you touch the rubric or change the judge model — the
+judge's trustworthiness drifts as your traffic changes, and the tool will keep quoting the last
+calibration until you refresh it. If you are migrating the judge model itself, re-calibrate first:
+you are changing the instrument, not the thing being measured.</p>
 
 <h2>Handing it to an agent</h2>
 

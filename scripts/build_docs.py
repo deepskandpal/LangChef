@@ -162,10 +162,10 @@ def exit_rows() -> str:
 INDEX = """
 <div class="hero">
   <div class="eyebrow">Evaluation for teams without an evaluation team</div>
-  <h1>You changed the prompt. Is the app better or worse?</h1>
+  <h1>You changed the model, the retriever, or the fine-tune. Is the app better or worse?</h1>
   <p class="lede">Most teams shipping an LLM feature cannot answer that with a straight face.
   LangChef is a command-line tool that answers it properly — and, just as often, tells you honestly
-  that your test set cannot.</p>
+  that your test set was never big enough to tell.</p>
   <div class="cta">
     <a class="btn solid" href="start.html">Your first evaluation</a>
     <a class="btn ghost" href="@@repo@@">View source</a>
@@ -174,12 +174,28 @@ INDEX = """
 
 <h2>The situation</h2>
 
-<p>You maintain something built on a model. Retrieval-augmented search over your own documents, a
-support-ticket classifier, a summariser inside a bigger product. It works. Then somebody bumps the
-chunk size, or a model version moves under you, or a prompt gets tightened to fix one complaint —
-and the question is always the same one.</p>
+<p>You maintain something built on a model: retrieval-augmented search over your own documents, a
+support-ticket classifier, an agent that calls a few tools. It works. Then one of these happens.</p>
 
-<p>Today that question usually gets answered in one of three ways:</p>
+<ul>
+  <li><strong>Your provider retires the model you shipped on.</strong> You did not choose this. You
+  have weeks to move, and the replacement behaves differently on your traffic in ways no release
+  note mentions.</li>
+  <li><strong>You swap the embedding model or add a reranker.</strong> Retrieval changes underneath
+  the generator, which is now answering from different context than it was yesterday.</li>
+  <li><strong>You change chunking.</strong> Same documents, different pieces of them reaching the
+  model.</li>
+  <li><strong>You replace a frontier model with a fine-tuned small one</strong> to cut the bill or
+  the latency. Here the question is not "is it better" — it is "did quality hold".</li>
+  <li><strong>You give an agent another tool or another step.</strong> More capability, more places
+  to fail quietly.</li>
+  <li>And yes, occasionally, someone still edits a prompt.</li>
+</ul>
+
+<p>Every one of those is the same question wearing a different hat: did that make the app better or
+worse, and how would you know?</p>
+
+<p>Today it usually gets answered in one of three ways:</p>
 
 <ul>
   <li><strong>Someone eyeballs twenty outputs.</strong> Fast, and it does catch obvious breakage. It
@@ -254,6 +270,28 @@ numbers were never measuring the same thing — but nothing stops them lining up
 number, and <em>refuses</em> to compare two runs that were measured differently. It stops with an
 error instead of drawing the chart.</p>
 
+<h3>4. You know it broke — but not which half</h3>
+
+<p>You swap the embedding model and answer quality drops four points. Is the generator worse, or is
+it being handed worse context to work from?</p>
+
+<p>Those have nothing in common as fixes. One sends you to the prompt, the other to your index. A
+single pass rate over the whole pipeline cannot tell them apart, and averaging them together is how
+teams spend a week tuning a generator that was never the problem.</p>
+
+<div class="callout">
+  <span class="k">The general version</span>
+  <p>A retrieval app is two systems in a trench coat. One number across both hides which of them
+  moved.</p>
+</div>
+
+<p><strong>What LangChef does:</strong> your rubric has one criterion per failure mode — is the fact
+right (generation), is it actually supported by what was retrieved (retrieval), did it refuse when
+the answer was sitting in the context. The judge must name the criterion it failed on for every
+example, so the failures are attributable rather than pooled. The calibration report already groups
+by criterion and by slice of traffic; comparing criterion-by-criterion <em>between</em> two runs is
+the next thing being built — see the <a href="@@blob@@/TRACKER.md">tracker</a>.</p>
+
 <h2>The vocabulary, once</h2>
 
 <p>Five words that the rest of these docs use. If you already know them, skip ahead.</p>
@@ -262,15 +300,15 @@ error instead of drawing the chart.</p>
 <thead><tr><th>Word</th><th>What it means here</th></tr></thead>
 <tbody>
 <tr><td><strong>Example</strong></td><td>One question your app was asked, the answer it gave, and what it retrieved to answer it. Also called a <em>golden</em>. You need 50–100.</td></tr>
+<tr><td><strong>Arm</strong></td><td>One version of your app. Usually <code>baseline</code> versus the thing you changed — a new model, a new retriever, a fine-tune.</td></tr>
 <tr><td><strong>Rubric</strong></td><td>What "a good answer" means, written down. Roughly what you'd tell a new teammate on their first day. It's a Markdown file you review like code.</td></tr>
 <tr><td><strong>Judge</strong></td><td>The thing that reads an answer and says pass or fail. Usually a model with your rubric in the prompt. Sometimes just string matching.</td></tr>
 <tr><td><strong>Label</strong></td><td>Your own verdict on an example — pass or fail — recorded by hand. The ground truth the judge is checked against.</td></tr>
 <tr><td><strong>Calibration</strong></td><td>Comparing the judge's verdicts to your labels to find out how much the judge can be trusted.</td></tr>
 </tbody></table></div>
 
-<p>Two more that show up in output: a <strong>run</strong> is one scoring pass over your examples,
-and an <strong>arm</strong> is which version produced them — usually <code>baseline</code> against
-whatever you changed.</p>
+<p>One more that shows up in output: a <strong>run</strong> is a single scoring pass over one arm's
+examples.</p>
 
 <h2>What you get back</h2>
 
@@ -279,6 +317,12 @@ whatever you changed.</p>
     <h3>A verdict you can act on</h3>
     <p>Regression, improvement, or can't-tell — with a range, and with the size of the smallest
     change this run could have detected. Never a bare number with no error bars.</p>
+  </div>
+  <div class="panel">
+    <h3>An answer for "did quality hold"</h3>
+    <p>Cutting cost with a fine-tuned small model is not a hunt for an improvement — it is a check
+    that the drop is inside a tolerance you set first. The range is what you read for that; see
+    <a href="numbers.html">reading the output</a>.</p>
   </div>
   <div class="panel">
     <h3>A memo, not a dashboard</h3>
@@ -312,8 +356,10 @@ whatever you changed.</p>
 
 <h2>Is this for you?</h2>
 
-<p><strong>Probably yes</strong> if you maintain an LLM feature in production, you have no
-evaluation engineer, and you can spare an afternoon once plus about ten minutes per change.</p>
+<p><strong>Probably yes</strong> if you maintain a retrieval app, a classifier or an agent in
+production, you have no evaluation engineer, and you can spare an afternoon once plus about ten
+minutes per change. It is built for the case where a model migration lands on your desk and nobody
+can tell you whether the replacement is safe.</p>
 
 <p><strong>Probably not</strong> if you already have an eval team and a calibrated judge — you have
 solved this — or if your feature is still changing shape weekly, in which case come back when it
@@ -335,9 +381,12 @@ it spent labelling. Ten minutes per change after that.</p>
 
 <div class="callout">
   <span class="k">The scenario</span>
-  <p>Your support assistant answers customer questions from your help centre. You want to retrieve
-  five document chunks instead of three, because someone thinks answers are getting cut short. Does
-  that actually help?</p>
+  <p>Your support assistant answers customer questions from your help centre, retrieval-augmented
+  over your docs. Your provider is retiring the model you shipped on, so you have to move to the
+  replacement. Does answer quality hold?</p>
+  <p>The same loop covers every other change in the stack — a new embedding model, different
+  chunking, a reranker, a fine-tuned small model swapped in to cut the bill. Only the arm you
+  compare against changes.</p>
 </div>
 
 <h2>Install — 2 minutes</h2>
@@ -362,7 +411,7 @@ uv run pytest tests/test_dogfood.py -v</code></pre>
 
 <p>An example is one question, the answer your app gave, and the context it retrieved. Pull 50–100
 from your logs. Real questions, not invented ones — invented questions are always easier than the
-ones users actually ask.</p>
+ones users actually ask, and a model migration tends to break on exactly the awkward ones.</p>
 
 <pre><code>cd your-project
 langchef init</code></pre>
@@ -403,6 +452,16 @@ system that is a lucky guess, and it will not stay lucky.
 The answer answers. Hedging into uselessness when the context contains
 the answer fails here.</code></pre>
 
+<p>Notice what those three criteria are doing: <strong>one per failure mode, and they map onto the
+stages of your pipeline.</strong> Correctness is the generator. Groundedness is retrieval — an
+answer that is right but absent from the retrieved context means your index got lucky. Directness
+catches the model refusing when the answer was sitting right there, which is the classic way a
+smaller or newer model regresses.</p>
+
+<p>Because the judge has to name the criterion it failed on, failures stay attributable instead of
+pooling into one number. When the new model scores worse, you can see whether it is answering badly
+or being handed bad context.</p>
+
 <p>This is the highest-leverage twenty minutes in the whole process. A vague rubric produces a vague
 judge, and no amount of statistics downstream repairs that.</p>
 
@@ -433,12 +492,17 @@ expected fact is present, whether the answer is grounded in the retrieved contex
 hedged. It is a real technique and a reasonable starting point, and it has a real weakness you are
 about to discover in step 6.</p>
 
-<p>To use a real model instead, set two lines in <code>evals/config.toml</code>:</p>
+<p>To use a real model as the judge instead, set a few lines in
+<code>evals/config.toml</code>:</p>
 
 <pre><code>[judge]
 provider = "litellm"
 cheap_model = "anthropic/claude-haiku-4-5"
 strong_model = "anthropic/claude-sonnet-5"   <span class="c"># re-scores only the unsure cases</span></code></pre>
+
+<p>Any provider litellm speaks works here. One rule worth keeping: <strong>do not judge a model with
+itself.</strong> If you are migrating to a model, grading its answers with that same model measures
+its self-consistency, not its quality — which is another reason step 6 exists.</p>
 
 <h2>Step 5 — Label forty yourself · 20 minutes</h2>
 
@@ -478,13 +542,16 @@ properly, including what to do when the number is bad.</p>
 
 <h2>Step 7 — Make the change and compare · 1 minute</h2>
 
-<pre><code>langchef baseline set                       <span class="c"># pin what you have as the reference</span>
+<pre><code>langchef baseline set                       <span class="c"># pin the model you're on today</span>
 
-<span class="c"># now switch retrieval to top-5, regenerate answers into</span>
-<span class="c"># evals/goldens/support.top-5.jsonl, then:</span>
+<span class="c"># re-answer the same questions on the replacement model, into</span>
+<span class="c"># evals/goldens/support.new-model.jsonl, then:</span>
 
-langchef judge run --arm top-5
-langchef compare --variant support-top-5</code></pre>
+langchef judge run --arm new-model
+langchef compare --variant support-new-model</code></pre>
+
+<p>The questions must be identical across both arms — same <code>example_id</code>, different
+answers. That pairing is what lets a small number of examples say anything at all.</p>
 
 <p>One of three things comes back.</p>
 
@@ -516,8 +583,10 @@ finding, then what the run could not rule out. Commit it next to the change it j
 <pre><code>langchef judge run --arm my-change
 langchef compare --variant support-my-change</code></pre>
 
-<p>Re-label every month or so, or whenever you touch the rubric — the judge's trustworthiness drifts
-as your traffic changes, and the tool will keep quoting the last calibration until you refresh it.</p>
+<p>Re-label every month or so, and whenever you touch the rubric or change the judge model — the
+judge's trustworthiness drifts as your traffic changes, and the tool will keep quoting the last
+calibration until you refresh it. If you are migrating the judge model itself, re-calibrate first:
+you are changing the instrument, not the thing being measured.</p>
 
 <h2>Handing it to an agent</h2>
 
@@ -651,6 +720,57 @@ regression, you need more examples, and no amount of re-reading this output will
 
 <p class="dim"><em>Textbook name: minimum detectable effect, computed from the flip rate rather than
 the pass rate, because under a paired test that is what carries the information.</em></p>
+
+<h2>"We swapped in a cheaper model — did quality hold?"</h2>
+
+<p>This is a different question from "is it better", and reading the output the same way will
+mislead you. You are not hoping for an improvement. You are checking that the drop is small enough
+to accept in exchange for the cost or latency you bought.</p>
+
+<p><strong>Decide the tolerance before the run.</strong> Say you will accept up to a three-point
+drop for a 70% cost reduction. Then read the <em>bottom end of the range</em>, not the middle:</p>
+
+<pre><code>  difference -1.2% [-4.1%, +1.7%]
+  <span class="o">INCONCLUSIVE</span>
+  (smallest effect this run could have seen: 5.8%)</code></pre>
+
+<p>The middle looks fine — barely down. But the range reaches −4.1%, past the three points you were
+willing to lose. <strong>This run has not shown that quality held.</strong> It has shown that a drop
+big enough to matter is still consistent with what you measured.</p>
+
+<p>Two honest ways forward: add examples until the range tightens inside your tolerance, or accept
+the risk deliberately and write down that you did. What you should not do is read "inconclusive" as
+"no difference" and ship it as proven.</p>
+
+<div class="callout">
+  <span class="k">The same logic for a fine-tune</span>
+  <p>Distilling to a small fine-tuned model is the same shape of question. So is dropping a reranker
+  to save latency, or trimming context to save tokens. Anything where you are buying cost with
+  quality wants a tolerance set in advance and the interval read against it.</p>
+</div>
+
+<p class="dim"><em>Textbook name: a non-inferiority test. The formal version compares the interval
+bound against a pre-registered margin, which is exactly what you are doing by hand here.</em></p>
+
+<h2>Which stage broke?</h2>
+
+<p>When a retrieval app regresses, the number you get back is one number over two systems. The
+rubric is how you pull them apart: each criterion is a different failure mode, and the judge names
+the one it failed on for every example.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Criterion fails</th><th>Usually means</th><th>Look at</th></tr></thead>
+<tbody>
+<tr><td><strong>Groundedness</strong></td><td>The answer is not supported by what was retrieved.</td><td>Retrieval — embedding model, chunking, top-k, reranker.</td></tr>
+<tr><td><strong>Correctness</strong> (but grounded)</td><td>The right context arrived and the model still got it wrong.</td><td>The generator — model swap, prompt, fine-tune.</td></tr>
+<tr><td><strong>Directness</strong></td><td>It refused or hedged with the answer in front of it.</td><td>The generator, usually a newer or smaller model being more cautious.</td></tr>
+</tbody></table></div>
+
+<p>Every scored example records its criterion in <code>runs/&lt;id&gt;/scores.parquet</code>, and
+the calibration report groups by criterion and by slice. Rolling that into a criterion-by-criterion
+<em>comparison</em> between two arms is the next thing on the
+<a href="@@blob@@/TRACKER.md">tracker</a>; today you read the breakdown per run and the overall
+verdict for the pair.</p>
 
 <h2>Was this even a fair comparison?</h2>
 

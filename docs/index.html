@@ -51,10 +51,10 @@
 
 <div class="hero">
   <div class="eyebrow">Evaluation for teams without an evaluation team</div>
-  <h1>You changed the prompt. Is the app better or worse?</h1>
+  <h1>You changed the model, the retriever, or the fine-tune. Is the app better or worse?</h1>
   <p class="lede">Most teams shipping an LLM feature cannot answer that with a straight face.
   LangChef is a command-line tool that answers it properly — and, just as often, tells you honestly
-  that your test set cannot.</p>
+  that your test set was never big enough to tell.</p>
   <div class="cta">
     <a class="btn solid" href="start.html">Your first evaluation</a>
     <a class="btn ghost" href="https://github.com/deepskandpal/LangChef">View source</a>
@@ -63,12 +63,28 @@
 
 <h2>The situation</h2>
 
-<p>You maintain something built on a model. Retrieval-augmented search over your own documents, a
-support-ticket classifier, a summariser inside a bigger product. It works. Then somebody bumps the
-chunk size, or a model version moves under you, or a prompt gets tightened to fix one complaint —
-and the question is always the same one.</p>
+<p>You maintain something built on a model: retrieval-augmented search over your own documents, a
+support-ticket classifier, an agent that calls a few tools. It works. Then one of these happens.</p>
 
-<p>Today that question usually gets answered in one of three ways:</p>
+<ul>
+  <li><strong>Your provider retires the model you shipped on.</strong> You did not choose this. You
+  have weeks to move, and the replacement behaves differently on your traffic in ways no release
+  note mentions.</li>
+  <li><strong>You swap the embedding model or add a reranker.</strong> Retrieval changes underneath
+  the generator, which is now answering from different context than it was yesterday.</li>
+  <li><strong>You change chunking.</strong> Same documents, different pieces of them reaching the
+  model.</li>
+  <li><strong>You replace a frontier model with a fine-tuned small one</strong> to cut the bill or
+  the latency. Here the question is not "is it better" — it is "did quality hold".</li>
+  <li><strong>You give an agent another tool or another step.</strong> More capability, more places
+  to fail quietly.</li>
+  <li>And yes, occasionally, someone still edits a prompt.</li>
+</ul>
+
+<p>Every one of those is the same question wearing a different hat: did that make the app better or
+worse, and how would you know?</p>
+
+<p>Today it usually gets answered in one of three ways:</p>
 
 <ul>
   <li><strong>Someone eyeballs twenty outputs.</strong> Fast, and it does catch obvious breakage. It
@@ -143,6 +159,28 @@ numbers were never measuring the same thing — but nothing stops them lining up
 number, and <em>refuses</em> to compare two runs that were measured differently. It stops with an
 error instead of drawing the chart.</p>
 
+<h3>4. You know it broke — but not which half</h3>
+
+<p>You swap the embedding model and answer quality drops four points. Is the generator worse, or is
+it being handed worse context to work from?</p>
+
+<p>Those have nothing in common as fixes. One sends you to the prompt, the other to your index. A
+single pass rate over the whole pipeline cannot tell them apart, and averaging them together is how
+teams spend a week tuning a generator that was never the problem.</p>
+
+<div class="callout">
+  <span class="k">The general version</span>
+  <p>A retrieval app is two systems in a trench coat. One number across both hides which of them
+  moved.</p>
+</div>
+
+<p><strong>What LangChef does:</strong> your rubric has one criterion per failure mode — is the fact
+right (generation), is it actually supported by what was retrieved (retrieval), did it refuse when
+the answer was sitting in the context. The judge must name the criterion it failed on for every
+example, so the failures are attributable rather than pooled. The calibration report already groups
+by criterion and by slice of traffic; comparing criterion-by-criterion <em>between</em> two runs is
+the next thing being built — see the <a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">tracker</a>.</p>
+
 <h2>The vocabulary, once</h2>
 
 <p>Five words that the rest of these docs use. If you already know them, skip ahead.</p>
@@ -151,15 +189,15 @@ error instead of drawing the chart.</p>
 <thead><tr><th>Word</th><th>What it means here</th></tr></thead>
 <tbody>
 <tr><td><strong>Example</strong></td><td>One question your app was asked, the answer it gave, and what it retrieved to answer it. Also called a <em>golden</em>. You need 50–100.</td></tr>
+<tr><td><strong>Arm</strong></td><td>One version of your app. Usually <code>baseline</code> versus the thing you changed — a new model, a new retriever, a fine-tune.</td></tr>
 <tr><td><strong>Rubric</strong></td><td>What "a good answer" means, written down. Roughly what you'd tell a new teammate on their first day. It's a Markdown file you review like code.</td></tr>
 <tr><td><strong>Judge</strong></td><td>The thing that reads an answer and says pass or fail. Usually a model with your rubric in the prompt. Sometimes just string matching.</td></tr>
 <tr><td><strong>Label</strong></td><td>Your own verdict on an example — pass or fail — recorded by hand. The ground truth the judge is checked against.</td></tr>
 <tr><td><strong>Calibration</strong></td><td>Comparing the judge's verdicts to your labels to find out how much the judge can be trusted.</td></tr>
 </tbody></table></div>
 
-<p>Two more that show up in output: a <strong>run</strong> is one scoring pass over your examples,
-and an <strong>arm</strong> is which version produced them — usually <code>baseline</code> against
-whatever you changed.</p>
+<p>One more that shows up in output: a <strong>run</strong> is a single scoring pass over one arm's
+examples.</p>
 
 <h2>What you get back</h2>
 
@@ -168,6 +206,12 @@ whatever you changed.</p>
     <h3>A verdict you can act on</h3>
     <p>Regression, improvement, or can't-tell — with a range, and with the size of the smallest
     change this run could have detected. Never a bare number with no error bars.</p>
+  </div>
+  <div class="panel">
+    <h3>An answer for "did quality hold"</h3>
+    <p>Cutting cost with a fine-tuned small model is not a hunt for an improvement — it is a check
+    that the drop is inside a tolerance you set first. The range is what you read for that; see
+    <a href="numbers.html">reading the output</a>.</p>
   </div>
   <div class="panel">
     <h3>A memo, not a dashboard</h3>
@@ -201,8 +245,10 @@ whatever you changed.</p>
 
 <h2>Is this for you?</h2>
 
-<p><strong>Probably yes</strong> if you maintain an LLM feature in production, you have no
-evaluation engineer, and you can spare an afternoon once plus about ten minutes per change.</p>
+<p><strong>Probably yes</strong> if you maintain a retrieval app, a classifier or an agent in
+production, you have no evaluation engineer, and you can spare an afternoon once plus about ten
+minutes per change. It is built for the case where a model migration lands on your desk and nobody
+can tell you whether the replacement is safe.</p>
 
 <p><strong>Probably not</strong> if you already have an eval team and a calibrated judge — you have
 solved this — or if your feature is still changing shape weekly, in which case come back when it

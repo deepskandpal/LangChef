@@ -1,14 +1,17 @@
 # LangChef
 
-**You changed the prompt. Is the app better or worse?**
+**You changed the model, the retriever, or the fine-tune. Is the app better or
+worse?**
 
 Most teams shipping an LLM feature cannot answer that with a straight face.
 LangChef is a command-line tool that answers it properly — and, just as often,
 tells you honestly that your test set was never big enough to tell.
 
-It is built for the engineer who maintains a retrieval app, a classifier or a
-summariser, has no evaluation background, and has no evaluation team to ask. You
-label about forty examples once. From then on it tells you whether your LLM
+It is built for the engineer who maintains a retrieval app, a classifier or an
+agent, has no evaluation background, and has no evaluation team to ask. Your
+provider retires the model you shipped on; you swap an embedding model; you
+distil to a fine-tuned small model to cut the bill. Same question every time.
+You label about forty examples once, and from then on it tells you whether your
 judge can be trusted, and whether each change was a real regression, a real
 improvement, or noise.
 
@@ -27,6 +30,10 @@ well inside what randomness produces. Nothing in a spreadsheet says so.
 **Comparing two runs measured differently.** Edit the grading prompt between
 runs and the two numbers were never measuring the same thing — but they still
 line up on a chart.
+
+**Averaging retrieval and generation into one number.** When quality drops after
+an embedding swap, one pass rate cannot tell you whether the generator got worse
+or is being handed worse context. Those have different fixes.
 
 Every product in this market is capable and most of them are cheap. They also
 all assume a human eval engineer exists to design the rubrics, interpret the

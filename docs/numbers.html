@@ -170,6 +170,57 @@ regression, you need more examples, and no amount of re-reading this output will
 <p class="dim"><em>Textbook name: minimum detectable effect, computed from the flip rate rather than
 the pass rate, because under a paired test that is what carries the information.</em></p>
 
+<h2>"We swapped in a cheaper model — did quality hold?"</h2>
+
+<p>This is a different question from "is it better", and reading the output the same way will
+mislead you. You are not hoping for an improvement. You are checking that the drop is small enough
+to accept in exchange for the cost or latency you bought.</p>
+
+<p><strong>Decide the tolerance before the run.</strong> Say you will accept up to a three-point
+drop for a 70% cost reduction. Then read the <em>bottom end of the range</em>, not the middle:</p>
+
+<pre><code>  difference -1.2% [-4.1%, +1.7%]
+  <span class="o">INCONCLUSIVE</span>
+  (smallest effect this run could have seen: 5.8%)</code></pre>
+
+<p>The middle looks fine — barely down. But the range reaches −4.1%, past the three points you were
+willing to lose. <strong>This run has not shown that quality held.</strong> It has shown that a drop
+big enough to matter is still consistent with what you measured.</p>
+
+<p>Two honest ways forward: add examples until the range tightens inside your tolerance, or accept
+the risk deliberately and write down that you did. What you should not do is read "inconclusive" as
+"no difference" and ship it as proven.</p>
+
+<div class="callout">
+  <span class="k">The same logic for a fine-tune</span>
+  <p>Distilling to a small fine-tuned model is the same shape of question. So is dropping a reranker
+  to save latency, or trimming context to save tokens. Anything where you are buying cost with
+  quality wants a tolerance set in advance and the interval read against it.</p>
+</div>
+
+<p class="dim"><em>Textbook name: a non-inferiority test. The formal version compares the interval
+bound against a pre-registered margin, which is exactly what you are doing by hand here.</em></p>
+
+<h2>Which stage broke?</h2>
+
+<p>When a retrieval app regresses, the number you get back is one number over two systems. The
+rubric is how you pull them apart: each criterion is a different failure mode, and the judge names
+the one it failed on for every example.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Criterion fails</th><th>Usually means</th><th>Look at</th></tr></thead>
+<tbody>
+<tr><td><strong>Groundedness</strong></td><td>The answer is not supported by what was retrieved.</td><td>Retrieval — embedding model, chunking, top-k, reranker.</td></tr>
+<tr><td><strong>Correctness</strong> (but grounded)</td><td>The right context arrived and the model still got it wrong.</td><td>The generator — model swap, prompt, fine-tune.</td></tr>
+<tr><td><strong>Directness</strong></td><td>It refused or hedged with the answer in front of it.</td><td>The generator, usually a newer or smaller model being more cautious.</td></tr>
+</tbody></table></div>
+
+<p>Every scored example records its criterion in <code>runs/&lt;id&gt;/scores.parquet</code>, and
+the calibration report groups by criterion and by slice. Rolling that into a criterion-by-criterion
+<em>comparison</em> between two arms is the next thing on the
+<a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">tracker</a>; today you read the breakdown per run and the overall
+verdict for the pair.</p>
+
 <h2>Was this even a fair comparison?</h2>
 
 <p>Every run records the rubric hash, the provider and the models that produced it. Together those

@@ -69,6 +69,25 @@ licensing conclusion deserves a fresh look before packs have any content.
 
 ## Open — engineering
 
+**No per-criterion comparison between arms.** *(Top of the list.)* The judge
+already names the criterion it failed on for every example and it is recorded in
+`runs/<id>/scores.parquet`, but `compare` only reports one overall verdict. For a
+retrieval app that is the difference between "quality dropped 4 points" and
+"groundedness dropped 9 points while correctness held" — which is the whole
+question of whether retrieval or generation regressed, and the docs now promise
+it is coming. *Fix:* group the paired comparison by criterion and report each
+alongside the overall. *Start at:* `src/langchef/core/compare.py` and
+`src/langchef/cli/experiment_cmd.py`.
+
+**No explicit non-inferiority mode.** Cost-cutting changes — a fine-tuned small
+model, a dropped reranker — ask "did quality hold within a tolerance I set", not
+"is it better". The interval already supports reading this by hand, and
+`numbers.html` documents how, but there is no way to declare the margin up front
+and have the CLI decide against it. *Fix:* a `--tolerance` flag on `compare` that
+tests the interval bound against a pre-registered margin and returns its own
+verdict. Pre-registering the margin before the run is the part that matters —
+deciding it afterwards is how a null result becomes a green light.
+
 **Stratified labels are not yet reweighted.** `label plan` samples stratified by
 the judge's own verdict and records an inclusion `weight` per row, but
 `calibrate report` computes unweighted sample rates. For balanced strata that is
