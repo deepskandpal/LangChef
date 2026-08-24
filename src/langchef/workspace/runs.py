@@ -38,6 +38,7 @@ class Run:
     suite: str
     kind: str = "judge"
     arm: str | None = None
+    experiment_id: str | None = None
     pin: dict | None = None
     stats: dict = field(default_factory=dict)
     created: str = ""
@@ -58,6 +59,7 @@ class Run:
                 "suite": self.suite,
                 "kind": self.kind,
                 "arm": self.arm,
+                "experiment_id": self.experiment_id,
                 "created": self.created,
                 "pin": self.pin,
                 "stats": self.stats,
@@ -81,16 +83,40 @@ def load(workspace: Workspace, run_id: str) -> Run:
         suite=raw["suite"],
         kind=raw.get("kind", "judge"),
         arm=raw.get("arm"),
+        experiment_id=raw.get("experiment_id"),
         pin=raw.get("pin"),
         stats=raw.get("stats", {}),
         created=raw.get("created", ""),
     )
 
 
-def latest(workspace: Workspace, suite: str | None = None, arm: str | None = None) -> Run | None:
+def latest(
+    workspace: Workspace,
+    suite: str | None = None,
+    arm: str | None = None,
+    experiment_id: str | None = None,
+) -> Run | None:
     """The most recent run, optionally filtered. Ids sort chronologically."""
+    found = for_experiment(workspace, experiment_id, suite, arm)
+    return found[0] if found else None
+
+
+def for_experiment(
+    workspace: Workspace,
+    experiment_id: str | None = None,
+    suite: str | None = None,
+    arm: str | None = None,
+) -> list[Run]:
+    """Every matching run, newest first.
+
+    The ``experiment_id`` filter is why runs record their experiment at all: with
+    a warm cache a re-run is free, so an arm accumulates runs quickly, and
+    "which of these belongs to the experiment I registered" is otherwise
+    unanswerable.
+    """
     if not workspace.runs.is_dir():
-        return None
+        return []
+    matches = []
     for path in sorted(workspace.runs.iterdir(), reverse=True):
         if not (path / RUN_JSON).is_file():
             continue
@@ -99,8 +125,10 @@ def latest(workspace: Workspace, suite: str | None = None, arm: str | None = Non
             continue
         if arm and run.arm != arm:
             continue
-        return run
-    return None
+        if experiment_id and run.experiment_id != experiment_id:
+            continue
+        matches.append(run)
+    return matches
 
 
 def every(workspace: Workspace) -> list[Run]:

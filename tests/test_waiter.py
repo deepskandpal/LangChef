@@ -289,3 +289,102 @@ def test_a_budget_stops_the_run_and_reports_what_is_left(project, run_cli):
     code, refused, _ = run_cli("experiment", "readout", "e1", "--variant", "var", cwd=project)
     assert code == Exit.REFUSED
     assert "stopping rule" in refused["message"]
+
+
+def test_a_run_records_which_experiment_it_belongs_to(project, run_cli):
+    run_cli(
+        "experiment",
+        "design",
+        "--intent",
+        "x",
+        "--variant-arm",
+        "variant",
+        "--id",
+        "e1",
+        cwd=project,
+    )
+    run_cli("experiment", "approve", "e1", cwd=project)
+    assert (
+        run_cli(
+            "judge", "run", "--arm", "variant", "--run-id", "var", "--experiment", "e1", cwd=project
+        ).code
+        == 0
+    )
+
+    manifest = read_json(project / "evals" / "runs" / "var" / "run.json")
+    assert manifest["experiment_id"] == "e1"
+    # A run scored outside an experiment records no link rather than a wrong one.
+    run_cli("judge", "run", "--arm", "variant", "--run-id", "loose", cwd=project)
+    assert read_json(project / "evals" / "runs" / "loose" / "run.json")["experiment_id"] is None
+
+
+def test_readout_refuses_to_choose_between_repeated_runs(project, run_cli):
+    """Re-running an arm until it reads out better is what gate two is against.
+
+    With a warm cache a re-run costs nothing, so an arm accumulates runs in
+    seconds. Silently taking the newest would make that free.
+    """
+    run_cli(
+        "experiment",
+        "design",
+        "--intent",
+        "x",
+        "--variant-arm",
+        "variant",
+        "--id",
+        "e1",
+        cwd=project,
+    )
+    run_cli("experiment", "approve", "e1", cwd=project)
+    for run_id in ("var-a", "var-b"):
+        assert (
+            run_cli(
+                "judge",
+                "run",
+                "--arm",
+                "variant",
+                "--run-id",
+                run_id,
+                "--experiment",
+                "e1",
+                cwd=project,
+            ).code
+            == 0
+        )
+
+    code, payload, _ = run_cli("experiment", "readout", "e1", cwd=project)
+    assert code == Exit.REFUSED
+    assert set(payload["candidates"]) == {"var-a", "var-b"}
+    assert "--variant" in payload["message"]
+
+    # Naming one is all it takes; the refusal is about the silent choice.
+    code, named, _ = run_cli("experiment", "readout", "e1", "--variant", "var-a", cwd=project)
+    assert code == Exit.OK
+    assert named["variant_run"] == "var-a"
+
+
+def test_runs_can_be_filtered_by_experiment(project, run_cli):
+    from langchef.workspace import runs as runs_mod
+    from langchef.workspace.paths import find
+
+    run_cli(
+        "experiment",
+        "design",
+        "--intent",
+        "x",
+        "--variant-arm",
+        "variant",
+        "--id",
+        "e1",
+        cwd=project,
+    )
+    run_cli("experiment", "approve", "e1", cwd=project)
+    run_cli(
+        "judge", "run", "--arm", "variant", "--run-id", "linked", "--experiment", "e1", cwd=project
+    )
+    run_cli("judge", "run", "--arm", "variant", "--run-id", "unlinked", cwd=project)
+
+    workspace = find(project)
+    linked = runs_mod.for_experiment(workspace, experiment_id="e1")
+    assert [r.run_id for r in linked] == ["linked"]
+    assert len(runs_mod.for_experiment(workspace, arm="variant")) == 2

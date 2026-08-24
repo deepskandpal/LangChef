@@ -331,13 +331,29 @@ def experiment_readout(
             experiment_id=experiment_id,
         )
 
-    variant_id = variant or runs.latest(
-        resolved.workspace, suite=design.get("suite"), arm=design.get("variant_arm")
-    )
-    variant_id = variant_id.run_id if hasattr(variant_id, "run_id") else variant_id
-    if not variant_id:
-        fail(Exit.ERROR, f"no run for arm {design.get('variant_arm')!r} — score it first")
-    variant_run = runs.load(resolved.workspace, variant_id)
+    if variant:
+        variant_run = runs.load(resolved.workspace, variant)
+    else:
+        # Runs that recorded this experiment come first: with a warm cache an arm
+        # accumulates runs quickly, and silently taking the newest is how an
+        # experiment gets re-run until it reads out the way someone wanted.
+        linked = runs.for_experiment(resolved.workspace, experiment_id=experiment_id)
+        loose = runs.for_experiment(
+            resolved.workspace, suite=design.get("suite"), arm=design.get("variant_arm")
+        )
+        candidates = linked or loose
+        if not candidates:
+            fail(Exit.ERROR, f"no run for arm {design.get('variant_arm')!r} — score it first")
+        if len(candidates) > 1 and not override:
+            fail(
+                Exit.REFUSED,
+                f"{len(candidates)} runs exist for this arm "
+                f"({', '.join(r.run_id for r in candidates[:4])}...) — name the one the "
+                "pre-registration is about with --variant. Reading out whichever ran last "
+                "is how an experiment gets repeated until it says something better.",
+                candidates=[r.run_id for r in candidates],
+            )
+        variant_run = candidates[0]
 
     baseline_id = baseline
     if not baseline_id:

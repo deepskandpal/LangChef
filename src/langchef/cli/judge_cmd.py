@@ -69,6 +69,7 @@ def judge_run(
         suite=name,
         kind="judge",
         arm=arm,
+        experiment_id=experiment,
         pin=result.pin.to_dict(),
         stats=result.stats,
     )

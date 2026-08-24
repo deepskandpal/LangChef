@@ -72,6 +72,69 @@ licensing conclusion deserves a fresh look before packs have any content.
 
 ## Open — engineering
 
+**Run storage and cross-run comparison.** *(New, 24 Aug.)* Runs accumulate fast
+— the judgement cache makes a re-run free, so people re-run a lot — and there is
+currently no way to look across them. Three concrete gaps, in the order they
+bite:
+
+**1. ~~A run does not record which experiment it belongs to.~~** *(Fixed 24 Aug.)*
+`run.json` now carries `experiment_id`, `runs.for_experiment()` filters on it,
+and `readout` refuses to pick between repeated runs for an arm rather than
+silently taking the newest — see the integrity note below.
+
+**2. There is no cross-run query.** `runs.every()` opens and parses every
+`run.json` in the directory; `_prior_discordance` in `design_cmd` walks all of
+them reading `compare.json` until it finds one. Fine at 20 runs, unpleasant at
+500, and neither gives you a table of arms × runs × verdicts.
+
+**3. Nothing is durable or shareable.** The workspace is a directory on one
+laptop. `scores.parquet` is the only thing that grows, and it grows per run.
+
+*The constraint, and it is not negotiable without a new dated decision:*
+`DECISIONS.md` #4 says text is the record and **DuckDB is a query engine, never
+the store**. The reason is the whole trust posture — a person reviews a workspace
+in a pull request, and a database file in git is a black box, "and a black box in
+git is the same product everyone else already sells". So **SQLite must not become
+the source of truth.** It can be a derived index that is safe to delete.
+
+*The layered answer that gets what is wanted without reopening #4:*
+
+- **The record stays text.** `run.json`, `compare.json`, `readout.json`,
+  `ledger.jsonl`, pre-registrations. Reviewable, diffable, portable.
+- **The index is derived and disposable.** Either DuckDB reading the existing
+  Parquet and JSON directly — which is precisely what #4 already prescribes and
+  needs no new store at all — or, if that proves too slow, a SQLite file under
+  `.cache/` beside the judgement cache, gitignored, rebuilt by `langchef index
+  rebuild` from the text. If deleting it loses anything, it has become the store
+  and the design is wrong.
+- **Bulk can go remote.** `scores.parquet` to S3 or an MLflow artifact store,
+  with the manifest staying as text in git holding a URI. The reviewable half
+  stays reviewable; the large half stops bloating the repository and starts being
+  shareable across a team.
+
+*MLflow is the cheapest version of all three at once* and is already next on the
+integrations register: a run maps to an MLflow run, `stats` to metrics, the pin
+to params, `scores.parquet` to an artifact — and cross-run comparison then
+happens in a UI the team already has, with no query layer written here at all.
+Worth doing before building an index, in case the index turns out to be
+unnecessary.
+
+*One integrity hazard this surfaced, fixed 24 Aug:* with many runs per arm,
+`readout` resolved the variant via `runs.latest(suite, arm)`. Inside a
+pre-registered experiment that is a silent choice, and the wrong one —
+re-running an arm after a disappointing readout and reading out again is exactly
+the reshaping-around-the-result gate two exists to prevent, and a warm cache
+makes the re-run free. `readout` now refuses (exit 2) when more than one run
+matches and none was named with `--variant`. **`compare` still resolves by
+`latest` and has the same hazard** — it is outside the gate, so the fix there is
+probably a warning rather than a refusal.
+
+*Start at:* `src/langchef/workspace/runs.py` (the `experiment_id` field and the
+`every()` scan), `src/langchef/cli/judge_cmd.py` (write the link),
+`src/langchef/connect/` (still an empty package — the connectors and any remote
+store belong there), and `src/langchef/cli/design_cmd.py` for the run-pinning
+hazard.
+
 **BYOD — bring your own dataset.** *(New, 23 Aug. Probably the highest-leverage
 item on this list.)* Today the only way in is to generate goldens from a running
 app: collect traces, assemble JSONL in our shape, then label forty. Most teams
