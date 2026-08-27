@@ -98,6 +98,7 @@ def compare(
         variant_run = runs.latest(resolved.workspace, suite=name, arm="variant")
         if variant_run is None or variant_run.run_id == baseline_run.run_id:
             fail(Exit.ERROR, "no variant run to compare — pass --variant")
+        say(f"implicit variant: {variant_run.run_id}")
 
     try:
         check_pin(Pin.from_dict(baseline_run.pin or {}), Pin.from_dict(variant_run.pin or {}))
