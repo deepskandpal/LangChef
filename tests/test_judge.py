@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import pytest
 
+from langchef.judge import providers
 from langchef.judge.cache import Cache, judgement_key, prompt_key
 from langchef.judge.example import Example
 from langchef.judge.providers import (
@@ -246,3 +247,112 @@ def test_a_moved_pin_names_what_moved():
         check_pin(left, right)
     assert set(caught.value.moved) == {"rubric", "cheap_model"}
     assert "r@1" in str(caught.value)
+
+
+# --- #32: a check cannot change without VERSION changing with it -------------
+
+
+def test_containment_checks_digest_matches_the_recorded_one():
+    """The scoring checks have not changed since CHECKS_DIGEST was recorded.
+
+    VERSION is part of the cache key, so a check that changes without VERSION
+    changing leaves every warm cache serving verdicts from the old check. That
+    failure is silent, persistent, and invisible in review -- the diff that
+    causes it looks correct on its own.
+    """
+    recorded = providers.CHECKS_DIGEST
+    computed = providers.checks_digest()
+
+    assert computed == recorded, (
+        f"The containment scoring checks changed but VERSION did not.\n"
+        f"\n"
+        f"  VERSION is currently {providers.VERSION!r}, and it is part of the\n"
+        f"  cache key. Leaving it alone means every workspace with a warm cache\n"
+        f"  keeps serving judgements produced by the OLD check -- silently, and\n"
+        f"  the numbers look exactly like the right numbers.\n"
+        f"\n"
+        f"  If you changed a check on purpose:\n"
+        f"    1. bump VERSION in src/langchef/judge/providers.py\n"
+        f"    2. set CHECKS_DIGEST = {computed!r}\n"
+        f"\n"
+        f"  If you only reformatted or edited a comment, this should not have\n"
+        f"  fired -- the digest ignores both. Please say so on the issue, since\n"
+        f"  a test that cries wolf is a test that gets deleted.\n"
+        f"\n"
+        f"  recorded {recorded}\n"
+        f"  computed {computed}"
+    )
+
+
+def test_containment_checks_digest_ignores_comments_and_layout():
+    """Reformatting must not trip the digest, or the test gets suppressed.
+
+    `ruff format` runs in CI. A digest that fired on a reflowed argument list
+    would be turned off within a week, and the real guarantee would go with it.
+    """
+    plain = "def f(a, b):\n    # a comment\n    return a + b\n"
+    reformatted = (
+        "def f(\n    a,\n    b\n):\n    # a completely different comment\n\n    return a + b\n"
+    )
+
+    assert providers._normalise_source(plain) == providers._normalise_source(reformatted)
+
+
+def test_containment_checks_digest_ignores_quote_style():
+    """`ruff format` normalises quotes; that is layout, not behaviour."""
+    single = "def f():\n    return 'x'\n"
+    double = 'def f():\n    return "x"\n'
+
+    assert providers._normalise_source(single) == providers._normalise_source(double)
+
+
+def test_containment_checks_digest_notices_a_changed_body():
+    """The whole point: an edit to a check changes the digest."""
+    before = "def f(a, b):\n    return a + b\n"
+    after = "def f(a, b):\n    return a - b\n"
+
+    assert providers._normalise_source(before) != providers._normalise_source(after)
+
+
+def test_containment_checks_digest_notices_a_changed_string():
+    """A rationale is user-visible output; editing one is a behaviour change."""
+    before = 'def f():\n    return "the answer declines to answer"\n'
+    after = 'def f():\n    return "the answer hedged"\n'
+
+    assert providers._normalise_source(before) != providers._normalise_source(after)
+
+
+def test_containment_checks_digest_notices_a_changed_block_structure():
+    """Moving a statement into a branch is behaviour, not layout.
+
+    INDENT/DEDENT are kept in the token stream for exactly this case.
+    """
+    flat = "def f(a):\n    x = 1\n    return x\n"
+    nested = "def f(a):\n    if a:\n        x = 1\n    return x\n"
+
+    assert providers._normalise_source(flat) != providers._normalise_source(nested)
+
+
+@pytest.mark.parametrize(
+    "name", ["HEDGES", "HEDGE_KEYS", "GROUNDED_KEYS", "CORRECT_KEYS", "STOPWORDS"]
+)
+def test_containment_checks_digest_covers_the_matched_keywords(monkeypatch, name):
+    """The keyword tuples are matched by substring, so they are behaviour.
+
+    Adding one word to HEDGE_KEYS changes which criterion a failure is cited
+    under just as surely as editing the branch that reads it. A digest over
+    code alone would not notice.
+    """
+    baseline = providers.checks_digest()
+    original = getattr(providers, name)
+    extended = (
+        frozenset(original | {"zzz-sentinel"})
+        if isinstance(original, frozenset)
+        else (*original, "zzz-sentinel")
+    )
+    monkeypatch.setattr(providers, name, extended)
+
+    assert providers.checks_digest() != baseline, (
+        f"{name} is matched at judging time but is not in the digest, "
+        f"so it could be changed without VERSION moving"
+    )

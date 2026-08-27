@@ -99,10 +99,13 @@ to change without a new dated entry in [`DECISIONS.md`](DECISIONS.md).
   surfaces on purpose. It is not a good judge and does not claim to be.
 - **The bootstrap in `compare` is seeded** (`BOOTSTRAP_SEED = 0`). The contract
   calls `compare` deterministic and this is how that is true.
-- **Version pinning of the containment judge is manual.** Changing its checks
-  means bumping `VERSION` in `providers.py`, because the model string is part of
-  the cache key. Nothing catches forgetting — that part *is* an issue,
-  [#32](https://github.com/deepskandpal/LangChef/issues/32).
+- **Version pinning of the containment judge is manual, but no longer silent.**
+  Changing its checks means bumping `VERSION` in `providers.py`, because the
+  model string is part of the cache key. Forgetting is now caught:
+  `CHECKS_DIGEST` records a content hash of the checks and the keywords they
+  match, and `test_containment_checks_digest_matches_the_recorded_one` fails
+  with instructions when the two drift apart. The digest ignores comments and
+  `ruff format` output, so it does not cry wolf. ([#32](https://github.com/deepskandpal/LangChef/issues/32))
 
 ---
 
