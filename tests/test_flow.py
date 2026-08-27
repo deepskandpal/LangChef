@@ -195,3 +195,48 @@ def test_every_command_writes_json_to_stdout_and_prose_to_stderr(workspace, run_
         result = run_cli(*args, cwd=workspace)
         assert json.loads(result.out), f"{args} did not put JSON on stdout"
         assert result.err.strip(), f"{args} said nothing to a person on stderr"
+
+
+def test_compare_warns_when_it_picks_among_repeated_variant_runs(workspace, run_cli):
+    """Outside the gate, ambiguity is a disclosure — not a silent latest pick.
+
+    Twin of readout's refusal (#13): compare stays exit 0 and keeps going, but
+    names the run it chose and how many others matched, on stderr.
+    """
+
+    def cli(*args):
+        return run_cli(*args, cwd=workspace)
+
+    assert cli("approve", "rubric").code == Exit.OK
+    assert cli("judge", "run", "--arm", "baseline", "--run-id", "base").code == Exit.OK
+    assert cli("baseline", "set", "--run", "base").code == Exit.OK
+    for run_id in ("var-a", "var-b"):
+        assert cli("judge", "run", "--arm", "variant", "--run-id", run_id).code == Exit.OK
+
+    result = cli("compare")
+    assert result.code == Exit.OK
+    assert result.payload["ok"] is True
+    assert result.payload["variant_run"] == "var-b"  # newest of the two
+    assert "2 variant runs matched" in result.err
+    assert "var-b" in result.err
+    assert "1 other" in result.err
+    # stdout stays pure JSON — the disclosure is stderr-only.
+    assert json.loads(result.out)["variant_run"] == "var-b"
+
+
+def test_compare_is_quiet_about_resolution_when_only_one_variant_matches(workspace, run_cli):
+    """One match is not a choice; no disclosure noise."""
+
+    def cli(*args):
+        return run_cli(*args, cwd=workspace)
+
+    assert cli("approve", "rubric").code == Exit.OK
+    assert cli("judge", "run", "--arm", "baseline", "--run-id", "base").code == Exit.OK
+    assert cli("baseline", "set", "--run", "base").code == Exit.OK
+    assert cli("judge", "run", "--arm", "variant", "--run-id", "var-only").code == Exit.OK
+
+    result = cli("compare")
+    assert result.code == Exit.OK
+    assert result.payload["variant_run"] == "var-only"
+    assert "variant runs matched" not in result.err
+    assert "Pass --variant" not in result.err

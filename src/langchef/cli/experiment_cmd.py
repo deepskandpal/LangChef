@@ -95,9 +95,20 @@ def compare(
     if variant:
         variant_run = _load(resolved, variant, "variant")
     else:
-        variant_run = runs.latest(resolved.workspace, suite=name, arm="variant")
-        if variant_run is None or variant_run.run_id == baseline_run.run_id:
+        # Same resolution helper as readout (#13 / #12). Outside the gate we still
+        # take the newest, but we say so — silence is how re-runs hide which arm
+        # actually entered the comparison.
+        candidates = runs.for_experiment(resolved.workspace, suite=name, arm="variant")
+        if not candidates or candidates[0].run_id == baseline_run.run_id:
             fail(Exit.ERROR, "no variant run to compare — pass --variant")
+        variant_run = candidates[0]
+        if len(candidates) > 1:
+            others = len(candidates) - 1
+            say(
+                f"note: {len(candidates)} variant runs matched for {name}; "
+                f"using newest {variant_run.run_id} ({others} other"
+                f"{'' if others == 1 else 's'}). Pass --variant to name one."
+            )
 
     try:
         check_pin(Pin.from_dict(baseline_run.pin or {}), Pin.from_dict(variant_run.pin or {}))
