@@ -5,28 +5,47 @@ body:
   - type: markdown
     attributes:
       value: |
-        Decisions are left open on purpose, with the evidence that closes them named up front,
-        so that none of them becomes a standing debate. Settled ones go into `DECISIONS.md`
-        with a date and are not reopened.
+        Decisions are left open on purpose, with the evidence that closes them named up front, so
+        that none of them becomes a standing debate. Settled ones go into `DECISIONS.md` with a
+        date and are not reopened.
   - type: textarea
-    id: question
+    id: description
     attributes:
-      label: The question
+      label: Description
+      description: The question, in one line.
+    validations: {required: true}
+  - type: textarea
+    id: background
+    attributes:
+      label: Background
+      description: Why it is open, and what it costs to get wrong.
     validations: {required: true}
   - type: textarea
     id: options
     attributes:
-      label: The options, and what each costs
+      label: Options
+      value: |
+        ### (a) 
+        - **For:** 
+        - **Against:** 
+
+        ### (b) 
+        - **For:** 
+        - **Against:** 
     validations: {required: true}
-  - type: input
+  - type: textarea
     id: default
     attributes:
       label: The default if nobody decides
-      description: There is always one. Name it, so that drifting is a choice rather than an accident.
+      description: |
+        There is always one, and it is usually the bad one — a threshold hard-coded where nobody
+        reviews it. Name it, so that drifting is a choice rather than an accident.
     validations: {required: true}
   - type: textarea
-    id: closes
+    id: acceptance
     attributes:
-      label: Closes when
+      label: Acceptance criteria (closes when)
       description: The evidence, the date, or the trigger. Not "when we have time".
+      value: |
+        - [ ] The call is written into `DECISIONS.md` as a new dated entry
     validations: {required: true}

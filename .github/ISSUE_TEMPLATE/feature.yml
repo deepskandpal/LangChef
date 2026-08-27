@@ -5,36 +5,62 @@ body:
   - type: markdown
     attributes:
       value: |
-        Write this so somebody — or something — can pick it up cold, months from now,
-        with no memory of this conversation. That is the whole standard.
+        Write this so somebody — or something — can pick it up cold, months from now, with no
+        memory of this conversation. That is the whole standard. See any existing issue for the
+        shape; [#28](https://github.com/deepskandpal/LangChef/issues/28) is a good example.
   - type: textarea
-    id: what
+    id: description
     attributes:
-      label: What
-      description: One or two sentences. The capability, not the implementation.
-    validations: {required: true}
-  - type: textarea
-    id: why
-    attributes:
-      label: Why it matters
-      description: What is worse without it. Be concrete; "it would be nice" is not a reason.
-    validations: {required: true}
-  - type: input
-    id: start
-    attributes:
-      label: Start at
-      description: The file to open first.
-      placeholder: src/langchef/core/compare.py
+      label: Description
+      description: One or two sentences, imperative. The capability, not the implementation.
     validations: {required: true}
   - type: textarea
-    id: done
+    id: background
     attributes:
-      label: Done when
-      description: The observable condition. A test that passes, a command that behaves.
+      label: Background
+      description: |
+        Why this exists and what is worse without it. Where it came from — a build-order section,
+        a defect, a conversation. Be concrete: "it would be nice" is not a reason.
     validations: {required: true}
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      value: |
+        - **Blocked by:** #
+        - **Blocks:** #
+        - **Related:** #
+        - **Needs a person:** 
+    validations: {required: true}
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: |
+        Observable and checkable. Include the ways this could be built *wrongly* — a silently
+        dropped row, a threshold that stops being declared, an interval that stops matching its
+        point estimate. Those are the criteria that earn their place.
+      value: |
+        - [ ] 
+        - [ ] `./scripts/verify.sh` stays green (10/10)
+    validations: {required: true}
+  - type: textarea
+    id: notes
+    attributes:
+      label: Implementation notes
+      description: Start at which file, what constrains it, what has already gone wrong nearby.
+      value: |
+        **Start at** `src/langchef/`
+    validations: {required: true}
+  - type: textarea
+    id: scope
+    attributes:
+      label: Out of scope
+      description: What this is not. Build order §10 lists things that are never built — check it.
   - type: dropdown
     id: area
     attributes:
       label: Area
+      description: Area labels are collision boundaries. Two agents must not hold the same one.
       options: [core, judge, workspace, cli, connect, packs, adapters, dogfood, docs, ci]
     validations: {required: true}

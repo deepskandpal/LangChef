@@ -27,8 +27,14 @@ say what was built and why.
 | read the build log | [closed issues](https://github.com/deepskandpal/LangChef/issues?q=is%3Aissue+is%3Aclosed) |
 | know what is undecided | [`type:decision`](https://github.com/deepskandpal/LangChef/labels/type%3Adecision) |
 
-Every issue is written to be picked up cold: **What**, **Why it matters**,
-**Start at**, **Done when**.
+Every issue is written to be picked up cold, with the same sections every time:
+**Description**, **Background**, **Dependencies**, **Acceptance criteria**,
+**Implementation notes**, **Out of scope**, and a traceability line back to the
+PRD requirement and the design document it came from.
+
+Before proposing something new, check
+[`NON-GOALS.md`](NON-GOALS.md). Several reasonable-sounding features are ruled
+out on purpose, with the reasoning written down.
 
 ## The rules
 

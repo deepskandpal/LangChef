@@ -297,6 +297,7 @@ quickstart, concepts, and a command reference generated from the contract.
   the constraints that are not negotiable in a pull request
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to start, in about a minute
 - [`DECISIONS.md`](DECISIONS.md) — eleven calls, each with the reasoning and the date
+- [`NON-GOALS.md`](NON-GOALS.md) — what is deliberately not built, and why
 - [`TRACKER.md`](TRACKER.md) — the map: where the build is and where to look
 - [`docs/AGENT-CONTRACT.md`](docs/AGENT-CONTRACT.md) — generated; what the agent may read, write, spend and decide
 - [`dogfood/README.md`](dogfood/README.md) — the planted regressions and what they prove

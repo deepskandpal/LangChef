@@ -152,6 +152,25 @@ there, not in the prose.
 
 ---
 
+## How this is tested
+
+Five kinds, and the rule for each. These are not guidelines — a change that
+cannot satisfy the relevant row does not ship.
+
+| Kind | What it covers | The rule |
+|---|---|---|
+| **Known-answer** | Every statistic — κ, confusion metrics, bootstrap intervals, power, detection limits | Checked against an independent implementation or a closed form. **A statistic without one does not ship.** scikit-learn is available for this and is test-only. |
+| **Property** | Invariants: label permutation, monotonicity of agreement, interval coverage | Coverage must sit at the nominal rate across many simulated draws, not on one example. |
+| **Simulation** | The planted regressions in `dogfood/` | Detection rate at a fixed false-alarm budget, tracked as a first-class metric of the product — not a smoke test. |
+| **Cassette** | Judge calls | Recorded once, replayed forever. CI runs with **no API key present and asserts its absence**, so no test can ever spend money. |
+| **Lint** | Memos and module boundaries | No number without a run artifact. `core/` imports nothing from `judge/`, `connect/` or `packs/`. |
+
+**The failure mode all five exist to catch is a plausible wrong number.** A crash
+announces itself. A statistic that is off by a factor of two produces output that
+looks exactly like correct output, survives review, and is believed.
+
+---
+
 ## Before opening a pull request
 
 ```sh

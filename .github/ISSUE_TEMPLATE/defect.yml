@@ -2,11 +2,22 @@ name: Defect
 description: Behaviour that is wrong, not merely absent
 labels: ["type:defect", "lifecycle:ready"]
 body:
-  - type: textarea
-    id: wrong
+  - type: markdown
     attributes:
-      label: What is wrong
+      value: |
+        **A wrong number is worse than a crash here, because nothing complains.** If a figure looks
+        wrong, this is the most valuable issue you can file.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
       description: The behaviour, and what it should be instead.
+    validations: {required: true}
+  - type: textarea
+    id: background
+    attributes:
+      label: Background
+      description: How it was found, and why it matters more or less than it looks like it does.
     validations: {required: true}
   - type: textarea
     id: repro
@@ -15,13 +26,24 @@ body:
       description: The commands. Prefer the dogfood workspace, which needs no API key.
       render: shell
     validations: {required: true}
-  - type: textarea
-    id: cost
+  - type: dropdown
+    id: kind
     attributes:
-      label: What it costs
-      description: |
-        A wrong number is worse than a crash, because nothing complains.
-        Say whether this produces a wrong figure, a wrong verdict, or an inconvenience.
+      label: What kind of wrong
+      options:
+        - A wrong number — silent, and looks like a right number
+        - A wrong verdict — the arithmetic is right, the conclusion is not
+        - An integrity gap — the result can be manufactured
+        - A crash or an error
+        - An inconvenience
+    validations: {required: true}
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] A test that fails before the fix and passes after
+        - [ ] `./scripts/verify.sh` stays green (10/10)
     validations: {required: true}
   - type: input
     id: start

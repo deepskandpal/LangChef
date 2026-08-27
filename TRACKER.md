@@ -7,6 +7,12 @@
 > knows where they are in about a minute; the issues are where anything actually
 > gets picked up, claimed and closed.
 >
+> **The build order and its milestone plan are superseded by these issues.** What it
+> specified now lives in the tickets that implement it, each carrying its own traceability
+> line back to the PRD requirement and the build-order section it came from. What it decided
+> lives in [`DECISIONS.md`](DECISIONS.md). What it refused to build lives in
+> [`NON-GOALS.md`](NON-GOALS.md).
+>
 > [`AGENTS.md`](AGENTS.md) is the working agreement — how work is claimed, which
 > areas collide, and what cannot be changed in a pull request.
 
@@ -50,6 +56,32 @@ unbuilt ones are [#42](https://github.com/deepskandpal/LangChef/issues/42)–[#4
 - [#14](https://github.com/deepskandpal/LangChef/issues/14) **BYOD** — probably the highest-leverage item on the list, and blocked on one decision ([#18](https://github.com/deepskandpal/LangChef/issues/18)) that must be settled before any statistics are written, because reversing it later is expensive.
 - [#26](https://github.com/deepskandpal/LangChef/issues/26) **MLflow** — the cheapest version of storage, a cross-run index and comparison all at once, in a UI teams already have. Worth doing before [#15](https://github.com/deepskandpal/LangChef/issues/15) in case it makes it unnecessary.
 - [#28](https://github.com/deepskandpal/LangChef/issues/28) **Per-criterion comparison** — the most useful thing already sitting unused in the data, and the docs now promise it.
+
+---
+
+## What a ticket looks like
+
+Every issue carries the same sections, so that an agent — or a person six weeks from now —
+can start without asking anybody anything:
+
+| Section | What it answers |
+|---|---|
+| **Description** | What this is, imperative, in one or two sentences |
+| **Background** | Why it exists, where it came from, what is worse without it |
+| **Dependencies** | Blocked by · Blocks · Related · Needs a person |
+| **Acceptance criteria** | Observable and checkable — including the ways it could be built *wrongly* |
+| **Implementation notes** | The file to open first, the constraints, what has already gone wrong nearby |
+| **Out of scope** | What this is not |
+| **Traceability** | PRD requirement · build-order section · `DECISIONS.md` entry |
+| **Estimate** | Hours, carried over from the build order where it had one |
+
+Decision tickets swap Acceptance criteria for **Options**, **Recommendation**, **The default
+if nobody decides**, and **Closes when** — the trigger, named up front, so that none of them
+becomes a standing debate.
+
+The acceptance criteria are the part worth reading. They are written against the failure mode
+this whole project exists to catch: **a plausible wrong number.** A crash announces itself; a
+statistic that is off by a factor of two looks exactly like a correct one.
 
 ---
 
