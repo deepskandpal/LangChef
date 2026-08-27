@@ -293,6 +293,7 @@ quickstart, concepts, and a command reference generated from the contract.
 
 - [Issues](https://github.com/deepskandpal/LangChef/issues) — where the work is, including
   what is already done: the closed issues are the build log
+- [The board](https://github.com/users/deepskandpal/projects/5) — the same work by priority, area, size and ownership
 - [`AGENTS.md`](AGENTS.md) — the working agreement: the lifecycle, the area boundaries, and
   the constraints that are not negotiable in a pull request
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to start, in about a minute

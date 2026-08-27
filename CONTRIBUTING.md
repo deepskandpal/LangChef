@@ -24,6 +24,7 @@ say what was built and why.
 | start something small | [`good first issue`](https://github.com/deepskandpal/LangChef/labels/good%20first%20issue) |
 | see what is next | [`priority:P0`](https://github.com/deepskandpal/LangChef/labels/priority%3AP0) |
 | see the plan | [milestones](https://github.com/deepskandpal/LangChef/milestones) |
+| slice it any other way | [the project board](https://github.com/users/deepskandpal/projects/5) |
 | read the build log | [closed issues](https://github.com/deepskandpal/LangChef/issues?q=is%3Aissue+is%3Aclosed) |
 | know what is undecided | [`type:decision`](https://github.com/deepskandpal/LangChef/labels/type%3Adecision) |
 

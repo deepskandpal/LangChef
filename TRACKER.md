@@ -50,6 +50,7 @@ unbuilt ones are [#42](https://github.com/deepskandpal/LangChef/issues/42)–[#4
 | see what is undecided | [`type:decision`](https://github.com/deepskandpal/LangChef/labels/type%3Adecision) |
 | read the build log | [closed issues](https://github.com/deepskandpal/LangChef/issues?q=is%3Aissue+is%3Aclosed) |
 | see the plan | [milestones](https://github.com/deepskandpal/LangChef/milestones) |
+| prioritise or delegate | [the board](https://github.com/users/deepskandpal/projects/5) — every issue with Priority, Area, Size, Ownership and Lifecycle as sortable fields |
 
 **The three worth knowing about without opening anything:**
 

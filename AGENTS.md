@@ -22,6 +22,10 @@ If you find yourself computing a statistic in prose, stop: it belongs in
 
 ## Picking up work
 
+[The board](https://github.com/users/deepskandpal/projects/5) carries the same information as sortable fields —
+Priority, Area, Size, Ownership, Lifecycle — if you would rather filter than query.
+Items with no Ownership set are the four epics, which are not picked up directly.
+
 ```sh
 # Everything an agent can finish alone, most urgent first
 gh issue list --label "agent:ready" --label "lifecycle:ready" --sort created --state open
