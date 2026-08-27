@@ -1,0 +1,40 @@
+name: Feature
+description: A capability that does not exist yet
+labels: ["type:feature", "lifecycle:spec"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Write this so somebody — or something — can pick it up cold, months from now,
+        with no memory of this conversation. That is the whole standard.
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: One or two sentences. The capability, not the implementation.
+    validations: {required: true}
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters
+      description: What is worse without it. Be concrete; "it would be nice" is not a reason.
+    validations: {required: true}
+  - type: input
+    id: start
+    attributes:
+      label: Start at
+      description: The file to open first.
+      placeholder: src/langchef/core/compare.py
+    validations: {required: true}
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: The observable condition. A test that passes, a command that behaves.
+    validations: {required: true}
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [core, judge, workspace, cli, connect, packs, adapters, dogfood, docs, ci]
+    validations: {required: true}

@@ -1,0 +1,32 @@
+name: Decision
+description: A call to make, not code to write
+labels: ["type:decision", "lifecycle:spec", "agent:needs-human"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Decisions are left open on purpose, with the evidence that closes them named up front,
+        so that none of them becomes a standing debate. Settled ones go into `DECISIONS.md`
+        with a date and are not reopened.
+  - type: textarea
+    id: question
+    attributes:
+      label: The question
+    validations: {required: true}
+  - type: textarea
+    id: options
+    attributes:
+      label: The options, and what each costs
+    validations: {required: true}
+  - type: input
+    id: default
+    attributes:
+      label: The default if nobody decides
+      description: There is always one. Name it, so that drifting is a choice rather than an accident.
+    validations: {required: true}
+  - type: textarea
+    id: closes
+    attributes:
+      label: Closes when
+      description: The evidence, the date, or the trigger. Not "when we have time".
+    validations: {required: true}

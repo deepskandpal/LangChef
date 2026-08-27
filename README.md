@@ -291,8 +291,13 @@ and no amount of downstream statistics repairs it.
 Documentation: **<https://deepskandpal.github.io/LangChef/>** — overview,
 quickstart, concepts, and a command reference generated from the contract.
 
+- [Issues](https://github.com/deepskandpal/LangChef/issues) — where the work is, including
+  what is already done: the closed issues are the build log
+- [`AGENTS.md`](AGENTS.md) — the working agreement: the lifecycle, the area boundaries, and
+  the constraints that are not negotiable in a pull request
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to start, in about a minute
 - [`DECISIONS.md`](DECISIONS.md) — eleven calls, each with the reasoning and the date
-- [`TRACKER.md`](TRACKER.md) — what is done, what is next, what is open
+- [`TRACKER.md`](TRACKER.md) — the map: where the build is and where to look
 - [`docs/AGENT-CONTRACT.md`](docs/AGENT-CONTRACT.md) — generated; what the agent may read, write, spend and decide
 - [`dogfood/README.md`](dogfood/README.md) — the planted regressions and what they prove
 

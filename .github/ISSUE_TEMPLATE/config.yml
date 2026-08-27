@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: The agent contract
+    url: https://deepskandpal.github.io/LangChef/cli.html
+    about: What each command does, what it writes, and what the exit codes mean. Read this before filing about CLI behaviour.
+  - name: How the numbers work
+    url: https://deepskandpal.github.io/LangChef/numbers.html
+    about: What a verdict, an interval and a detection limit actually mean here.

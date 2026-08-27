@@ -1,0 +1,30 @@
+name: Defect
+description: Behaviour that is wrong, not merely absent
+labels: ["type:defect", "lifecycle:ready"]
+body:
+  - type: textarea
+    id: wrong
+    attributes:
+      label: What is wrong
+      description: The behaviour, and what it should be instead.
+    validations: {required: true}
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to see it
+      description: The commands. Prefer the dogfood workspace, which needs no API key.
+      render: shell
+    validations: {required: true}
+  - type: textarea
+    id: cost
+    attributes:
+      label: What it costs
+      description: |
+        A wrong number is worse than a crash, because nothing complains.
+        Say whether this produces a wrong figure, a wrong verdict, or an inconvenience.
+    validations: {required: true}
+  - type: input
+    id: start
+    attributes:
+      label: Start at
+      placeholder: src/langchef/judge/runner.py
