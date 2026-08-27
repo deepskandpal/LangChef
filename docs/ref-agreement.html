@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agreement and kappa — LangChef</title>
+<meta name="description" content="How LangChef decides whether your judge can be trusted: kappa, catch rate, false alarms and Wilson intervals, worked from real numbers with the papers behind them.">
+<meta property="og:title" content="Agreement and kappa — LangChef">
+<meta property="og:description" content="How LangChef decides whether your judge can be trusted: kappa, catch rate, false alarms and Wilson intervals, worked from real numbers with the papers behind them.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=Spectral:ital,wght@0,600;1,400&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="shell">
+    <a class="wordmark" href="index.html"><span class="dot"></span>LangChef</a>
+    <nav class="topnav">
+      <a href="index.html">Guide</a>
+      <a href="concepts.html" class="here">Reference</a>
+      <a href="cli.html">Project</a>
+      <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="shell layout">
+<nav class="sidebar" aria-label="Documentation">
+  <form class="search" role="search" onsubmit="return false">
+    <input id="q" type="search" placeholder="Search docs" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+  </form>
+  <div id="results" hidden></div>
+  <div id="nav">
+  <h4>Guide</h4>
+  <ul>
+    <li><a href="index.html">Overview</a></li>
+    <li><a href="start.html">Start here</a></li>
+    <li><a href="numbers.html">Reading the output</a></li>
+  </ul>
+  <h4>Reference</h4>
+  <ul>
+    <li><a href="concepts.html">Concepts</a></li>
+    <li><a href="ref-agreement.html" aria-current="page">Agreement and kappa</a></li>
+    <li><a href="ref-compare.html">Comparing two arms</a></li>
+  </ul>
+  <h4>Project</h4>
+  <ul>
+    <li><a href="cli.html">Commands</a></li>
+    <li><a href="integrations.html">Integrations</a></li>
+  </ul>
+  <h4>In the repository</h4>
+  <ul>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/docs/AGENT-CONTRACT.md">Agent contract</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/DECISIONS.md">Decisions</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/AGENTS.md">Working agreement</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/dogfood/README.md">Dogfood</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/issues">Issues</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef">Source on GitHub</a></li>
+  </ul>
+  </div>
+</nav>
+
+<main>
+
+<div class="eyebrow">Reference</div>
+<h1>Agreement and kappa</h1>
+<p class="lede">How LangChef decides whether your judge can be trusted, worked from real numbers,
+with the code and the papers behind each step. No statistics background assumed.</p>
+
+<div class="worked">
+  <span class="k">The worked example used throughout this page</span>
+  <p>From the project's own dogfood run. You labelled 40 examples by hand; the judge had already
+  scored the same 40. Every number on this page comes from these four counts.</p>
+<pre><code>                judge fail   judge pass
+  you fail         12 (tp)       3 (fn)    = 15
+  you pass          3 (fp)      22 (tn)    = 25
+                  = 15         = 25         40</code></pre>
+  <p>Twelve times you both said bad. Twenty-two times you both said fine. Six times you disagreed:
+  three the judge missed, three it cried wolf on.</p>
+</div>
+
+<h2 id="why-accuracy-is-not-the-answer">Why accuracy is not the answer</h2>
+
+<p>You agreed on 34 of 40, so the judge is <strong>85% accurate</strong>. That sounds usable.</p>
+
+<p>Now take a judge that does nothing but say "pass" to everything. On this same set it scores
+<strong>62.5%</strong>. On a realistic production suite where only 5% of answers are bad, that same
+do-nothing judge scores <strong>95%</strong>.</p>
+
+<p>Accuracy rewards guessing the common answer. It cannot separate a judge that works from one that
+has noticed most things are fine. That is the whole reason this page exists.</p>
+
+<h2 id="kappa-subtract-the-luck">Kappa: subtract the luck</h2>
+
+<p>You flagged 37.5% of examples. The judge flagged 37.5%. If both of you were flipping weighted
+coins at those rates and never reading the answers, <strong>you would still agree 53.1% of the
+time</strong>.</p>
+
+<p>So the question is not how often you agreed, but how much of the room above luck you closed.</p>
+
+<pre><code>  room above chance:   100%  -  53.1%   =  46.9%
+  you actually closed:  85%  -  53.1%   =  31.9%
+
+  kappa = 31.9 / 46.9 = 0.68</code></pre>
+
+<p>In one line: <strong>kappa = (agreement observed − agreement by luck) / (1 − agreement by
+luck)</strong>. One is perfect, zero is no better than coin-flipping. The do-nothing judge above
+scores exactly <strong>0.00</strong>, which is the point.</p>
+
+<div class="incode">
+  <div>Computed in <b>src/langchef/core/agreement.py</b></div>
+  <div><b>confusion()</b> counts the four cells from paired verdicts</div>
+  <div><b>cohen_kappa()</b> the formula above</div>
+  <div><b>kappa_interval()</b> its uncertainty, see below</div>
+</div>
+
+<h3 id="how-we-read-it-and-where-the-thresholds-came-from">How we read it, and where the thresholds came from</h3>
+
+<div class="scroller"><table>
+<thead><tr><th>Kappa</th><th>We say</th><th>What to do</th><th>Landis &amp; Koch call it</th></tr></thead>
+<tbody>
+<tr><td class="num">0.8 and up</td><td>strong</td><td>trust the numbers downstream</td><td>almost perfect</td></tr>
+<tr><td class="num">0.6 to 0.8</td><td>usable</td><td>act on it, quote the interval too</td><td>substantial</td></tr>
+<tr><td class="num">0.4 to 0.6</td><td>weak</td><td>fix the rubric before experimenting</td><td>moderate</td></tr>
+<tr><td class="num">below 0.4</td><td>not usable</td><td>stop; do not report pass rates</td><td>fair or worse</td></tr>
+</tbody></table></div>
+
+<p><strong>These bands are a convention, not a law.</strong> They descend from Landis and Koch
+(1977), who proposed them for observer agreement in medical data and said plainly that the divisions
+were arbitrary. We kept the shape because it is the one most readers already know, and collapsed the
+lower three into "not usable" because for our purpose the difference between fair and slight does
+not change what you do. If your domain has its own convention, use that instead.</p>
+
+<h2 id="the-two-numbers-you-act-on">The two numbers you act on</h2>
+
+<p>Kappa says whether the judge is worth anything overall. These say <em>how it fails</em>, which is
+what changes a rubric.</p>
+
+<div class="scroller"><table>
+<thead><tr><th></th><th>Here</th><th>Means</th></tr></thead>
+<tbody>
+<tr><td><strong>Catch rate</strong> (TPR, recall, sensitivity)</td><td class="num">12/15 = 80%</td><td>Of the problems you found, the judge caught 12. Three shipped past it.</td></tr>
+<tr><td><strong>False alarm rate</strong> (FPR)</td><td class="num">3/25 = 12%</td><td>Of the answers that were fine, it flagged three anyway.</td></tr>
+</tbody></table></div>
+
+<p>They trade off. Push a judge to catch more and it cries wolf more. A judge with a respectable
+kappa can still be unusable in the direction you happen to care about, which is why the report gives
+you all three rather than a single score.</p>
+
+<p>The report also carries <strong>PPV</strong> (when it flags something, how often it is right) and
+<strong>NPV</strong> (when it passes something, how often it is right). Those are the ones to read if
+you are deciding how much to trust an individual verdict rather than the judge as a whole.</p>
+
+<h2 id="the-interval-and-why-wilson">The interval, and why Wilson</h2>
+
+<p><code>12/15</code> is not "80%". It is <em>80%, measured on fifteen examples</em>, and those are
+different claims. So every rate is printed with the range the true value probably sits in.</p>
+
+<p>The textbook interval, the one most people are taught, would say:</p>
+
+<pre><code>  0.8 ± 1.96 × √(0.8 × 0.2 / 15)   =   [59.8%, <span class="r">100.2%</span>]</code></pre>
+
+<p><strong>100.2%.</strong> It runs off the end of the scale, because that formula assumes a bell
+curve and a proportion near a boundary is not one. At 15/15 it collapses to <code>[100%, 100%]</code>,
+claiming certainty from fifteen examples. At 1/15 it goes negative.</p>
+
+<p>The Wilson interval does not do that. It stays inside 0 to 1, goes asymmetric near the edges, and
+holds its coverage down to single-digit counts. Your actual catch-rate interval is
+<strong>[54.8%, 93.0%]</strong>.</p>
+
+<p>That width is the honest content of the measurement. The judge's true catch rate could be 55%,
+and forty labels cannot rule it out.</p>
+
+<div class="worked">
+  <span class="k">Read the kappa interval too</span>
+  <p>Kappa here is <strong>0.68, interval [0.44, 0.92]</strong>. By the table above, 0.44 is "weak,
+  fix the rubric" and 0.92 is "strong, trust it". Forty labels cannot tell those apart. The point
+  estimate reads usable; the interval says you do not actually know yet. That is not a flaw in the
+  measurement, it is the measurement.</p>
+</div>
+
+<div class="incode">
+  <div><b>wilson()</b> the score interval for every rate</div>
+  <div><b>kappa_interval()</b> Fleiss, Cohen and Everitt's asymptotic variance</div>
+  <div>Checked against scipy's own Wilson implementation and, for kappa, against a bootstrap that
+  knows nothing about the formula. See <b>tests/test_agreement.py</b>.</div>
+</div>
+
+<h2 id="matthews-correlation-in-one-line">Matthews correlation, in one line</h2>
+
+<p><strong>0.68 here.</strong> A single correlation between the two raters' verdicts, from −1 to +1,
+which unlike accuracy degrades honestly when one class dominates. It is there for when someone wants
+one number, and it is a better one number than accuracy.</p>
+
+<h2 id="where-you-disagreed">Where you disagreed</h2>
+
+<p>Six disagreements is a count. It does not tell you what to fix. So the taxonomy groups them two
+ways: by which rubric criterion the judge cited when it was wrong, and by which slice of your traffic
+they fell in.</p>
+
+<p>Then the part that matters most. In the dogfood run, the slice <code>topic=returns</code>
+disagreed <strong>33% of the time against a 15% base rate, a 2.2x lift</strong>. That is exactly the
+line that sends someone off to investigate for a day.</p>
+
+<p>It rests on <strong>nine examples</strong>. Its Wilson interval straddles the base rate, so
+<code>concentrations()</code> marks it <code>separated: false</code> and the memo leaves it out.</p>
+
+<div class="callout warn">
+  <span class="k">The most important guard in the file</span>
+  <p>Without that check, a tool that always names the worst-looking slice is a random number
+  generator with good manners. Every slice report has a worst entry; that fact alone means nothing.
+  We only surface one when its interval clears the base rate.</p>
+</div>
+
+<h2 id="what-the-rubric-has-to-do">What the rubric has to do</h2>
+
+<p>Each <code>###</code> heading in your rubric is one criterion, and the judge must name the one it
+failed on. That is what makes the taxonomy possible at all: without an attributed failure there is
+nothing to group by, and a regression in a retrieval app cannot be told apart from a regression in
+the generator.</p>
+
+<p>It is also why editing a rubric revokes its approval. The criteria are the axis the taxonomy is
+reported along, so renaming one silently changes what every past number meant.</p>
+
+<h2 id="what-we-deliberately-do-not-do">What we deliberately do not do</h2>
+
+<ul>
+  <li><strong>No weighted kappa.</strong> Verdicts here are pass or fail, so there is no notion of a
+  near-miss to weight. If task classes with ordered labels arrive, this is where it changes.</li>
+  <li><strong>No multi-class kappa yet.</strong> The variance formula is written for a 2×2 table.
+  Classification datasets with more than two labels need an N×N version, tracked as part of the
+  bring-your-own-dataset work.</li>
+  <li><strong>No inter-annotator agreement.</strong> We compare one judge against one set of human
+  labels. Multiple human labellers disagreeing with each other is a real and harder problem, and
+  Krippendorff's alpha is the usual tool. Out of scope for now.</li>
+  <li><strong>The stratified label weights are recorded but not yet applied.</strong> Sampling
+  oversamples the judge's flagged examples on purpose, so the rates above are sample rates rather
+  than population rates. On a balanced suite the difference is small; on a 3%-flag-rate suite it is
+  not. This is a known gap, the docstring says so, and it has its own issue.</li>
+  <li><strong>scikit-learn is a test dependency, never a runtime one.</strong> Every statistic is
+  hand-rolled and checked against an independent implementation. If the product and its check came
+  from the same library, the check would only prove the library agrees with itself.</li>
+</ul>
+
+<h2 id="further-reading">Further reading</h2>
+
+<p>Ordered by how useful they are if you are actually changing this code.</p>
+
+<ul class="reading">
+  <li><strong>Brown, Cai and DasGupta (2001), "Interval Estimation for a Binomial Proportion",
+  <em>Statistical Science</em> 16(2), 101–133.</strong> The paper that settles why not to use the
+  textbook interval: it shows the Wald interval's coverage is chaotic and that the usual
+  reassurances about when it is safe are "misleading and defective". It recommends Wilson for small
+  n, which is what we use. Start at §1.1 and Figure 1; the picture makes the argument on its own.
+  <span class="where">Open PDF: www-stat.wharton.upenn.edu/~lbrown/Papers/2001a Interval estimation for a binomial proportion.pdf</span></li>
+
+  <li><strong>Cohen (1960), "A Coefficient of Agreement for Nominal Scales",
+  <em>Educational and Psychological Measurement</em> 20(1), 37–46.</strong> The original kappa. Short,
+  and the motivating argument in the opening pages is the same one this page makes about accuracy.</li>
+
+  <li><strong>Fleiss, Cohen and Everitt (1969), "Large sample standard errors of kappa and weighted
+  kappa", <em>Psychological Bulletin</em> 72, 323–327.</strong> The asymptotic variance
+  <code>kappa_interval()</code> implements. Read this one if you touch that function; the index
+  gymnastics in the published form is where implementations go wrong, which is why our test checks
+  it against a bootstrap.
+  <span class="where">doi:10.1037/h0028106</span></li>
+
+  <li><strong>Landis and Koch (1977), "The Measurement of Observer Agreement for Categorical Data",
+  <em>Biometrics</em> 33(1), 159–174.</strong> Where the slight / fair / moderate / substantial /
+  almost perfect bands come from. Worth reading precisely because they present the divisions as
+  arbitrary, which is not how they are usually cited.</li>
+
+  <li><strong>Chicco and Jurman (2020), "The advantages of the Matthews correlation coefficient (MCC)
+  over F1 score and accuracy in binary classification evaluation", <em>BMC Genomics</em> 21:6.</strong>
+  Open access and the most readable thing on this list. Worked examples of accuracy and F1 flattering
+  a bad classifier, which is the same failure this page opens with.</li>
+
+  <li><strong>Zheng et al. (2023), "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena",
+  arXiv:2306.05685.</strong> Not about kappa, but about the instrument. §3 catalogues position bias,
+  verbosity bias and self-enhancement bias in model judges. Read it before you trust a judge you have
+  not calibrated, and before you let a model grade its own family's output.</li>
+</ul>
+
+<p class="dim">Citations verified against the publishers' records rather than quoted from memory.
+Where only a section could be confirmed, a section is what is cited.</p>
+
+</main>
+</div>
+
+<footer class="site">
+  <div class="shell">
+    <span>LangChef 0.1.0 — Apache-2.0</span>
+    <span>An installed eval engineer.</span>
+    <span><a href="https://github.com/deepskandpal/LangChef">Source</a></span>
+    <span>&copy; 2026 Deepak Kandpal</span>
+  </div>
+</footer>
+<script src="search.js" defer></script>
+</body>
+</html>

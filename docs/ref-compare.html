@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comparing two arms — LangChef</title>
+<meta name="description" content="Paired comparison, exact McNemar, the minimum detectable effect, and why inconclusive is a result rather than a shrug.">
+<meta property="og:title" content="Comparing two arms — LangChef">
+<meta property="og:description" content="Paired comparison, exact McNemar, the minimum detectable effect, and why inconclusive is a result rather than a shrug.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=Spectral:ital,wght@0,600;1,400&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="shell">
+    <a class="wordmark" href="index.html"><span class="dot"></span>LangChef</a>
+    <nav class="topnav">
+      <a href="index.html">Guide</a>
+      <a href="concepts.html" class="here">Reference</a>
+      <a href="cli.html">Project</a>
+      <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="shell layout">
+<nav class="sidebar" aria-label="Documentation">
+  <form class="search" role="search" onsubmit="return false">
+    <input id="q" type="search" placeholder="Search docs" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+  </form>
+  <div id="results" hidden></div>
+  <div id="nav">
+  <h4>Guide</h4>
+  <ul>
+    <li><a href="index.html">Overview</a></li>
+    <li><a href="start.html">Start here</a></li>
+    <li><a href="numbers.html">Reading the output</a></li>
+  </ul>
+  <h4>Reference</h4>
+  <ul>
+    <li><a href="concepts.html">Concepts</a></li>
+    <li><a href="ref-agreement.html">Agreement and kappa</a></li>
+    <li><a href="ref-compare.html" aria-current="page">Comparing two arms</a></li>
+  </ul>
+  <h4>Project</h4>
+  <ul>
+    <li><a href="cli.html">Commands</a></li>
+    <li><a href="integrations.html">Integrations</a></li>
+  </ul>
+  <h4>In the repository</h4>
+  <ul>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/docs/AGENT-CONTRACT.md">Agent contract</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/DECISIONS.md">Decisions</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/AGENTS.md">Working agreement</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/dogfood/README.md">Dogfood</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/issues">Issues</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef">Source on GitHub</a></li>
+  </ul>
+  </div>
+</nav>
+
+<main>
+
+<div class="eyebrow">Reference</div>
+<h1>Comparing two arms</h1>
+<p class="lede">How LangChef decides whether a change helped, hurt, or cannot be told apart, and why
+"cannot be told apart" is a result rather than a shrug.</p>
+
+<div class="worked">
+  <span class="k">The worked example</span>
+  <p>From the dogfood: the baseline against an arm with documents deliberately dropped from the
+  retrieval index. Both arms answered the same 90 questions.</p>
+<pre><code>  baseline 83.3%   variant 63.3%
+  difference -20.0% [-27.8%, -12.2%]  p=0.0000
+  <span class="r">REGRESSION</span>
+
+  of 90 goldens, 18 changed verdict: 18 broke, 0 fixed</code></pre>
+  <p>The planted effect was −20 points. The measurement recovered it to the decimal.</p>
+</div>
+
+<h2 id="why-paired-and-not-two-samples">Why paired, and not two samples</h2>
+
+<p>Both arms answer <em>the same questions</em>, with the same example ids. That is not a
+convenience, it is the whole reason a set of 90 can say anything.</p>
+
+<p>Think about what actually carries information. If 72 goldens pass under both arms, they tell you
+nothing about the difference between them: they are the same question, answered acceptably twice.
+The evidence lives entirely in the <strong>18 that changed verdict</strong>.</p>
+
+<pre><code>                variant pass   variant fail
+  baseline pass       72             18      <- broke
+  baseline fail        0              0      <- fixed</code></pre>
+
+<p>The test asks one question about those 18: <em>given that a verdict flipped, was it equally
+likely to flip either way?</em> Eighteen broke and none were fixed. If the two arms were really
+equivalent, that is a coin landing heads eighteen times.</p>
+
+<p>Treating the arms as two independent samples instead throws the pairing away, inflates the
+variance, and real regressions come back as "not significant". That failure is quiet and it is
+common.</p>
+
+<div class="incode">
+  <div>Computed in <b>src/langchef/core/compare.py</b></div>
+  <div><b>discordance()</b> the paired 2×2; only the off-diagonal moves the estimate</div>
+  <div><b>mcnemar_p()</b> exact binomial on the discordant pairs</div>
+  <div><b>compare()</b> the verdict, the interval, and the detection limit</div>
+</div>
+
+<h3 id="exact-not-the-chi-square-approximation">Exact, not the chi-square approximation</h3>
+
+<p>The classical McNemar statistic uses a chi-square approximation. We use the exact binomial test
+instead, because the discordant counts that decide real cases are small, and the approximation is
+least reliable exactly when the decision is closest. With 18 flips the two agree; with 4 they do
+not, and 4 is a number you will see.</p>
+
+<h2 id="the-verdict-comes-from-the-interval-not-the-p-value">The verdict comes from the interval, not the p-value</h2>
+
+<p>Three outcomes, and the middle one is the one people misread.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Verdict</th><th>Condition</th><th>Means</th></tr></thead>
+<tbody>
+<tr><td><strong>REGRESSION</strong></td><td>whole interval below zero</td><td>worse, and the evidence supports acting</td></tr>
+<tr><td><strong>IMPROVEMENT</strong></td><td>whole interval above zero</td><td>better, same standard</td></tr>
+<tr><td><strong>INCONCLUSIVE</strong></td><td>interval spans zero</td><td>this set cannot tell them apart. <strong>Not "no difference"</strong></td></tr>
+</tbody></table></div>
+
+<p>A direction only counts when the entire range agrees with it. The p-value is reported because
+people ask for it, but it does not decide anything here: a p-value answers "how surprising is this
+if nothing changed", which is not the question you came with.</p>
+
+<p>The interval itself is a percentile bootstrap over the pairs, resampled together so the pairing
+survives. It is seeded, because the contract calls <code>compare</code> deterministic and a
+comparison that moves between identical runs is not one.</p>
+
+<h2 id="the-smallest-change-you-could-have-seen">The smallest change you could have seen</h2>
+
+<p>This is the most useful number in the tool, and the one no dashboard gives you.</p>
+
+<pre><code>  difference +0.0% [+0.0%, +0.0%]  p=1.0000
+  <span class="o">INCONCLUSIVE</span>
+  (smallest effect this run could have seen: 6.0%)</code></pre>
+
+<p>That run came from an arm with a <strong>real, deliberately planted −3.3 point regression</strong>.
+The judge saw nothing. The honest report is not "no regression found", it is "nothing we could have
+seen", and the second half of that sentence is the actionable part: ninety goldens could never have
+resolved three points.</p>
+
+<p>It is computed from the <strong>discordant rate</strong>, not the pass rate, because under a
+paired test that is what carries the information. Two hundred goldens where four flip carry far less
+than two hundred where forty do, and a formula built on the pass rate cannot see that difference.</p>
+
+<p>When nothing flipped at all, the rate is not taken as zero. Zero discordant pairs is not evidence
+that any effect was detectable; it is an unknown rate that this many goldens bound from above, so
+the upper end of its interval is used. That is why a completely quiet run still reports a finite
+limit rather than claiming infinite sensitivity.</p>
+
+<p>Rule of thumb: <strong>halving the effect you want to detect needs roughly four times the
+goldens.</strong></p>
+
+<h2 id="did-quality-hold">Did quality hold</h2>
+
+<p>Swapping in a cheaper or smaller model is a different question and reading it the same way will
+mislead you. You are not hunting an improvement; you are checking the drop stays inside a tolerance.</p>
+
+<p><strong>Set the margin before the run.</strong> Then read the bottom of the interval against it,
+not the middle:</p>
+
+<pre><code>  difference -1.2% [-4.1%, +1.7%]
+  <span class="o">INCONCLUSIVE</span></code></pre>
+
+<p>The middle looks fine, barely down. But the range reaches −4.1%, past a three-point tolerance.
+<strong>This run has not shown quality held.</strong> It has shown that a drop big enough to matter
+is still consistent with what was measured.</p>
+
+<p>Three outcomes: <code>held</code> when the whole interval clears the margin, <code>failed</code>
+when it is entirely past it, <code>unresolved</code> when it straddles. Unresolved is not permission
+to ship.</p>
+
+<div class="callout warn">
+  <span class="k">Why the margin must be pre-registered</span>
+  <p>A margin chosen after seeing the interval is not a tolerance, it is a rationalisation. This is
+  why the design is written to <code>evals/experiments/</code>, hashed, and approved by a person
+  before any traffic, and why editing it afterwards revokes the approval. The discipline is the
+  feature; the arithmetic is easy.</p>
+</div>
+
+<h2 id="what-we-deliberately-do-not-do">What we deliberately do not do</h2>
+
+<ul>
+  <li><strong>No interim looks, no sequential testing.</strong> The stopping rule in every design is
+  "score them all, then read out once". Peeking at a running experiment and stopping when it looks
+  good inflates the false-positive rate badly. Always-valid sequential bounds are a real answer to
+  this and are not built yet.</li>
+  <li><strong>No multiple-comparison correction.</strong> Compare two arms at a time. Sweeping ten
+  variants and reporting the best without correction is a known way to find an effect that is not
+  there.</li>
+  <li><strong>No per-criterion breakdown yet.</strong> The comparison is one verdict over the whole
+  suite. For a retrieval app the useful version is "groundedness fell 9 points while correctness
+  held", which tells you which half broke. Tracked, not built.</li>
+  <li><strong>No continuous or graded outcomes.</strong> Everything here is pass or fail. Retrieval
+  metrics like recall@k are continuous and classification is multi-class; both need different tests,
+  and that choice is deliberately being made before any code depends on it.</li>
+  <li><strong>No bandits over judge scores.</strong> Allocating traffic by a judge's own score
+  rewards whatever the judge is biased toward, including verbosity and position. If it is ever done
+  here, quality non-inferiority is established first and the bandit runs on cost and latency only.</li>
+</ul>
+
+<h2 id="further-reading">Further reading</h2>
+
+<ul class="reading">
+  <li><strong>Dietterich (1998), "Approximate Statistical Tests for Comparing Supervised
+  Classification Learning Algorithms", <em>Neural Computation</em> 10(7), 1895–1923.</strong> The
+  closest thing to a direct precedent for what <code>compare</code> does: five candidate tests for
+  deciding whether one system beats another on the same data, evaluated for how often they claim a
+  difference that is not there. Read it before changing the test.
+  <span class="where">doi:10.1162/089976698300017197</span></li>
+
+  <li><strong>McNemar (1947), "Note on the sampling error of the difference between correlated
+  proportions or percentages", <em>Psychometrika</em> 12(2), 153–157.</strong> The original, and
+  short. The phrase that matters is "correlated proportions": that correlation is the pairing, and
+  it is the thing an unpaired test discards.</li>
+
+  <li><strong>Kohavi, Tang and Xu (2020), <em>Trustworthy Online Controlled Experiments</em>,
+  Cambridge University Press.</strong> The practitioner's book on running experiments honestly.
+  Chapter 17 covers power and sample size; the early chapters on trustworthiness are the reason the
+  gates in this tool exist at all. Not open access, but several of the authors' underlying papers are
+  free at exp-platform.com.</li>
+
+  <li><strong>Cohen (1988), <em>Statistical Power Analysis for the Behavioral Sciences</em>,
+  2nd ed.</strong> Chapter 1 for what power actually means, chapter 6 for proportions. This is the
+  ground under the minimum detectable effect, and it is worth reading chapter 1 once even if you
+  never touch the formula.</li>
+
+  <li><strong>Piaggio et al. (2012), "Reporting of noninferiority and equivalence randomized trials:
+  extension of the CONSORT 2010 statement", <em>JAMA</em> 308(24), 2594–2604.</strong> Open. Written
+  for clinical trials, but it is the clearest published treatment of the one thing people get wrong
+  about non-inferiority: the margin has to be justified in advance, and a null result is not
+  equivalence.</li>
+</ul>
+
+<p class="dim">Volumes, issues and page ranges verified against publisher records. Where a claim
+could only be confirmed at paper level rather than section level, it is cited at paper level.</p>
+
+</main>
+</div>
+
+<footer class="site">
+  <div class="shell">
+    <span>LangChef 0.1.0 — Apache-2.0</span>
+    <span>An installed eval engineer.</span>
+    <span><a href="https://github.com/deepskandpal/LangChef">Source</a></span>
+    <span>&copy; 2026 Deepak Kandpal</span>
+  </div>
+</footer>
+<script src="search.js" defer></script>
+</body>
+</html>

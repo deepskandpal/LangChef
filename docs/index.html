@@ -18,35 +18,49 @@
   <div class="shell">
     <a class="wordmark" href="index.html"><span class="dot"></span>LangChef</a>
     <nav class="topnav">
-      <a href="index.html" class="here">Overview</a>
-      <a href="start.html">Start here</a>
-      <a href="numbers.html">Reading the output</a>
-      <a href="cli.html">Commands</a>
-      <a href="integrations.html">Integrations</a>
+      <a href="index.html" class="here">Guide</a>
+      <a href="concepts.html">Reference</a>
+      <a href="cli.html">Project</a>
       <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
     </nav>
   </div>
 </header>
 
 <div class="shell layout">
-
 <nav class="sidebar" aria-label="Documentation">
-  <h4>Documentation</h4>
+  <form class="search" role="search" onsubmit="return false">
+    <input id="q" type="search" placeholder="Search docs" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+  </form>
+  <div id="results" hidden></div>
+  <div id="nav">
+  <h4>Guide</h4>
   <ul>
-    <li><a href="index.html">Overview</a></li>
-    <li><a href="start.html">Your first evaluation</a></li>
+    <li><a href="index.html" aria-current="page">Overview</a></li>
+    <li><a href="start.html">Start here</a></li>
     <li><a href="numbers.html">Reading the output</a></li>
-    <li><a href="cli.html">Command reference</a></li>
+  </ul>
+  <h4>Reference</h4>
+  <ul>
+    <li><a href="concepts.html">Concepts</a></li>
+    <li><a href="ref-agreement.html">Agreement and kappa</a></li>
+    <li><a href="ref-compare.html">Comparing two arms</a></li>
+  </ul>
+  <h4>Project</h4>
+  <ul>
+    <li><a href="cli.html">Commands</a></li>
     <li><a href="integrations.html">Integrations</a></li>
   </ul>
   <h4>In the repository</h4>
   <ul>
     <li><a href="https://github.com/deepskandpal/LangChef/blob/main/docs/AGENT-CONTRACT.md">Agent contract</a></li>
     <li><a href="https://github.com/deepskandpal/LangChef/blob/main/DECISIONS.md">Decisions</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/AGENTS.md">Working agreement</a></li>
     <li><a href="https://github.com/deepskandpal/LangChef/blob/main/dogfood/README.md">Dogfood</a></li>
-    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">Work tracker</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/issues">Issues</a></li>
     <li><a href="https://github.com/deepskandpal/LangChef">Source on GitHub</a></li>
   </ul>
+  </div>
 </nav>
 
 <main>
@@ -62,7 +76,7 @@
   </div>
 </div>
 
-<h2>The situation</h2>
+<h2 id="the-situation">The situation</h2>
 
 <p>You maintain a retrieval app, a classifier, or an agent that calls a few tools. It works. Then:</p>
 
@@ -84,9 +98,9 @@ why only about a third of teams running AI in production evaluate it on live tra
 What is missing is the <em>person</em> who knows whether your grader can be trusted and how many
 examples a number needs before it means anything. LangChef stands in for them.</p>
 
-<h2>Four ways this goes wrong</h2>
+<h2 id="four-ways-this-goes-wrong">Four ways this goes wrong</h2>
 
-<h3>The grader nobody graded</h3>
+<h3 id="the-grader-nobody-graded">The grader nobody graded</h3>
 <p>Your judge marks 95% of answers good, which sounds healthy. If only 5% of your answers are
 genuinely bad, a judge that marks <em>everything</em> good also scores 95% — and from that number
 alone you cannot tell the two apart.</p>
@@ -94,20 +108,20 @@ alone you cannot tell the two apart.</p>
 the judge agrees with you more than luck explains, how often it misses real problems, how often it
 cries wolf, and which kinds of answer it gets wrong.</p>
 
-<h3>The difference that isn't there</h3>
+<h3 id="the-difference-that-isn-t-there">The difference that isn't there</h3>
 <p>83% to 80% on ninety examples. That swing is comfortably inside what randomness produces when
 nothing changed — but the number moved, and somebody has to make a call.</p>
 <p class="answer"><strong>LangChef:</strong> returns regression, improvement, or <em>can't tell</em>,
 with the range the true difference sits in. When it can't tell, it says how small a change this test
 set could ever have caught.</p>
 
-<h3>The ruler that moved</h3>
+<h3 id="the-ruler-that-moved">The ruler that moved</h3>
 <p>You tightened the grading prompt on Tuesday. Monday's 83% and Wednesday's 88% were never
 measuring the same thing, but they still line up on a chart.</p>
 <p class="answer"><strong>LangChef:</strong> records which rubric and model produced every number,
 and refuses to compare two runs measured differently. It stops rather than drawing the chart.</p>
 
-<h3>Not knowing which half broke</h3>
+<h3 id="not-knowing-which-half-broke">Not knowing which half broke</h3>
 <p>Quality drops four points after an embedding swap. Is the generator worse, or is it being handed
 worse context? Those have nothing in common as fixes, and one pass rate over both cannot separate
 them.</p>
@@ -115,7 +129,7 @@ them.</p>
 retrieval, correctness for generation — and the judge must name the one it failed on, so failures
 stay attributable instead of pooled.</p>
 
-<h2>You are the diner, not the chef</h2>
+<h2 id="you-are-the-diner-not-the-chef">You are the diner, not the chef</h2>
 
 <p>The name is about who does the cooking. You say what you want in plain language. The harness —
 Claude Code, or whatever agent your team already runs — takes the order and comes back with one or
@@ -148,32 +162,32 @@ judge can be trusted, whether the difference is real — is kitchen work.</p>
   remember to drive.</p>
 </div>
 
-<h2>What you get back</h2>
+<h2 id="what-you-get-back">What you get back</h2>
 
 <div class="grid2">
   <div class="panel">
-    <h3>A verdict, with error bars</h3>
+    <h3 id="a-verdict-with-error-bars">A verdict, with error bars</h3>
     <p>Regression, improvement, or can't-tell — never a bare number. Plus the smallest change the
     run could have detected, which turns a shrug into a plan.</p>
   </div>
   <div class="panel">
-    <h3>An answer for "did quality hold"</h3>
+    <h3 id="an-answer-for-did-quality-hold">An answer for "did quality hold"</h3>
     <p>Cutting cost with a small model isn't a hunt for an improvement. It's a check that the drop
     sits inside a tolerance you set first. <a href="numbers.html">How to read that</a>.</p>
   </div>
   <div class="panel">
-    <h3>A memo, not a dashboard</h3>
+    <h3 id="a-memo-not-a-dashboard">A memo, not a dashboard</h3>
     <p>One page that opens with whether the judge can be trusted, then the result, then what the run
     could not rule out. Every figure traces to a file on disk.</p>
   </div>
   <div class="panel">
-    <h3>Nothing leaves your machine</h3>
+    <h3 id="nothing-leaves-your-machine">Nothing leaves your machine</h3>
     <p>No hosted service, no account, no vendor holding your traces. It runs where your code runs,
     and the workspace is text you review in a pull request.</p>
   </div>
 </div>
 
-<h2>What it is not, and who it is not for</h2>
+<h2 id="what-it-is-not-and-who-it-is-not-for">What it is not, and who it is not for</h2>
 
 <p>It ships no test cases — your examples come from your traffic, because a benchmark of someone
 else's questions tells you nothing about yours. There is no UI. And somebody does have to say what
@@ -205,5 +219,6 @@ LangChef is the thing that decides what to measure and whether the answer means 
     <span>&copy; 2026 Deepak Kandpal</span>
   </div>
 </footer>
+<script src="search.js" defer></script>
 </body>
 </html>

@@ -18,35 +18,49 @@
   <div class="shell">
     <a class="wordmark" href="index.html"><span class="dot"></span>LangChef</a>
     <nav class="topnav">
-      <a href="index.html">Overview</a>
-      <a href="start.html">Start here</a>
-      <a href="numbers.html">Reading the output</a>
-      <a href="cli.html" class="here">Commands</a>
-      <a href="integrations.html">Integrations</a>
+      <a href="index.html">Guide</a>
+      <a href="concepts.html">Reference</a>
+      <a href="cli.html" class="here">Project</a>
       <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
     </nav>
   </div>
 </header>
 
 <div class="shell layout">
-
 <nav class="sidebar" aria-label="Documentation">
-  <h4>Documentation</h4>
+  <form class="search" role="search" onsubmit="return false">
+    <input id="q" type="search" placeholder="Search docs" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+  </form>
+  <div id="results" hidden></div>
+  <div id="nav">
+  <h4>Guide</h4>
   <ul>
     <li><a href="index.html">Overview</a></li>
-    <li><a href="start.html">Your first evaluation</a></li>
+    <li><a href="start.html">Start here</a></li>
     <li><a href="numbers.html">Reading the output</a></li>
-    <li><a href="cli.html">Command reference</a></li>
+  </ul>
+  <h4>Reference</h4>
+  <ul>
+    <li><a href="concepts.html">Concepts</a></li>
+    <li><a href="ref-agreement.html">Agreement and kappa</a></li>
+    <li><a href="ref-compare.html">Comparing two arms</a></li>
+  </ul>
+  <h4>Project</h4>
+  <ul>
+    <li><a href="cli.html" aria-current="page">Commands</a></li>
     <li><a href="integrations.html">Integrations</a></li>
   </ul>
   <h4>In the repository</h4>
   <ul>
     <li><a href="https://github.com/deepskandpal/LangChef/blob/main/docs/AGENT-CONTRACT.md">Agent contract</a></li>
     <li><a href="https://github.com/deepskandpal/LangChef/blob/main/DECISIONS.md">Decisions</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/AGENTS.md">Working agreement</a></li>
     <li><a href="https://github.com/deepskandpal/LangChef/blob/main/dogfood/README.md">Dogfood</a></li>
-    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">Work tracker</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/issues">Issues</a></li>
     <li><a href="https://github.com/deepskandpal/LangChef">Source on GitHub</a></li>
   </ul>
+  </div>
 </nav>
 
 <main>
@@ -57,7 +71,7 @@
 that does not exist. 17 of 22 are live today. If you are here to learn the tool, start
 with <a href="start.html">your first evaluation</a> instead.</p>
 
-<h2>The ones you will actually use</h2>
+<h2 id="the-ones-you-will-actually-use">The ones you will actually use</h2>
 
 <div class="scroller"><table>
 <thead><tr><th>Command</th><th>When</th></tr></thead>
@@ -73,7 +87,7 @@ with <a href="start.html">your first evaluation</a> instead.</p>
 <tr><td class="mono">langchef memo render</td><td>To write the decision down.</td></tr>
 </tbody></table></div>
 
-<h2>Everything, generated from the contract</h2>
+<h2 id="everything-generated-from-the-contract">Everything, generated from the contract</h2>
 
 <div class="callout">
   <span class="k">Determinism</span>
@@ -110,7 +124,7 @@ with <a href="start.html">your first evaluation</a> instead.</p>
 <tr><td class="mono">langchef memo render</td><td>Decision memo from run artifacts</td><td class="mono">deterministic</td><td><code>memos/</code></td><td><span class="pill yes">live</span></td></tr>
 </tbody></table></div>
 
-<h2>Exit codes</h2>
+<h2 id="exit-codes">Exit codes</h2>
 
 <div class="scroller"><table>
 <thead><tr><th>Code</th><th>Meaning</th><th>Status</th></tr></thead>
@@ -123,7 +137,7 @@ with <a href="start.html">your first evaluation</a> instead.</p>
 <tr><td class="num">5</td><td>pin mismatch — judge model, version or rubric hash moved</td><td>in use</td></tr>
 </tbody></table></div>
 
-<h2>Two streams</h2>
+<h2 id="two-streams">Two streams</h2>
 
 <p>Every command writes JSON to stdout for a program, and plain text to stderr for you. There is no
 <code>--format</code> flag; <code>--help</code> is the one exception, because it is written for
@@ -132,7 +146,7 @@ people.</p>
 <pre><code>langchef calibrate report              <span class="c"># you read this</span>
 langchef calibrate report 2&gt;/dev/null  <span class="c"># a script parses this</span></code></pre>
 
-<h2>Other behaviour worth knowing</h2>
+<h2 id="other-behaviour-worth-knowing">Other behaviour worth knowing</h2>
 
 <ul>
   <li>Workspace commands search upward for <code>evals/config.toml</code>, the way git finds a
@@ -156,5 +170,6 @@ langchef calibrate report 2&gt;/dev/null  <span class="c"># a script parses this
     <span>&copy; 2026 Deepak Kandpal</span>
   </div>
 </footer>
+<script src="search.js" defer></script>
 </body>
 </html>
