@@ -50,8 +50,17 @@ function instead of declared in a pre-registration.
 ## Claiming it
 
 1. Comment on the issue saying you are starting.
-2. Move it to `lifecycle:doing`.
-3. Branch: `<issue-number>-short-slug`, e.g. `28-per-criterion-compare`.
+2. Branch: `<issue-number>-short-slug`, e.g. `28-per-criterion-compare`.
+
+That is all of it. **You do not move the label yourself**, and if you do not have
+write access you could not anyway. A workflow reads the comment and moves the
+issue to `lifecycle:doing` for you, then says so on the issue.
+
+If somebody else has already claimed it, that same workflow tells you before you
+start rather than after you have written the patch. This was not always true: for
+three hours on 27 August 2026 issue #25 looked free after it had been claimed,
+because the rule asked contributors to set a label they had no permission to set,
+and two people wrote the same fix. The rule was the bug, not the people.
 
 **Two agents must not hold issues carrying the same `area:` label at the same
 time.** The area labels map to directories and exist precisely to be collision

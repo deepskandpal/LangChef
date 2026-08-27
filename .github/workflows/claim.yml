@@ -1,0 +1,105 @@
+# Claiming an issue, done by the repository rather than by the claimant.
+#
+# AGENTS.md asks a claimant to comment and then move the issue to
+# `lifecycle:doing`. Outside contributors cannot set labels, so step two was
+# impossible for exactly the people the instruction was written for. The label
+# is the signal that an issue is taken, so for three hours in August 2026 issue
+# #25 looked free after it had been claimed, and a second contributor did the
+# same work in good faith.
+#
+# So the repository does step two. A claim comment moves the label, and a claim
+# on something already held says so to the second person while they can still
+# stop.
+
+name: Claim
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+
+jobs:
+  claim:
+    if: ${{ !github.event.issue.pull_request }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            // Deliberately generous. A missed claim recreates the collision this
+            // exists to prevent; a false positive costs one label and a comment.
+            const CLAIM = new RegExp(
+              [
+                "starting\\s+(on|work)",
+                "i'?m\\s+starting",
+                "i\\s+am\\s+starting",
+                "i\\s+am\\s+ready\\s+to\\s+start",
+                "claiming\\s+this",
+                "taking\\s+this",
+                "working\\s+on\\s+this",
+                "i'?d\\s+like\\s+to\\s+(work\\s+on|take)",
+                "i\\s+would\\s+like\\s+to\\s+work\\s+on",
+              ].join("|"),
+              "i",
+            );
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.issue.number;
+            const claimant = context.payload.comment.user.login;
+            const body = context.payload.comment.body || "";
+
+            if (claimant === owner) return;            // the maintainer is not claiming
+            if (!CLAIM.test(body)) return;
+
+            const labels = context.payload.issue.labels.map((l) => l.name);
+            if (labels.includes("lifecycle:done")) return;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+
+            // An earlier claim by somebody else, ignoring the maintainer and any
+            // comment this workflow wrote.
+            const prior = comments.filter(
+              (c) =>
+                c.id !== context.payload.comment.id &&
+                c.user.login !== claimant &&
+                c.user.login !== owner &&
+                c.user.type !== "Bot" &&
+                CLAIM.test(c.body || ""),
+            );
+
+            if (prior.length) {
+              const first = prior[0];
+              await github.rest.issues.createComment({
+                owner, repo, issue_number,
+                body:
+                  `@${claimant} heads up before you spend time on this: ` +
+                  `@${first.user.login} claimed it on ${first.created_at.slice(0, 10)} ` +
+                  `(${first.html_url}).\n\n` +
+                  "The label was not moved at the time, so it may well have looked free. " +
+                  "Check with them before continuing, or take something else from " +
+                  "[`lifecycle:ready`](../../issues?q=is%3Aopen+label%3Alifecycle%3Aready).",
+              });
+              return;
+            }
+
+            if (!labels.includes("lifecycle:ready")) return;   // spec, blocked, or already doing
+
+            await github.rest.issues.addLabels({
+              owner, repo, issue_number, labels: ["lifecycle:doing"],
+            });
+            await github.rest.issues.removeLabel({
+              owner, repo, issue_number, name: "lifecycle:ready",
+            }).catch(() => {});
+            await github.rest.issues.createComment({
+              owner, repo, issue_number,
+              body:
+                `Marked \`lifecycle:doing\` for @${claimant}.\n\n` +
+                "You cannot set labels on a repository you do not have write access to, " +
+                "so the repository does it. Branch as " +
+                `\`${issue_number}-short-slug\` and open a PR when ready.`,
+            });
