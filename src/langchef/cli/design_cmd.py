@@ -273,11 +273,13 @@ def _violations(resolved, experiment, variant_run) -> list[str]:
 def experiment_check(
     experiment_id: Annotated[str, typer.Argument(help="The experiment to check.")],
     variant: Annotated[str | None, typer.Option("--variant", help="Variant run id.")] = None,
+    baseline: Annotated[str | None, typer.Option("--baseline", help="Baseline run id.")] = None,
 ) -> None:
     """Does the run match what was registered? Reports, never decides."""
     resolved = common.settings()
     experiment = _load(resolved, experiment_id)
     gate = experiment_gate(experiment.approved_digest, experiment.digest, experiment_id)
+    design = experiment.design
 
     problems: list[str] = []
     variant_run = None
@@ -286,7 +288,32 @@ def experiment_check(
             variant_run = runs.load(resolved.workspace, variant)
         except FormatError:
             fail(Exit.ERROR, f"no such run: {variant}")
-        problems = _violations(resolved, experiment, variant_run)
+        problems.extend(_violations(resolved, experiment, variant_run))
+    else:
+        linked = runs.for_experiment(resolved.workspace, experiment_id=experiment_id)
+        loose = runs.for_experiment(
+            resolved.workspace, suite=design.get("suite"), arm=design.get("variant_arm")
+        )
+        if linked:
+            variant_run = linked[0]
+            problems.extend(_violations(resolved, experiment, variant_run))
+        elif loose:
+            problems.append("the arm was scored under a different experiment id")
+        else:
+            problems.append("the arm was never scored")
+
+    baseline_id = baseline
+    if not baseline_id:
+        path = resolved.workspace.baselines / f"{design.get('suite')}.json"
+        baseline_id = read_json(path).get("run_id") if path.is_file() else None
+
+    if not baseline_id:
+        problems.append("the baseline arm was never scored")
+    else:
+        try:
+            _ = runs.load(resolved.workspace, baseline_id)
+        except FormatError:
+            problems.append(f"baseline run {baseline_id} missing")
 
     emit(
         {
@@ -294,7 +321,7 @@ def experiment_check(
             "experiment_id": experiment_id,
             "gate": gate.to_dict(),
             "violations": problems,
-            "variant_run": variant,
+            "variant_run": variant_run.run_id if variant_run else variant,
         }
     )
     say(f"{experiment.ref}: {'approved' if gate.met else 'NOT APPROVED'}")
