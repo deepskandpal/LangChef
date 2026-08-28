@@ -80,6 +80,40 @@ FONTS = (
 )
 
 
+REF_ORDER = (
+    ("concepts.html", "Concepts"),
+    ("ref-agreement.html", "Agreement and kappa"),
+    ("ref-taxonomy.html", "Disagreement taxonomy"),
+    ("ref-sampling.html", "Label planning"),
+    ("ref-judging.html", "Judging and pins"),
+    ("ref-design.html", "Designing a run"),
+    ("ref-compare.html", "Comparing two arms"),
+)
+
+
+def onward(page: str) -> str:
+    """Previous and next within the reference sequence.
+
+    The pages are deep on their own subject and say nothing about where they sit.
+    A reader who lands on one from search has no way to tell what came before it,
+    which is how a reference section reads as seven disconnected essays.
+    """
+    names = [href for href, _ in REF_ORDER]
+    if page not in names:
+        return ""
+    i = names.index(page)
+    parts = []
+    if i > 0:
+        href, label = REF_ORDER[i - 1]
+        parts.append(f'<a class="prev" href="{href}"><span>Previous</span>{label}</a>')
+    if i < len(REF_ORDER) - 1:
+        href, label = REF_ORDER[i + 1]
+        parts.append(f'<a class="next" href="{href}"><span>Next</span>{label}</a>')
+    if not parts:
+        return ""
+    return '<nav class="onward" aria-label="Reference sequence">' + "".join(parts) + "</nav>\n"
+
+
 def sidebar(page: str) -> str:
     """The grouped nav, with the current page marked and a search box on top."""
     groups = []
@@ -155,6 +189,7 @@ def shell(page: str, title: str, body: str, description: str) -> str:
 {sidebar(page)}
 <main>
 {anchored(body)}
+{onward(page)}
 </main>
 </div>
 
@@ -2076,6 +2111,37 @@ be, what it will cost and what it can and cannot see. You order it, or you do no
   <p>Neither of those is a refusal. They are two honest orders, and picking the first one knowingly
   is a perfectly good decision. Picking it <em>without knowing</em> is the thing this prevents.</p>
 </div>
+
+<h2>Where this sits in a whole run</h2>
+
+<p>Designing is step nine of thirteen, and the eight before it exist to make it meaningful. The
+sequence, with the page that owns each part:</p>
+
+<div class="scroller"><table>
+<thead><tr><th></th><th>Command</th><th>What it is for</th></tr></thead>
+<tbody>
+<tr><td class="num">1</td><td><code>langchef init</code></td><td>Scaffold the workspace</td></tr>
+<tr><td class="num">2</td><td>collect examples</td><td>50–100 from real traffic. <a href="start.html">Walked through in Start here</a></td></tr>
+<tr><td class="num">3</td><td>write the rubric</td><td>What "good" means, one <code>###</code> per criterion. <a href="ref-judging.html#the-rubric-is-the-definition-of-good">Judging</a></td></tr>
+<tr><td class="num">4</td><td><code>langchef approve rubric</code></td><td><strong>Gate one.</strong> Without it, judging refuses at exit 2</td></tr>
+<tr><td class="num">5</td><td><code>langchef judge run</code></td><td>Score every example. <a href="ref-judging.html">Judging and pins</a></td></tr>
+<tr><td class="num">6</td><td><code>langchef label plan</code></td><td>Which forty are worth your ten minutes. <a href="ref-sampling.html">Label planning</a></td></tr>
+<tr><td class="num">7</td><td>label them yourself</td><td>The only part nobody can automate for you</td></tr>
+<tr><td class="num">8</td><td><code>langchef calibrate report</code></td><td>Is the judge trustworthy. <a href="ref-agreement.html">Agreement</a> and <a href="ref-taxonomy.html">taxonomy</a></td></tr>
+<tr><td class="num"><strong>9</strong></td><td><strong><code>langchef experiment design</code></strong></td><td><strong>You are here.</strong> What the run has to be, and what it can see</td></tr>
+<tr><td class="num">10</td><td><code>langchef experiment approve</code></td><td><strong>Gate two.</strong> A person accepts the cost and the claim</td></tr>
+<tr><td class="num">11</td><td><code>langchef judge run --arm variant</code></td><td>Score the other arm, under the same pin</td></tr>
+<tr><td class="num">12</td><td><code>langchef experiment readout</code></td><td>The verdict, against the design. <a href="ref-compare.html">Comparing two arms</a></td></tr>
+<tr><td class="num">13</td><td><code>langchef memo write</code></td><td>One page a person can disagree with</td></tr>
+</tbody></table></div>
+
+<p>Steps 3 to 8 are the part that has no equivalent in most eval tooling, and skipping them is what
+makes step 12 meaningless. <strong>If your task has a hard target</strong>, meaning you already know
+the right document or label, steps 3 to 8 do not apply to you at all and the run is 1, 2, 9 to 13.
+<a href="index.html#which-of-these-are-you">Which one am I?</a></p>
+
+<p>For the same sequence as a worked tutorial with real output at every step, rather than as a map,
+read <a href="start.html">Start here</a>.</p>
 
 <h2>Why two candidates and not one answer</h2>
 

@@ -183,7 +183,7 @@
 "page": "Concepts",
 "title": "The quality ledger",
 "href": "concepts.html#the-quality-ledger",
-"text": "An append-only record of every run, calibration and decision. Entries are never edited; a correction is a new entry, so what was believed at the time survives. It answers the question a leaderboard cannot: has quality moved this quarter, and what did we do about it."
+"text": "An append-only record of every run, calibration and decision. Entries are never edited; a correction is a new entry, so what was believed at the time survives. It answers the question a leaderboard cannot: has quality moved this quarter, and what did we do about it. Next Agreement and kappa"
 },
 {
 "page": "LangChef",
@@ -538,6 +538,12 @@
 "title": "Designing a run",
 "href": "ref-design.html",
 "text": "You are the diner, not the chef. Something else works out what the experiment has to be, what it will cost and what it can and cannot see. You order it, or you do not."
+},
+{
+"page": "Designing a run",
+"title": "Where this sits in a whole run",
+"href": "ref-design.html#where-this-sits-in-a-whole-run",
+"text": "Designing is step nine of thirteen, and the eight before it exist to make it meaningful. The sequence, with the page that owns each part: Command What it is for 1 langchef init Scaffold the workspace 2 collect examples 50–100 from real traffic. Walked through in Start here 3 write the rubric What \"good\" means, one ### per criterion. Judging 4 langchef approve rubric Gate one. Without it, judging r"
 },
 {
 "page": "Designing a run",
