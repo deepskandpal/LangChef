@@ -258,6 +258,56 @@ why only about a third of teams running AI in production evaluate it on live tra
 What is missing is the <em>person</em> who knows whether your grader can be trusted and how many
 examples a number needs before it means anything. LangChef stands in for them.</p>
 
+<h2>Which of these are you</h2>
+
+<p>The answer changes what this tool does for you, so it is worth settling before anything else.
+The difference is not what your app is built from. It is <strong>whether you already know the right
+answer</strong>.</p>
+
+<div class="grid2">
+  <div class="panel">
+    <h3>You do not have the answer</h3>
+    <p><strong>Q&amp;A, summarisation, generation, agent output.</strong> There is no single correct
+    string, so something has to <em>read</em> the answer and judge it. That something is usually a
+    model, and a model nobody has checked is not a measuring instrument.</p>
+    <p><strong>Calibration comes first here</strong>, and it is the part almost nobody sells. If
+    your judge disagrees with your own people three times in ten, every number computed downstream
+    inherits that error and none of them will tell you.</p>
+  </div>
+  <div class="panel">
+    <h3>You already have the answer</h3>
+    <p><strong>Retrieval, classification, reranking.</strong> You know which document should have
+    come back, which label is correct, which ordering is right. Comparing to it is arithmetic, not
+    judgement.</p>
+    <p><strong>There is nothing to calibrate</strong>, and we will not pretend otherwise. Skip
+    straight to the experiment. recall@k, MRR, nDCG, accuracy and F1 are computed from your targets,
+    and no rubric, no judge and no forty labels are involved.</p>
+  </div>
+</div>
+
+<p>Neither is the lesser path. If you have hard targets you have <em>solved</em> the hardest
+problem in evaluation already, and you get an answer sooner. What you still need is the part that
+has nothing to do with judging:</p>
+
+<ul>
+  <li><strong>Paired statistics.</strong> Both arms answer the same questions, so only the examples
+  that changed carry information. Treating them as two independent samples is how a real regression
+  comes back as noise.</li>
+  <li><strong>The detection limit.</strong> "recall@5 went from 0.71 to 0.69" means nothing without
+  knowing the smallest move your set could have seen.</li>
+  <li><strong>The discipline.</strong> The margin decided before the run, the design approved before
+  traffic, the refusal to read out whichever run happens to look best.</li>
+</ul>
+
+<div class="callout warn">
+  <span class="k">Being straight about what is built</span>
+  <p>Today the tool runs the free-text path end to end. The hard-target path is designed and not
+  yet shipped: bringing your own rows of input and target is
+  <a href="@@repo@@/issues/14">#14</a>, and it is blocked on one decision that has to be made before
+  any statistics are written. The paired comparison, the detection limit and the pre-registration
+  all exist now and are task-agnostic. What is missing is the loader and the per-task metrics.</p>
+</div>
+
 <h2>Four ways this goes wrong</h2>
 
 <h3>The grader nobody graded</h3>
@@ -384,6 +434,22 @@ it spent labelling. Ten minutes per change after that.</p>
   <p>The same loop covers every other change in the stack — a new embedding model, different
   chunking, a reranker, a fine-tuned small model swapped in to cut the bill. Only the arm you
   compare against changes.</p>
+</div>
+
+<div class="callout warn">
+  <span class="k">Check this walkthrough is for you</span>
+  <p>This page follows a <strong>free-text</strong> task: the assistant writes prose, there is no
+  single correct answer, and so a judge has to read it. Steps 2, 3, 5 and 6 exist entirely to check
+  that judge before you trust it.</p>
+  <p>If your task has a <strong>hard target</strong>, meaning you already know which document should
+  have been retrieved, which label is correct, or which ordering is right, then
+  <strong>none of those four steps apply to you</strong>. There is nothing to calibrate, because
+  comparing against a known answer is arithmetic rather than judgement. Your version of this
+  walkthrough is steps 1, 7, 8 and 9: collect examples, have the experiment designed, run it, read
+  it out. That path is designed and not yet shipped
+  (<a href="@@repo@@/issues/14">#14</a>); the comparison, the detection limit and the
+  pre-registration it depends on all exist today.</p>
+  <p><a href="index.html#which-of-these-are-you">Which one am I?</a></p>
 </div>
 
 <h2>Install — 2 minutes</h2>
@@ -831,6 +897,33 @@ comparison. Re-run the older arm under the current pin.</code></pre>
 <p>You edited the rubric between the runs, so the numbers were produced by different instruments.
 The tool stops rather than drawing the chart. Re-score the older version under the current rubric
 and compare again — the cache makes that cheap.</p>
+
+<h2>If your task has a hard target</h2>
+
+<p>Retrieval, classification and reranking come with the right answer already known, so the
+calibration half of this page does not apply to you. There is no rubric, no judge and no kappa,
+because nothing is being judged. <strong>Skip every number above that describes agreement.</strong></p>
+
+<p>What still applies, and is most of why this tool exists:</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Number</th><th>Why it still matters</th></tr></thead>
+<tbody>
+<tr><td><strong>The paired difference and its interval</strong></td><td>Both arms answer the same
+queries, so only the ones whose outcome changed carry information. This is true whether the outcome
+came from a judge or from an exact match against your target.</td></tr>
+<tr><td><strong>The detection limit</strong></td><td>The one people most need and least often have.
+"recall@5 moved from 0.71 to 0.69" is not a finding until you know the smallest move your set could
+have resolved.</td></tr>
+<tr><td><strong>The verdict</strong></td><td>Regression, improvement or inconclusive, on the same
+rule: a direction only counts when the whole interval agrees with it.</td></tr>
+<tr><td><strong>The non-inferiority margin</strong></td><td>Swapping a cheaper embedding model is
+still a "did quality hold" question, and still wants its tolerance fixed before the run.</td></tr>
+</tbody></table></div>
+
+<p>The per-task metrics themselves, recall@k, MRR, nDCG for retrieval and accuracy, precision,
+recall and F1 for classification, are computed from your targets rather than judged. They are
+designed and not yet shipped: see <a href="@@repo@@/issues/14">#14</a>.</p>
 
 <h2>When the tool refuses</h2>
 

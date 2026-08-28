@@ -199,6 +199,24 @@
 },
 {
 "page": "LangChef",
+"title": "Which of these are you",
+"href": "index.html#which-of-these-are-you",
+"text": "The answer changes what this tool does for you, so it is worth settling before anything else. The difference is not what your app is built from. It is whether you already know the right answer ."
+},
+{
+"page": "LangChef",
+"title": "You do not have the answer",
+"href": "index.html#you-do-not-have-the-answer",
+"text": "Q&A, summarisation, generation, agent output. There is no single correct string, so something has to read the answer and judge it. That something is usually a model, and a model nobody has checked is not a measuring instrument. Calibration comes first here , and it is the part almost nobody sells. If your judge disagrees with your own people three times in ten, every number computed downstream inh"
+},
+{
+"page": "LangChef",
+"title": "You already have the answer",
+"href": "index.html#you-already-have-the-answer",
+"text": "Retrieval, classification, reranking. You know which document should have come back, which label is correct, which ordering is right. Comparing to it is arithmetic, not judgement. There is nothing to calibrate , and we will not pretend otherwise. Skip straight to the experiment. recall@k, MRR, nDCG, accuracy and F1 are computed from your targets, and no rubric, no judge and no forty labels are inv"
+},
+{
+"page": "LangChef",
 "title": "Four ways this goes wrong",
 "href": "index.html#four-ways-this-goes-wrong",
 "text": ""
@@ -382,6 +400,12 @@
 "title": "Was this even a fair comparison?",
 "href": "numbers.html#was-this-even-a-fair-comparison",
 "text": "Every run records the rubric hash, the provider and the models that produced it. Together those are the pin — the exact ruler used. $ langchef compare --variant later-run langchef: pin mismatch — rubric 'answer-quality@290335165c70' -> 'answer-quality@b12aabd7ee8e' — these are two measurements, not a comparison. Re-run the older arm under the current pin. You edited the rubric between the runs, so"
+},
+{
+"page": "Reading the output",
+"title": "If your task has a hard target",
+"href": "numbers.html#if-your-task-has-a-hard-target",
+"text": "Retrieval, classification and reranking come with the right answer already known, so the calibration half of this page does not apply to you. There is no rubric, no judge and no kappa, because nothing is being judged. Skip every number above that describes agreement. What still applies, and is most of why this tool exists: Number Why it still matters The paired difference and its interval Both arm"
 },
 {
 "page": "Reading the output",
