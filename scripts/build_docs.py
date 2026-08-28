@@ -1223,10 +1223,15 @@ reported along, so renaming one silently changes what every past number meant.</
   <li><strong>No inter-annotator agreement.</strong> We compare one judge against one set of human
   labels. Multiple human labellers disagreeing with each other is a real and harder problem, and
   Krippendorff's alpha is the usual tool. Out of scope for now.</li>
-  <li><strong>The stratified label weights are recorded but not yet applied.</strong> Sampling
-  oversamples the judge's flagged examples on purpose, so the rates above are sample rates rather
-  than population rates. On a balanced suite the difference is small; on a 3%-flag-rate suite it is
-  not. This is a known gap, the docstring says so, and it has its own issue.</li>
+  <li><strong>The stratified label weights are recorded and are not valid weights.</strong> This
+  is the sharpest limitation on this page, and it is stronger than "not yet applied". The label plan
+  sorts each stratum by the judge's confidence and takes the lowest, so a row's inclusion
+  probability is 0 or 1 rather than <code>n/N</code>. Post-stratification cannot repair that,
+  because selection inside a stratum tracks the very thing being estimated. A seeded coverage
+  simulation put a nominal 95% interval at <strong>43% actual coverage for the catch rate</strong>.
+  So read every rate on this page as describing <em>the labelled set</em>, not as an estimate of
+  your whole suite. The underlying question, whether one label budget buys estimation or diagnosis,
+  is open.</li>
   <li><strong>scikit-learn is a test dependency, never a runtime one.</strong> Every statistic is
   hand-rolled and checked against an independent implementation. If the product and its check came
   from the same library, the check would only prove the library agrees with itself.</li>
