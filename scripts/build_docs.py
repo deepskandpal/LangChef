@@ -54,6 +54,7 @@ NAV = (
             ("ref-agreement.html", "Agreement and kappa"),
             ("ref-taxonomy.html", "Disagreement taxonomy"),
             ("ref-sampling.html", "Label planning"),
+            ("ref-judging.html", "Judging and pins"),
             ("ref-compare.html", "Comparing two arms"),
         ),
     ),
@@ -1061,7 +1062,7 @@ run. Two runs are only comparable if their pins match. When they do not, <code>c
 <h3>Two-tier judging</h3>
 <p>A cheap model scores everything; a strong model re-scores only the cases the cheap one was
 unsure about. Built in from the start rather than added later, because the model is part of the
-cache key and retrofitting it would invalidate every cached verdict in every workspace.</p>
+cache key and retrofitting it would invalidate every cached verdict in every workspace. <a href="ref-judging.html#two-tiers">More</a>.</p>
 
 <h2>Calibration: is the judge any good</h2>
 
@@ -1358,7 +1359,7 @@ reported along, so renaming one silently changes what every past number meant.</
   a bad classifier, which is the same failure this page opens with.</li>
 
   <li><strong>Zheng et al. (2023), "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena",
-  arXiv:2306.05685.</strong> Not about kappa, but about the instrument. §3 catalogues position bias,
+  arXiv:2306.05685.</strong> Not about kappa, but about the instrument. §3.1 catalogues position bias,
   verbosity bias and self-enhancement bias in model judges. Read it before you trust a judge you have
   not calibrated, and before you let a model grade its own family's output.</li>
 </ul>
@@ -1866,6 +1867,192 @@ confirmed, a section is what is cited.</p>
 """
 
 
+REF_JUDGING = """
+<div class="eyebrow">Reference</div>
+<h1>Judging and pins</h1>
+<p class="lede">The judge is a measuring instrument, not a metric. This page is how one is defined,
+how it is pinned so two runs can be compared, and how it is stopped from spending money you did not
+agree to.</p>
+
+<div class="worked">
+  <span class="k">The worked example</span>
+  <p>One example, scored against a two-criterion rubric by the judge that ships in the box.</p>
+<pre><code>  question   Do you ship to Canada?
+  answer     Yes, standard shipping to Canada takes 5-7 business days.
+  context    We ship to Canada. Standard delivery is 5-7 business days.
+
+  verdict     fail
+  confidence  0.6
+  criterion   Groundedness
+  rationale   40% of the answer's content words appear in the retrieved context</code></pre>
+  <p>Three things to notice. It named <strong>which criterion</strong> failed, which is what makes
+  the <a href="ref-taxonomy.html">taxonomy</a> possible. It gave a <strong>confidence</strong>,
+  which is what drives escalation and label planning. And it gave a <strong>rationale you can
+  argue with</strong>, which is what makes a wrong verdict findable.</p>
+</div>
+
+<h2>The rubric is the definition of good</h2>
+
+<p>A rubric is Markdown. Each <code>###</code> heading is one criterion, and the judge must name the
+one it failed on.</p>
+
+<pre><code>### Groundedness
+Every claim traceable to the context.
+
+### Correctness
+Answers the question asked.</code></pre>
+
+<pre><code>  criteria parsed:  ('Groundedness', 'Correctness')
+  rubric ref:       support@4f2f2ee68288</code></pre>
+
+<p>That <code>ref</code> is a name plus a content hash, and it is the pin for the rubric. Change
+three words in one criterion and it moves:</p>
+
+<pre><code>  support@4f2f2ee68288   ->   support@d7f133b168ab</code></pre>
+
+<p>Which is the point. Editing a rubric changes what "good" means, so it revokes its own approval
+and invalidates every cached verdict produced under the old wording. You cannot quietly loosen the
+definition and compare against last week.</p>
+
+<div class="callout warn">
+  <span class="k">A judge can only cite criteria you wrote</span>
+  <p>In the worked example the rubric has Groundedness and Correctness and no criterion about
+  hedging. Feed it <em>"I'm not able to say for certain whether we ship to Canada"</em> and it
+  returns <code>fail</code> against <strong>Correctness</strong>, because that is the closest thing
+  in your rubric to what went wrong.</p>
+  <p>The verdict is right and the attribution is misleading, and no amount of calibration will
+  surface it, because you and the judge agree on the verdict. If your taxonomy keeps blaming one
+  criterion for unrelated failures, the rubric is missing a criterion.</p>
+</div>
+
+<h2>Pins: what produced these numbers</h2>
+
+<p>Every run records the instrument that produced it.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Field</th><th>Why it is in the pin</th></tr></thead>
+<tbody>
+<tr><td><code>rubric</code></td><td>The name and content hash. A different definition of good is a different measurement</td></tr>
+<tr><td><code>provider</code></td><td>Which backend produced the verdicts</td></tr>
+<tr><td><code>cheap_model</code></td><td>The model that scored everything</td></tr>
+<tr><td><code>strong_model</code></td><td>The model that re-scored the unsure ones, if any</td></tr>
+</tbody></table></div>
+
+<p>Compare two runs whose pins differ and the tool <strong>exits 5 and refuses</strong>, naming what
+moved:</p>
+
+<pre><code>  pin moved — cheap_model: 'gpt-4o-mini' -> 'claude-haiku-4-5'</code></pre>
+
+<p>This is the difference between measuring a change in your app and measuring a change in your
+ruler. Both look like a moving number. Only one of them is a finding.</p>
+
+<h2>The cache, and what is in the key</h2>
+
+<p>Verdicts are content-addressed. The key covers everything that changes what a correct verdict
+<em>is</em>:</p>
+
+<pre><code>  example_id, question, answer, context, expected, rubric ref, model, tier</code></pre>
+
+<p><strong>Slices are deliberately not in the key.</strong> They are metadata for grouping, so
+adding a <code>topic</code> tag to your examples would otherwise invalidate every cached verdict
+and re-buy the whole run for nothing.</p>
+
+<p>Tier is in the key, so the same example judged cheaply and judged strongly are two entries rather
+than one overwriting the other:</p>
+
+<pre><code>  cheap tier   fd3da9b9f7259e30...
+  strong tier  47eb382ec2f5e922...</code></pre>
+
+<p>The practical effect is that re-running an arm after a change is nearly free, and only genuinely
+new work costs anything. It is also why the integrity gates exist: with a warm cache, re-running an
+arm until it reads out better costs nothing, which is exactly why <code>readout</code> refuses when
+more than one run matches.</p>
+
+<h2>Two tiers</h2>
+
+<p>A cheap model scores every example. Anything it scored <strong>below 0.6</strong> is re-scored by
+a strong model, and only those.</p>
+
+<p>The confidence in the worked example is exactly 0.6, so it would not escalate. The threshold is
+a floor, not a ceiling.</p>
+
+<p>This was built in from the start rather than added later, for a specific reason: <strong>the
+model is part of the cache key.</strong> Retrofitting a second tier would have invalidated every
+cached verdict in every workspace on the day it shipped.</p>
+
+<h2>Budgets, and stopping before the bill</h2>
+
+<p>A run can carry a ceiling on <em>provider calls</em>, not on examples. A cached example is free
+and does not count against it.</p>
+
+<p>When the ceiling is hit the run stops where it is, writes what was left unscored to
+<code>runs/&lt;id&gt;/undone.json</code>, and <strong>exits 4</strong>. It does not silently produce
+a partial result that looks whole.</p>
+
+<p>The reasoning is that a partial result whose shape you know is worth more than a bill you did not
+agree to. An agent handed exit 4 knows to stop and ask rather than to retry.</p>
+
+<h2>The judge in the box</h2>
+
+<p>The default provider is not a model. It is deterministic token containment: what fraction of the
+answer's content words appear in the retrieved context, and does the expected string appear. It
+needs <strong>no API key, no network, and no money</strong>.</p>
+
+<p>It is genuinely weak, and that is deliberate. It exists so the whole pipeline can be run,
+tested and dogfooded end to end before anyone spends anything, and so the test suite never depends
+on a provider being up. Its version string is part of the cache key, so changing its checks without
+bumping that version would leave every warm cache serving verdicts from the old logic.</p>
+
+<div class="incode">
+  <div><b>src/langchef/judge/rubric.py</b> — parse, criteria, digest, ref</div>
+  <div><b>src/langchef/judge/providers.py</b> — the single seam a backend plugs into</div>
+  <div><b>src/langchef/judge/cache.py</b> — <b>judgement_key()</b>, what is and is not in it</div>
+  <div><b>src/langchef/judge/runner.py</b> — <b>Pin</b>, escalation, the budget ceiling</div>
+</div>
+
+<h2>What we deliberately do not do</h2>
+
+<ul>
+  <li><strong>No position or verbosity mitigation.</strong> Model judges favour the first answer
+  shown and longer answers regardless of content. We do not swap positions or normalise length. The
+  defence here is different: calibration measures how far your judge disagrees with you, so a judge
+  with a verbosity bias shows up as a bad kappa rather than as a silent skew. That is a weaker
+  defence than fixing the bias, and it is honest about being one.</li>
+  <li><strong>No model grading its own family's output.</strong> Self-enhancement bias is real. If
+  the judge and the system under test share a model family, calibrate before believing anything.</li>
+  <li><strong>No scores, only verdicts.</strong> Pass or fail, with a confidence. A judge returning
+  7.4 out of 10 invites arithmetic that its own precision cannot support.</li>
+  <li><strong>No prompt tuning loop.</strong> Nothing here rewrites your rubric to improve
+  agreement. A tool that edits the definition of good in response to its own error rate is
+  optimising for its own agreement, and the number stops meaning anything.</li>
+  <li><strong>No retries on a disagreeing verdict.</strong> Asking again until it agrees is not
+  measurement.</li>
+</ul>
+
+<h2>Further reading</h2>
+
+<ul class="reading">
+  <li><strong>Zheng et al. (2023), "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena",
+  arXiv:2306.05685.</strong> Read <strong>§3.1, Limitations</strong>, before trusting any judge you
+  have not calibrated. It catalogues position bias, verbosity bias and self-enhancement bias, and
+  demonstrates the verbosity one with a repetitive-list attack that fools several judges. This is
+  the paper that makes the case for this whole product: the instrument has known, measurable,
+  reproducible faults.
+  <span class="where">Open PDF: arxiv.org/pdf/2306.05685</span></li>
+
+  <li><strong>Gu et al. (2024), "A Survey on LLM-as-a-Judge", arXiv:2411.16594.</strong> Broader and
+  more recent, for when you want the landscape rather than one careful study.</li>
+
+  <li><strong>The calibration statistics</strong> on the
+  <a href="ref-agreement.html">agreement page</a>. Every claim on this page about a judge being
+  trustworthy is settled there, not here.</li>
+</ul>
+
+<p class="dim">Citations verified against publisher records. Where only a section could be
+confirmed, a section is what is cited.</p>
+"""
+
+
 CLI = """
 <div class="eyebrow">Reference</div>
 <h1>Commands</h1>
@@ -2255,6 +2442,13 @@ def build() -> dict[str, str]:
             fill(REF_SAMPLING, common),
             "Which forty examples are worth a person's ten minutes, why it is not a random forty, "
             "and the open question about what those labels can be used to claim.",
+        ),
+        "ref-judging.html": shell(
+            "ref-judging.html",
+            "Judging and pins — LangChef",
+            fill(REF_JUDGING, common),
+            "How a judge is defined, how it is pinned so two runs can be compared, and how it is "
+            "stopped from spending money you did not agree to.",
         ),
         "ref-compare.html": shell(
             "ref-compare.html",

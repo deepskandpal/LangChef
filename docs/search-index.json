@@ -87,7 +87,7 @@
 "page": "Concepts",
 "title": "Two-tier judging",
 "href": "concepts.html#two-tier-judging",
-"text": "A cheap model scores everything; a strong model re-scores only the cases the cheap one was unsure about. Built in from the start rather than added later, because the model is part of the cache key and retrofitting it would invalidate every cached verdict in every workspace."
+"text": "A cheap model scores everything; a strong model re-scores only the cases the cheap one was unsure about. Built in from the start rather than added later, because the model is part of the cache key and retrofitting it would invalidate every cached verdict in every workspace. More ."
 },
 {
 "page": "Concepts",
@@ -532,6 +532,60 @@
 "title": "Further reading",
 "href": "ref-compare.html#further-reading",
 "text": "Dietterich (1998), \"Approximate Statistical Tests for Comparing Supervised Classification Learning Algorithms\", Neural Computation 10(7), 1895–1923. The closest thing to a direct precedent for what compare does: five candidate tests for deciding whether one system beats another on the same data, evaluated for how often they claim a difference that is not there. Read it before changing the test. do"
+},
+{
+"page": "Judging and pins",
+"title": "Judging and pins",
+"href": "ref-judging.html",
+"text": "The judge is a measuring instrument, not a metric. This page is how one is defined, how it is pinned so two runs can be compared, and how it is stopped from spending money you did not agree to."
+},
+{
+"page": "Judging and pins",
+"title": "The rubric is the definition of good",
+"href": "ref-judging.html#the-rubric-is-the-definition-of-good",
+"text": "A rubric is Markdown. Each ### heading is one criterion, and the judge must name the one it failed on. ### Groundedness Every claim traceable to the context. ### Correctness Answers the question asked. criteria parsed: ('Groundedness', 'Correctness') rubric ref: support@4f2f2ee68288 That ref is a name plus a content hash, and it is the pin for the rubric. Change three words in one criterion and it"
+},
+{
+"page": "Judging and pins",
+"title": "Pins: what produced these numbers",
+"href": "ref-judging.html#pins-what-produced-these-numbers",
+"text": "Every run records the instrument that produced it. Field Why it is in the pin rubric The name and content hash. A different definition of good is a different measurement provider Which backend produced the verdicts cheap_model The model that scored everything strong_model The model that re-scored the unsure ones, if any Compare two runs whose pins differ and the tool exits 5 and refuses , naming w"
+},
+{
+"page": "Judging and pins",
+"title": "The cache, and what is in the key",
+"href": "ref-judging.html#the-cache-and-what-is-in-the-key",
+"text": "Verdicts are content-addressed. The key covers everything that changes what a correct verdict is : example_id, question, answer, context, expected, rubric ref, model, tier Slices are deliberately not in the key. They are metadata for grouping, so adding a topic tag to your examples would otherwise invalidate every cached verdict and re-buy the whole run for nothing. Tier is in the key, so the same"
+},
+{
+"page": "Judging and pins",
+"title": "Two tiers",
+"href": "ref-judging.html#two-tiers",
+"text": "A cheap model scores every example. Anything it scored below 0.6 is re-scored by a strong model, and only those. The confidence in the worked example is exactly 0.6, so it would not escalate. The threshold is a floor, not a ceiling. This was built in from the start rather than added later, for a specific reason: the model is part of the cache key. Retrofitting a second tier would have invalidated "
+},
+{
+"page": "Judging and pins",
+"title": "Budgets, and stopping before the bill",
+"href": "ref-judging.html#budgets-and-stopping-before-the-bill",
+"text": "A run can carry a ceiling on provider calls , not on examples. A cached example is free and does not count against it. When the ceiling is hit the run stops where it is, writes what was left unscored to runs/<id>/undone.json , and exits 4 . It does not silently produce a partial result that looks whole. The reasoning is that a partial result whose shape you know is worth more than a bill you did n"
+},
+{
+"page": "Judging and pins",
+"title": "The judge in the box",
+"href": "ref-judging.html#the-judge-in-the-box",
+"text": "The default provider is not a model. It is deterministic token containment: what fraction of the answer's content words appear in the retrieved context, and does the expected string appear. It needs no API key, no network, and no money . It is genuinely weak, and that is deliberate. It exists so the whole pipeline can be run, tested and dogfooded end to end before anyone spends anything, and so th"
+},
+{
+"page": "Judging and pins",
+"title": "What we deliberately do not do",
+"href": "ref-judging.html#what-we-deliberately-do-not-do",
+"text": "No position or verbosity mitigation. Model judges favour the first answer shown and longer answers regardless of content. We do not swap positions or normalise length. The defence here is different: calibration measures how far your judge disagrees with you, so a judge with a verbosity bias shows up as a bad kappa rather than as a silent skew. That is a weaker defence than fixing the bias, and it "
+},
+{
+"page": "Judging and pins",
+"title": "Further reading",
+"href": "ref-judging.html#further-reading",
+"text": "Zheng et al. (2023), \"Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena\", arXiv:2306.05685. Read §3.1, Limitations , before trusting any judge you have not calibrated. It catalogues position bias, verbosity bias and self-enhancement bias, and demonstrates the verbosity one with a repetitive-list attack that fools several judges. This is the paper that makes the case for this whole product: th"
 },
 {
 "page": "Label planning",
