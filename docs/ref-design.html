@@ -201,11 +201,13 @@ recommends no decision, rather than being quietly reported as a result.</p>
   <li><strong>No cost model beyond calls times a price you supply.</strong> No token estimation, no
   provider price list to go stale. <code>usd</code> is <code>None</code> until you configure a
   price, and every caller has to cope with that rather than being handed a made-up number.</li>
-  <li><strong>The <code>feasible</code> flag is not "can I run this".</strong> It means the required
-  n is under 100,000, so a design needing 628 goldens when you have 90 still reports
-  <code>feasible: true</code>. The caveats carry the real constraint. If you are reading the JSON
-  rather than the prose, read <code>caveats</code> and compare <code>required_n</code> against
-  <code>n_available</code> yourself.</li>
+  <li><strong>No boolean for "is this design sensible".</strong> The payload answers a narrower
+  question: <code>runnable_now</code> is true when the design can be executed with the goldens that
+  exist, and <code>shortfall</code> says how many more are needed. A design needing 628 when you
+  have 90 reports <code>runnable_now: false</code> and <code>shortfall: 538</code>. Whether it is
+  <em>worth</em> collecting 538 more goldens is a judgement, and the tool declines to encode one.
+  Past a certain size it says so in words instead: a requirement of several hundred thousand is
+  evidence that the effect cannot be resolved this way, not a plan.</li>
 </ul>
 
 <h2 id="further-reading">Further reading</h2>

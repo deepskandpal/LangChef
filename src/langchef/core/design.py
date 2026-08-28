@@ -7,7 +7,8 @@ place did not exist. This is that surface's arithmetic.
 
 The split matters. **This module computes every number in a design** — how small
 an effect the goldens on hand could resolve, how many more would be needed for a
-target effect, what it will cost to score, whether the design is feasible at all.
+target effect, what it will cost to score, and whether it can be run with the
+goldens that exist.
 The agent's job is to turn "we want to move to the cheaper model" into a kind and
 a tolerance, and to explain the options to a person. It does no arithmetic, which
 is why none of this imports anything from ``judge`` or the CLI.
@@ -85,7 +86,14 @@ class Design:
     stopping_rule: str
     guardrails: tuple[str, ...]
     cost: Cost
-    feasible: bool
+    # Whether this design can be executed with the goldens that exist. It is not
+    # a judgement about whether the design is sensible; a design needing 628
+    # goldens when the suite has 90 is perfectly sound and simply not runnable
+    # yet. `shortfall` is the number an agent would otherwise have to derive,
+    # and it is here because stdout is the interface: putting the binding
+    # constraint only in prose would invert the split the contract rests on.
+    runnable_now: bool
+    shortfall: int
     caveats: tuple[str, ...] = field(default_factory=tuple)
 
     def to_dict(self) -> dict:
@@ -272,7 +280,8 @@ def propose(
             mde=at_hand_mde,
             required_n=None,
             cost=estimate_cost(n_available, cached, price_per_call_usd, escalation_rate),
-            feasible=True,
+            runnable_now=True,  # n == n_available by construction
+            shortfall=0,
             caveats=tuple(caveats),
             **common,
         )
@@ -280,7 +289,20 @@ def propose(
 
     if effect is not None and effect < at_hand_mde:
         needed = required_n(effect, discordance, level, power)
-        feasible = needed <= MAX_FEASIBLE_N
+        shortfall = max(0, needed - n_available)
+        powered_caveats = [
+            f"Needs {shortfall} more golden(s) than the suite has "
+            f"({n_available}). Collect them before running, or accept the "
+            "detection limit of the design above."
+        ]
+        if needed > MAX_FEASIBLE_N:
+            # Arithmetically real, practically absurd. Words are more use here
+            # than a boolean, because the number itself is the argument.
+            powered_caveats.append(
+                f"{needed:,} goldens is beyond any realistic collection effort. "
+                "Treat this as evidence that the effect you named cannot be "
+                "resolved by this method, not as a plan."
+            )
         designs.append(
             Design(
                 name="powered",
@@ -288,12 +310,9 @@ def propose(
                 mde=minimum_detectable_effect(needed, discordance, level, power),
                 required_n=needed,
                 cost=estimate_cost(needed, cached, price_per_call_usd, escalation_rate),
-                feasible=feasible,
-                caveats=(
-                    f"Needs {needed - n_available} more golden(s) than the suite has "
-                    f"({n_available}). Collect them before running, or accept the "
-                    "detection limit of the design above.",
-                ),
+                runnable_now=shortfall == 0,
+                shortfall=shortfall,
+                caveats=tuple(powered_caveats),
                 **common,
             )
         )
