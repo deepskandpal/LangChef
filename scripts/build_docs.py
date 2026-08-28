@@ -52,6 +52,7 @@ NAV = (
         (
             ("concepts.html", "Concepts"),
             ("ref-agreement.html", "Agreement and kappa"),
+            ("ref-taxonomy.html", "Disagreement taxonomy"),
             ("ref-compare.html", "Comparing two arms"),
         ),
     ),
@@ -1091,7 +1092,7 @@ label more examples, not that the judge is erratic.
 <p>Six disagreements is a count, not a finding. The taxonomy groups them by which rubric criterion
 the judge cited and which slice of traffic they fell in, and refuses to report a slice whose
 interval does not clear the base rate.
-<a href="ref-agreement.html#where-you-disagreed">More</a>.</p>
+<a href="ref-taxonomy.html">Full page</a>.</p>
 
 <h3>Label planning</h3>
 <p>Choosing which examples are worth a person's ten minutes. Sampling at random on a suite where the
@@ -1277,23 +1278,14 @@ one number, and it is a better one number than accuracy.</p>
 
 <h2>Where you disagreed</h2>
 
-<p>Six disagreements is a count. It does not tell you what to fix. So the taxonomy groups them two
-ways: by which rubric criterion the judge cited when it was wrong, and by which slice of your traffic
-they fell in.</p>
+<p>Six disagreements is a count. It does not tell you what to fix, so the taxonomy groups them by
+which rubric criterion the judge cited and which slice of your traffic they fell in, then refuses to
+report a slice whose interval does not clear the base rate.</p>
 
-<p>Then the part that matters most. In the dogfood run, the slice <code>topic=returns</code>
-disagreed <strong>33% of the time against a 15% base rate, a 2.2x lift</strong>. That is exactly the
-line that sends someone off to investigate for a day.</p>
-
-<p>It rests on <strong>nine examples</strong>. Its Wilson interval straddles the base rate, so
-<code>concentrations()</code> marks it <code>separated: false</code> and the memo leaves it out.</p>
-
-<div class="callout warn">
-  <span class="k">The most important guard in the file</span>
-  <p>Without that check, a tool that always names the worst-looking slice is a random number
-  generator with good manners. Every slice report has a worst entry; that fact alone means nothing.
-  We only surface one when its interval clears the base rate.</p>
-</div>
+<p>In this run <code>topic=returns</code> disagreed <strong>33% of the time against a 15% base rate,
+a 2.2x lift</strong>, on nine examples, with an interval of [12.1%, 64.6%]. The bottom of that
+interval sits below the base rate, so it is not reported. That guard is the most important thing in
+the codebase and it has its own page: <a href="ref-taxonomy.html">disagreement taxonomy</a>.</p>
 
 <h2>What the rubric has to do</h2>
 
@@ -1555,6 +1547,178 @@ to ship.</p>
 
 <p class="dim">Volumes, issues and page ranges verified against publisher records. Where a claim
 could only be confirmed at paper level rather than section level, it is cited at paper level.</p>
+"""
+
+
+REF_TAXONOMY = """
+<div class="eyebrow">Reference</div>
+<h1>Disagreement taxonomy</h1>
+<p class="lede">Six disagreements is a count. This is the part that turns it into something you can
+act on, and the part that refuses to when the evidence will not carry it.</p>
+
+<div class="worked">
+  <span class="k">The worked example</span>
+  <p>The same 40 labelled examples as the <a href="ref-agreement.html">agreement page</a>: your
+  judge and you disagreed six times, three misses and three false alarms, a base rate of
+  <strong>15%</strong>. Knowing that number tells you nothing about what to change.</p>
+</div>
+
+<h2>Two shapes, and they do not cost the same</h2>
+
+<p>Every disagreement is one of two things, named from the judge's point of view.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Shape</th><th>What happened</th><th>What it costs</th></tr></thead>
+<tbody>
+<tr><td><strong>false alarm</strong></td><td>judge said fail, you said pass</td><td><strong>Trust.</strong> Every one is a person going to look at something that turned out to be fine. Enough of them and nobody reads the reports.</td></tr>
+<tr><td><strong>miss</strong></td><td>judge said pass, you said fail</td><td><strong>The whole suite.</strong> These are the regressions that ship. One miss can cost more than fifty false alarms.</td></tr>
+</tbody></table></div>
+
+<p>They are reported separately because the fix differs. False alarms usually mean a criterion is
+worded too strictly. Misses usually mean the rubric never mentioned the thing that went wrong.</p>
+
+<h2>Which criterion is at fault</h2>
+
+<p>Each <code>###</code> heading in your rubric is one criterion, and the judge names the one it
+failed on. Group the disagreements by that name and the six become a diagnosis:</p>
+
+<pre><code>  Directness     2/3 =  66.7%   [20.8%, 93.9%]   2 false alarms
+  Groundedness   1/8 =  12.5%   [ 2.2%, 47.1%]   1 false alarm
+  Correctness    0/4 =   0.0%   [ 0.0%, 49.0%]</code></pre>
+
+<p>Read the denominators: they are the examples where the judge <em>cited that criterion</em>, not
+your suite. So the middle column says <strong>when this judge invokes Directness, it is wrong two
+times in three.</strong> That is a rubric edit, and a specific one. Correctness is behaving.</p>
+
+<p>Now read the interval. Two of three rests on <strong>three examples</strong>, and the true rate
+is somewhere between 21% and 94%. The direction is worth acting on because the fix is cheap; the
+number is not worth quoting to anybody.</p>
+
+<div class="callout warn">
+  <span class="k">This axis cannot see misses</span>
+  <p>A miss is the judge saying pass. A judge that passed an example named no failing criterion, so
+  there is nothing to group by. <strong>Every disagreement in the table above is a false alarm, and
+  that is structural rather than a property of this data.</strong></p>
+  <p>Which is awkward, because misses are the expensive kind. Attributing them would need the judge
+  to report which criteria it considered and cleared, not only the one it failed. The provider shim
+  already computes coverage of that shape for a different purpose, so the path exists and is not
+  wired up. Until it is, read the criterion table as an account of <em>why your judge cries wolf</em>,
+  and nothing more.</p>
+</div>
+
+<h2>Which part of your traffic</h2>
+
+<p>The other axis is whatever slice metadata came with your examples. Same six disagreements, cut by
+topic:</p>
+
+<pre><code>  returns    3/9  = 33.3%   [12.1%, 64.6%]
+  accounts   2/16 = 12.5%   [ 3.5%, 36.0%]
+  shipping   1/15 =  6.7%   [ 1.2%, 29.8%]
+
+  base rate across all 40: 15.0%</code></pre>
+
+<p>There it is. <strong>Returns disagrees 33% of the time against a 15% base rate. A 2.2x lift.</strong>
+That is the line that sends somebody off to investigate for a day.</p>
+
+<h2>Why the tool will not report that</h2>
+
+<p>Look at the interval on the returns row: <strong>[12.1%, 64.6%]</strong>. The bottom of it,
+12.1%, sits <em>below</em> the 15% base rate. The evidence is consistent with returns being no worse
+than anything else.</p>
+
+<p>So <code>concentrations()</code> marks it <code>separated: false</code> and the memo leaves it
+out. The rule is one line:</p>
+
+<pre><code>  separated = worst.interval.lo &gt; base_rate</code></pre>
+
+<div class="callout warn">
+  <span class="k">The most important guard in this codebase</span>
+  <p>Every slice report has a worst row. That is arithmetic, not a finding. Sort three topics by
+  disagreement rate and one of them is 2.2x the average <em>whatever the data says</em>, because
+  something has to be first.</p>
+  <p>A tool that names the worst-looking slice every time is a random number generator with good
+  manners. It will be right occasionally, which is worse than being wrong reliably, because the
+  occasional hit is what convinces people to keep trusting it.</p>
+</div>
+
+<p>There is a second guard beside it. A slice with fewer than <code>min_bucket</code> examples,
+five by default, is not ranked at all. One disagreement out of two is a 50% rate and a 3.3x lift,
+and it is nothing.</p>
+
+<p>When a concentration <em>does</em> separate, it is reported with its interval attached, so you
+can see whether "twice as bad on long answers" rests on four examples or four hundred.</p>
+
+<h2>What to do with each finding</h2>
+
+<div class="scroller"><table>
+<thead><tr><th>What you see</th><th>What it means</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td>One criterion holds most of the false alarms</td><td>That criterion is worded too strictly</td><td>Edit its wording, re-approve, re-run. The rubric hash changes, so this is tracked</td></tr>
+<tr><td>Misses dominate and no criterion explains them</td><td>The rubric never mentioned the failure mode</td><td>Read the missed examples and add a criterion</td></tr>
+<tr><td>A separated concentration</td><td>One part of your traffic really is harder</td><td>Label more <em>there</em>, or split the suite and calibrate separately</td></tr>
+<tr><td>A concentration that did not separate</td><td>You have not learned anything yet</td><td>Nothing. This is the finding you were about to waste a day on</td></tr>
+</tbody></table></div>
+
+<div class="incode">
+  <div>Computed in <b>src/langchef/core/taxonomy.py</b></div>
+  <div><b>Judgement.kind</b> classifies each row as miss, false_alarm, or agreement</div>
+  <div><b>by_criterion()</b> groups by the rubric heading the judge cited</div>
+  <div><b>by_slice()</b> groups by one metadata dimension, worst rate first</div>
+  <div><b>concentrations()</b> ranks dimensions and applies the separation test</div>
+  <div><b>summarise()</b> the whole thing as plain data for the memo</div>
+</div>
+
+<h2>What we deliberately do not do</h2>
+
+<ul>
+  <li><strong>No correction for the number of slices examined.</strong> The separation test is a
+  per-slice filter, not a family-wise one. Cut your data forty ways and it is still doing forty
+  independent checks. The honest mitigation today is that slice dimensions come from metadata you
+  already had, rather than being searched for. If automatic slice discovery is ever added, a
+  correction has to arrive with it.</li>
+  <li><strong>No interaction terms.</strong> Returns-and-long-answer might be far worse than either
+  alone. Finding that reliably needs more labels than anyone is going to give us.</li>
+  <li><strong>No causal claim.</strong> A separated concentration says disagreement clusters there.
+  It does not say the topic caused it. Returns questions may simply be longer, and length may be
+  the real driver.</li>
+  <li><strong>No automatic rubric editing.</strong> The taxonomy points at a criterion. A person
+  writes the new wording and approves it. A tool that rewrites the definition of "good" in response
+  to its own error pattern is optimising for its own agreement.</li>
+  <li><strong>Misses are not attributed</strong>, as above. This is the largest gap on the page.</li>
+</ul>
+
+<h2>Further reading</h2>
+
+<ul class="reading">
+  <li><strong>ISIS-2 Collaborative Group (1988), <em>The Lancet</em> 332(8607), 349–360.</strong>
+  The single best argument for the separation test, and it is funny. Reporting subgroup results for
+  aspirin after heart attack, the authors listed <strong>astrological birth sign first</strong> in
+  the table, showing the drug to be useless for the roughly 3,000 patients born under Gemini or
+  Libra. That placement was deliberate and negotiated with the journal: the authors agreed to print
+  subgroup analyses only if the star signs came first, so readers could see for themselves what such
+  analyses are worth. Every slice table you will ever read has a worst row.
+  <span class="where">Context: annalsofoncology.org, "From astrology to prostate cancer: what is the role of subgroup analyses?"</span></li>
+
+  <li><strong>Gelman and Loken (2014), "The Statistical Crisis in Science", <em>American
+  Scientist</em> 102(6), 460.</strong> The garden of forking paths: you do not need to run forty
+  tests to get a false positive, you only need to have <em>chosen which one to run</em> after seeing
+  the data. Directly why <code>concentrations()</code> applies a fixed rule to every dimension
+  rather than letting anyone pick the interesting one.
+  <span class="where">Open PDF: sites.stat.columbia.edu/gelman/research/published/ForkingPaths.pdf</span></li>
+
+  <li><strong>"On Looking at Subgroups", <em>Circulation</em> (2008).</strong> A short practitioner
+  treatment of when a subgroup finding is worth believing: pre-specified, biologically plausible,
+  one of few, and large. Our slices meet the first and third by construction and rarely the fourth.
+  <span class="where">doi:10.1161/CIRCULATIONAHA.108.836601</span></li>
+
+  <li><strong>Wilson (1927) and Brown, Cai and DasGupta (2001).</strong> The interval behind the
+  separation test, covered on the <a href="ref-agreement.html#the-interval-and-why-wilson">agreement
+  page</a>. Worth reading if you intend to change the test, because the guard is only as good as the
+  lower bound it compares.</li>
+</ul>
+
+<p class="dim">Citations verified against publisher records. Where only a section could be
+confirmed, a section is what is cited.</p>
 """
 
 
@@ -1933,6 +2097,13 @@ def build() -> dict[str, str]:
             fill(REF_AGREEMENT, common),
             "How LangChef decides whether your judge can be trusted: kappa, catch rate, false "
             "alarms and Wilson intervals, worked from real numbers with the papers behind them.",
+        ),
+        "ref-taxonomy.html": shell(
+            "ref-taxonomy.html",
+            "Disagreement taxonomy — LangChef",
+            fill(REF_TAXONOMY, common),
+            "Where a judge disagrees rather than how often: misses against false alarms, which "
+            "criterion is at fault, and why the tool refuses to name the worst-looking slice.",
         ),
         "ref-compare.html": shell(
             "ref-compare.html",

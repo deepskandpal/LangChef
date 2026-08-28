@@ -44,6 +44,7 @@
   <ul>
     <li><a href="concepts.html">Concepts</a></li>
     <li><a href="ref-agreement.html" aria-current="page">Agreement and kappa</a></li>
+    <li><a href="ref-taxonomy.html">Disagreement taxonomy</a></li>
     <li><a href="ref-compare.html">Comparing two arms</a></li>
   </ul>
   <h4>Project</h4>
@@ -197,23 +198,14 @@ one number, and it is a better one number than accuracy.</p>
 
 <h2 id="where-you-disagreed">Where you disagreed</h2>
 
-<p>Six disagreements is a count. It does not tell you what to fix. So the taxonomy groups them two
-ways: by which rubric criterion the judge cited when it was wrong, and by which slice of your traffic
-they fell in.</p>
+<p>Six disagreements is a count. It does not tell you what to fix, so the taxonomy groups them by
+which rubric criterion the judge cited and which slice of your traffic they fell in, then refuses to
+report a slice whose interval does not clear the base rate.</p>
 
-<p>Then the part that matters most. In the dogfood run, the slice <code>topic=returns</code>
-disagreed <strong>33% of the time against a 15% base rate, a 2.2x lift</strong>. That is exactly the
-line that sends someone off to investigate for a day.</p>
-
-<p>It rests on <strong>nine examples</strong>. Its Wilson interval straddles the base rate, so
-<code>concentrations()</code> marks it <code>separated: false</code> and the memo leaves it out.</p>
-
-<div class="callout warn">
-  <span class="k">The most important guard in the file</span>
-  <p>Without that check, a tool that always names the worst-looking slice is a random number
-  generator with good manners. Every slice report has a worst entry; that fact alone means nothing.
-  We only surface one when its interval clears the base rate.</p>
-</div>
+<p>In this run <code>topic=returns</code> disagreed <strong>33% of the time against a 15% base rate,
+a 2.2x lift</strong>, on nine examples, with an interval of [12.1%, 64.6%]. The bottom of that
+interval sits below the base rate, so it is not reported. That guard is the most important thing in
+the codebase and it has its own page: <a href="ref-taxonomy.html">disagreement taxonomy</a>.</p>
 
 <h2 id="what-the-rubric-has-to-do">What the rubric has to do</h2>
 
