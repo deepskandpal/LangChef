@@ -129,7 +129,7 @@
 "page": "Concepts",
 "title": "Label planning",
 "href": "concepts.html#label-planning",
-"text": "Choosing which examples are worth a person's ten minutes. Sampling at random on a suite where the judge flags 15% wastes most of the budget confirming passes, so the plan takes every flagged example plus a sample of the rest, and prefers cases the judge was unsure about."
+"text": "Choosing which examples are worth a person's ten minutes. Sampling at random on a suite where the judge flags 15% wastes most of the budget confirming passes, so the plan takes every flagged example plus a sample of the rest, and prefers cases the judge was unsure about. Full page ."
 },
 {
 "page": "Concepts",
@@ -532,6 +532,48 @@
 "title": "Further reading",
 "href": "ref-compare.html#further-reading",
 "text": "Dietterich (1998), \"Approximate Statistical Tests for Comparing Supervised Classification Learning Algorithms\", Neural Computation 10(7), 1895–1923. The closest thing to a direct precedent for what compare does: five candidate tests for deciding whether one system beats another on the same data, evaluated for how often they claim a difference that is not there. Read it before changing the test. do"
+},
+{
+"page": "Label planning",
+"title": "Label planning",
+"href": "ref-sampling.html",
+"text": "Which forty examples a person should spend their ten minutes on, why it is not a random forty, and the open question about what those labels can then be used to claim."
+},
+{
+"page": "Label planning",
+"title": "Why not just take forty at random",
+"href": "ref-sampling.html#why-not-just-take-forty-at-random",
+"text": "Because of where the information is. Pick forty of these ninety at random and you would expect about 6.7 of them to be examples the judge flagged. Your entire catch rate would rest on six or seven labels, and its interval would be so wide the number could not support a decision. Stratifying by the judge's own verdict takes all fifteen instead. Same ten minutes, same forty labels, and the number yo"
+},
+{
+"page": "Label planning",
+"title": "Why the judge's uncertain cases come first",
+"href": "ref-sampling.html#why-the-judge-s-uncertain-cases-come-first",
+"text": "Within each stratum the plan sorts by the judge's own confidence and takes the least confident first. Nineteen of the forty above were chosen that way. The reasoning is that a label is worth what it changes. A case the judge scored 0.98 will almost certainly agree with you, and confirms what you already believed. A case it scored 0.51 is where two candidate rubrics give different answers, so label"
+},
+{
+"page": "Label planning",
+"title": "The same plan every time",
+"href": "ref-sampling.html#the-same-plan-every-time",
+"text": "Ties break on sha256(seed + example_id) rather than on list order or a random draw. So the same run and the same budget produce the same forty on any machine, in any order the scores arrived, and a plan can be regenerated without re-labelling anything. A labelling plan that shuffles when you re-run it is a plan nobody can pick up halfway. The open question, and it is a real one Each selected row c"
+},
+{
+"page": "Label planning",
+"title": "What the reasons mean",
+"href": "ref-sampling.html#what-the-reasons-mean",
+"text": "Every selected row says why it was picked, because a person labelling forty things deserves to know which ones are load-bearing. Reason Means judge was unsure Low confidence, and in the first half of its stratum. These are the ones most likely to change a rubric stratum coverage (fail) Here to keep the flagged stratum full, which is what holds the catch rate up stratum coverage (pass) Here to keep"
+},
+{
+"page": "Label planning",
+"title": "What we deliberately do not do",
+"href": "ref-sampling.html#what-we-deliberately-do-not-do",
+"text": "No adaptive re-planning mid-budget. The plan is computed once from the scores. Choosing the next example based on labels already given would be closer to real active learning and would make the sample even harder to reason about statistically than it already is. No stratification on anything but the judge's verdict. Not topic, not length, not customer. Those are the slice dimensions the taxonomy r"
+},
+{
+"page": "Label planning",
+"title": "Further reading",
+"href": "ref-sampling.html#further-reading",
+"text": "Cochran (1977), Sampling Techniques , 3rd ed., chapter 5. Stratified random sampling, including the arithmetic for why unequal allocation beats proportional allocation when one stratum is both small and important, which is precisely the flagged stratum here. Chapter 5A covers the estimator that would apply if selection within strata were random. Read it alongside #60 , because it is the design we "
 },
 {
 "page": "Disagreement taxonomy",

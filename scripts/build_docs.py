@@ -53,6 +53,7 @@ NAV = (
             ("concepts.html", "Concepts"),
             ("ref-agreement.html", "Agreement and kappa"),
             ("ref-taxonomy.html", "Disagreement taxonomy"),
+            ("ref-sampling.html", "Label planning"),
             ("ref-compare.html", "Comparing two arms"),
         ),
     ),
@@ -1097,7 +1098,8 @@ interval does not clear the base rate.
 <h3>Label planning</h3>
 <p>Choosing which examples are worth a person's ten minutes. Sampling at random on a suite where the
 judge flags 15% wastes most of the budget confirming passes, so the plan takes every flagged example
-plus a sample of the rest, and prefers cases the judge was unsure about.</p>
+plus a sample of the rest, and prefers cases the judge was unsure about.
+<a href="ref-sampling.html">Full page</a>.</p>
 
 <h2>Experiments: did the change help</h2>
 
@@ -1722,6 +1724,148 @@ confirmed, a section is what is cited.</p>
 """
 
 
+REF_SAMPLING = """
+<div class="eyebrow">Reference</div>
+<h1>Label planning</h1>
+<p class="lede">Which forty examples a person should spend their ten minutes on, why it is not a
+random forty, and the open question about what those labels can then be used to claim.</p>
+
+<div class="worked">
+  <span class="k">The worked example</span>
+  <p>Ninety scored examples. The judge failed fifteen of them. You have time for forty labels.</p>
+<pre><code>  langchef label plan --budget 40
+
+  selected 40 of 90
+    fail stratum   15   (every one the judge flagged)
+    pass stratum   25
+  19 of the 40 chosen because the judge was unsure</code></pre>
+</div>
+
+<h2>Why not just take forty at random</h2>
+
+<p>Because of where the information is. Pick forty of these ninety at random and you would expect
+about <strong>6.7</strong> of them to be examples the judge flagged. Your entire catch rate would
+rest on six or seven labels, and its interval would be so wide the number could not support a
+decision.</p>
+
+<p>Stratifying by the judge's own verdict takes <strong>all fifteen</strong> instead. Same ten
+minutes, same forty labels, and the number you most need is measured on more than twice the
+evidence.</p>
+
+<p>That gap widens sharply as suites get more realistic. On a production suite where the judge flags
+<strong>2%</strong>, a random forty contains fewer than one flagged example on average. The catch
+rate is not merely imprecise, it does not exist.</p>
+
+<h2>Why the judge's uncertain cases come first</h2>
+
+<p>Within each stratum the plan sorts by the judge's own confidence and takes the least confident
+first. Nineteen of the forty above were chosen that way.</p>
+
+<p>The reasoning is that a label is worth what it changes. A case the judge scored 0.98 will almost
+certainly agree with you, and confirms what you already believed. A case it scored 0.51 is where two
+candidate rubrics give different answers, so labelling it settles something.</p>
+
+<p>This is uncertainty sampling, the oldest idea in active learning, and it is very good at the job
+it is built for: <strong>improving the instrument</strong>. Keep that phrase, because the rest of
+this page turns on it.</p>
+
+<h2>The same plan every time</h2>
+
+<p>Ties break on <code>sha256(seed + example_id)</code> rather than on list order or a random draw.
+So the same run and the same budget produce the same forty on any machine, in any order the scores
+arrived, and a plan can be regenerated without re-labelling anything. A labelling plan that
+shuffles when you re-run it is a plan nobody can pick up halfway.</p>
+
+<div class="callout warn">
+  <span class="k">The open question, and it is a real one</span>
+  <p>Each selected row carries a <code>weight</code>, the stratum size over the number taken. It
+  looks like an inclusion weight, the kind that lets you scale a sample back up to the population.
+  <strong>It is not one, and the rates on the calibration report are not population estimates.</strong></p>
+  <p>The reason is on this page. Selection inside a stratum is not random: it takes the lowest
+  confidence rows deterministically. So a row's chance of being picked is 0 or 1 given its
+  confidence rank, not <code>n/N</code>. Post-stratification cannot repair that, because the
+  selection tracks the very thing being estimated, and confidence tracks disagreement almost by
+  definition.</p>
+  <p>A seeded coverage simulation contributed on
+  <a href="@@repo@@/issues/30">#30</a> put a nominal 95% interval at <strong>43% actual coverage for
+  the catch rate</strong>, and at 100% for the true negative rate, which is the opposite failure and
+  just as useless.</p>
+  <p><strong>Read the calibration numbers as describing the forty examples you labelled</strong>,
+  not as an estimate of your whole suite. The underlying question is whether one label budget can
+  buy estimation and diagnosis at once, and it is open at
+  <a href="@@repo@@/issues/60">#60</a>. It probably cannot, in which case the plan splits into a
+  random part for measuring and an uncertainty-selected part for diagnosing.</p>
+</div>
+
+<h2>What the reasons mean</h2>
+
+<p>Every selected row says why it was picked, because a person labelling forty things deserves to
+know which ones are load-bearing.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Reason</th><th>Means</th></tr></thead>
+<tbody>
+<tr><td><code>judge was unsure</code></td><td>Low confidence, and in the first half of its stratum. These are the ones most likely to change a rubric</td></tr>
+<tr><td><code>stratum coverage (fail)</code></td><td>Here to keep the flagged stratum full, which is what holds the catch rate up</td></tr>
+<tr><td><code>stratum coverage (pass)</code></td><td>Here to keep the false alarm rate measurable</td></tr>
+</tbody></table></div>
+
+<div class="incode">
+  <div>Computed in <b>src/langchef/core/sampling.py</b></div>
+  <div><b>plan()</b> the split, the ordering, and the weight on each row</div>
+  <div><b>_tiebreak()</b> hashed ordering, so the plan is stable across machines</div>
+  <div><b>summarise()</b> what the plan did, for the person about to label</div>
+</div>
+
+<h2>What we deliberately do not do</h2>
+
+<ul>
+  <li><strong>No adaptive re-planning mid-budget.</strong> The plan is computed once from the scores.
+  Choosing the next example based on labels already given would be closer to real active learning
+  and would make the sample even harder to reason about statistically than it already is.</li>
+  <li><strong>No stratification on anything but the judge's verdict.</strong> Not topic, not length,
+  not customer. Those are the slice dimensions the <a href="ref-taxonomy.html">taxonomy</a> reports
+  along, and stratifying on the same axis you later test for concentration would bias the test.</li>
+  <li><strong>No more than two strata.</strong> Verdicts are pass or fail here. Task classes with
+  ordered or multi-class labels need a different design, which is part of the open work.</li>
+  <li><strong>No estimate of how many labels you need.</strong> The plan spends the budget you give
+  it. Whether forty is enough for the claim you want to make is exactly what
+  <a href="@@repo@@/issues/60">#60</a> is about, and the honest answer today is that we do not
+  know.</li>
+</ul>
+
+<h2>Further reading</h2>
+
+<ul class="reading">
+  <li><strong>Cochran (1977), <em>Sampling Techniques</em>, 3rd ed., chapter 5.</strong> Stratified
+  random sampling, including the arithmetic for why unequal allocation beats proportional allocation
+  when one stratum is both small and important, which is precisely the flagged stratum here. Chapter
+  5A covers the estimator that would apply if selection within strata were random. Read it alongside
+  <a href="@@repo@@/issues/60">#60</a>, because it is the design we may be moving toward.</li>
+
+  <li><strong>Settles (2009), "Active Learning Literature Survey", University of Wisconsin–Madison
+  Computer Sciences Technical Report 1648.</strong> The standard reference for why you would pick
+  uncertain cases at all. The uncertainty sampling section is the direct precedent for what
+  <code>plan()</code> does. Worth reading with the tension on this page in mind: that literature is
+  about training a better model, not about producing an unbiased estimate of how good one is, and
+  those goals pull in opposite directions.
+  <span class="where">Open PDF: minds.wisconsin.edu/bitstream/handle/1793/60660/TR1648.pdf</span></li>
+
+  <li><strong>Kish (1965), <em>Survey Sampling</em>.</strong> The origin of the design effect and the
+  effective sample size that a weighted sample carries. Relevant here mostly as a caution: the
+  Kish-effective interval was the first thing tried for this problem and it failed its coverage
+  check badly, which is documented on <a href="@@repo@@/issues/30">#30</a>.</li>
+
+  <li><strong>Brown, Cai and DasGupta (2001).</strong> The interval used on whatever sample you end
+  up with, covered on the
+  <a href="ref-agreement.html#the-interval-and-why-wilson">agreement page</a>.</li>
+</ul>
+
+<p class="dim">Citations verified against publisher records. Where only a section could be
+confirmed, a section is what is cited.</p>
+"""
+
+
 CLI = """
 <div class="eyebrow">Reference</div>
 <h1>Commands</h1>
@@ -2104,6 +2248,13 @@ def build() -> dict[str, str]:
             fill(REF_TAXONOMY, common),
             "Where a judge disagrees rather than how often: misses against false alarms, which "
             "criterion is at fault, and why the tool refuses to name the worst-looking slice.",
+        ),
+        "ref-sampling.html": shell(
+            "ref-sampling.html",
+            "Label planning — LangChef",
+            fill(REF_SAMPLING, common),
+            "Which forty examples are worth a person's ten minutes, why it is not a random forty, "
+            "and the open question about what those labels can be used to claim.",
         ),
         "ref-compare.html": shell(
             "ref-compare.html",
