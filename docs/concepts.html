@@ -47,6 +47,7 @@
     <li><a href="ref-taxonomy.html">Disagreement taxonomy</a></li>
     <li><a href="ref-sampling.html">Label planning</a></li>
     <li><a href="ref-judging.html">Judging and pins</a></li>
+    <li><a href="ref-design.html">Designing a run</a></li>
     <li><a href="ref-compare.html">Comparing two arms</a></li>
   </ul>
   <h4>Project</h4>
@@ -172,7 +173,7 @@ independent samples throws that away and real regressions come back as noise.
 <p>The smallest change your run could have caught. Quoted on every inconclusive result, because "no
 significant difference" on ninety examples usually means "this set could never have seen it". It
 turns a shrug into a plan: collect more, or accept the limit knowingly.
-<a href="ref-compare.html#the-smallest-change-you-could-have-seen">More</a>.</p>
+<a href="ref-compare.html#the-smallest-change-you-could-have-seen">More</a>, and how a run is <a href="ref-design.html">designed around it</a>.</p>
 
 <h3 id="non-inferiority-and-the-margin">Non-inferiority and the margin</h3>
 <p>Swapping in a cheaper model is not a hunt for an improvement, it is a check that the drop stays
@@ -186,7 +187,7 @@ margin, not the middle. Deciding the margin afterwards is how a null result beco
 <p>The experiment design, written to <code>evals/experiments/</code> and approved by a person before
 any traffic. It carries a content hash, so editing it afterwards revokes the approval on its own.
 Reading out without one exits 2; reading out a run that departed from one marks the result
-exploratory and recommends no decision.</p>
+exploratory and recommends no decision. <a href="ref-design.html#approval-and-why-editing-revokes-it">Full page</a>.</p>
 
 <h3 id="gates-as-exit-codes">Gates as exit codes</h3>
 <p>A rule in a prompt is a suggestion. These are exit codes: <code>2</code> refused because an

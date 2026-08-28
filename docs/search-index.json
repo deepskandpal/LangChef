@@ -153,7 +153,7 @@
 "page": "Concepts",
 "title": "Minimum detectable effect",
 "href": "concepts.html#minimum-detectable-effect",
-"text": "The smallest change your run could have caught. Quoted on every inconclusive result, because \"no significant difference\" on ninety examples usually means \"this set could never have seen it\". It turns a shrug into a plan: collect more, or accept the limit knowingly. More ."
+"text": "The smallest change your run could have caught. Quoted on every inconclusive result, because \"no significant difference\" on ninety examples usually means \"this set could never have seen it\". It turns a shrug into a plan: collect more, or accept the limit knowingly. More , and how a run is designed around it ."
 },
 {
 "page": "Concepts",
@@ -171,7 +171,7 @@
 "page": "Concepts",
 "title": "Pre-registration",
 "href": "concepts.html#pre-registration",
-"text": "The experiment design, written to evals/experiments/ and approved by a person before any traffic. It carries a content hash, so editing it afterwards revokes the approval on its own. Reading out without one exits 2; reading out a run that departed from one marks the result exploratory and recommends no decision."
+"text": "The experiment design, written to evals/experiments/ and approved by a person before any traffic. It carries a content hash, so editing it afterwards revokes the approval on its own. Reading out without one exits 2; reading out a run that departed from one marks the result exploratory and recommends no decision. Full page ."
 },
 {
 "page": "Concepts",
@@ -532,6 +532,60 @@
 "title": "Further reading",
 "href": "ref-compare.html#further-reading",
 "text": "Dietterich (1998), \"Approximate Statistical Tests for Comparing Supervised Classification Learning Algorithms\", Neural Computation 10(7), 1895–1923. The closest thing to a direct precedent for what compare does: five candidate tests for deciding whether one system beats another on the same data, evaluated for how often they claim a difference that is not there. Read it before changing the test. do"
+},
+{
+"page": "Designing a run",
+"title": "Designing a run",
+"href": "ref-design.html",
+"text": "You are the diner, not the chef. Something else works out what the experiment has to be, what it will cost and what it can and cannot see. You order it, or you do not."
+},
+{
+"page": "Designing a run",
+"title": "Why two candidates and not one answer",
+"href": "ref-design.html#why-two-candidates-and-not-one-answer",
+"text": "The first design uses the goldens you have and tells you what they can resolve. The second exists only when you named a target the first cannot reach. The second is usually the more useful, because \"you need 628 examples and you have 90\" is an answer, where a shrug is not. The common failure without it is running the underpowered version, getting \"no significant difference\", and reading that as \"n"
+},
+{
+"page": "Designing a run",
+"title": "The number that governs everything",
+"href": "ref-design.html#the-number-that-governs-everything",
+"text": "How many goldens you need is driven by how small an effect you want to see, and the relationship is brutal: detect 20.0% -> n = 40 detect 10.0% -> n = 157 detect 5.0% -> n = 628 detect 2.5% -> n = 2512 Halving the effect you want to detect costs roughly four times the examples. That is not a property of this tool, it is the shape of the arithmetic, and it is why \"just collect more goldens\" stops b"
+},
+{
+"page": "Designing a run",
+"title": "What a design actually fixes",
+"href": "ref-design.html#what-a-design-actually-fixes",
+"text": "Everything that could otherwise be decided after seeing the result. Field Why it is decided in advance n , mde So \"inconclusive\" can be read as \"this could never have seen it\" rather than \"no effect\" margin A non-inferiority tolerance chosen after seeing the interval is not a tolerance, it is a rationalisation stopping_rule Score everything, read out once. Stopping early when it looks good is the "
+},
+{
+"page": "Designing a run",
+"title": "Non-inferiority needs its margin up front, and refuses without one",
+"href": "ref-design.html#non-inferiority-needs-its-margin-up-front-and-refuses-without-one",
+"text": "Ask for a non-inferiority design without a margin and it will not produce one: a non-inferiority design needs --margin: how much quality you are willing to lose. Deciding it after the run is not a design. With a three point margin on 90 goldens you get the same two-candidate shape, and a second caveat worth reading twice: [as-it-stands] n=90 detects 13.2% ! Quality holds only if the whole interval"
+},
+{
+"page": "Designing a run",
+"title": "Approval, and why editing revokes it",
+"href": "ref-design.html#approval-and-why-editing-revokes-it",
+"text": "An approved design is a TOML file in evals/experiments/ . Its digest is computed over the body excluding the [approval] block, so: approving adds a block without changing what was approved editing any part of the design afterwards changes the digest and revokes the approval automatically , with nobody having to notice You cannot widen a margin or drop a guardrail after seeing the numbers and still"
+},
+{
+"page": "Designing a run",
+"title": "The gates, as exit codes",
+"href": "ref-design.html#the-gates-as-exit-codes",
+"text": "A rule in a prompt is a suggestion. An agent can talk itself past one. These are exit codes. Code When What it means 2 reading out with no approved design, or with more than one run matching an arm Refused. Reading out whichever run ran last is how an experiment gets repeated until it says something better 5 the two runs were produced under different pins Refused. You would be comparing two rulers"
+},
+{
+"page": "Designing a run",
+"title": "What we deliberately do not do",
+"href": "ref-design.html#what-we-deliberately-do-not-do",
+"text": "No sequential or always-valid designs. The stopping rule is score everything, read out once. Peeking and stopping when it looks good inflates the false positive rate badly. Always-valid confidence sequences are the real answer to this and are not built. No multi-arm designs. Two arms at a time. Sweeping five variants and reporting the winner without correction finds effects that are not there. No "
+},
+{
+"page": "Designing a run",
+"title": "Further reading",
+"href": "ref-design.html#further-reading",
+"text": "Nosek, Ebersole, DeHaven and Mellor (2018), \"The preregistration revolution\", PNAS 115(11), 2600–2606. The argument for why the approval step exists at all: the distinction between generating a hypothesis from observations and testing one with new observations is not respected in practice, and the cost is credibility. Open access, and short. doi:10.1073/pnas.1708274114 Kohavi, Tang and Xu (2020), "
 },
 {
 "page": "Judging and pins",

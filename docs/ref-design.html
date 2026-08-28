@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Designing a run — LangChef</title>
+<meta name="description" content="How the experiment is worked out before you run it: how many goldens, what it can and cannot see, what it costs, and why editing an approved design revokes it.">
+<meta property="og:title" content="Designing a run — LangChef">
+<meta property="og:description" content="How the experiment is worked out before you run it: how many goldens, what it can and cannot see, what it costs, and why editing an approved design revokes it.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=Spectral:ital,wght@0,600;1,400&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="shell">
+    <a class="wordmark" href="index.html"><span class="dot"></span>LangChef</a>
+    <nav class="topnav">
+      <a href="index.html">Guide</a>
+      <a href="concepts.html" class="here">Reference</a>
+      <a href="cli.html">Project</a>
+      <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="shell layout">
+<nav class="sidebar" aria-label="Documentation">
+  <form class="search" role="search" onsubmit="return false">
+    <input id="q" type="search" placeholder="Search docs" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+  </form>
+  <div id="results" hidden></div>
+  <div id="nav">
+  <h4>Guide</h4>
+  <ul>
+    <li><a href="index.html">Overview</a></li>
+    <li><a href="start.html">Start here</a></li>
+    <li><a href="numbers.html">Reading the output</a></li>
+  </ul>
+  <h4>Reference</h4>
+  <ul>
+    <li><a href="concepts.html">Concepts</a></li>
+    <li><a href="ref-agreement.html">Agreement and kappa</a></li>
+    <li><a href="ref-taxonomy.html">Disagreement taxonomy</a></li>
+    <li><a href="ref-sampling.html">Label planning</a></li>
+    <li><a href="ref-judging.html">Judging and pins</a></li>
+    <li><a href="ref-design.html" aria-current="page">Designing a run</a></li>
+    <li><a href="ref-compare.html">Comparing two arms</a></li>
+  </ul>
+  <h4>Project</h4>
+  <ul>
+    <li><a href="cli.html">Commands</a></li>
+    <li><a href="integrations.html">Integrations</a></li>
+  </ul>
+  <h4>In the repository</h4>
+  <ul>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/docs/AGENT-CONTRACT.md">Agent contract</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/DECISIONS.md">Decisions</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/AGENTS.md">Working agreement</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/dogfood/README.md">Dogfood</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/issues">Issues</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef">Source on GitHub</a></li>
+  </ul>
+  </div>
+</nav>
+
+<main>
+
+<div class="eyebrow">Reference</div>
+<h1>Designing a run</h1>
+<p class="lede">You are the diner, not the chef. Something else works out what the experiment has to
+be, what it will cost and what it can and cannot see. You order it, or you do not.</p>
+
+<div class="worked">
+  <span class="k">The worked example</span>
+  <p>You want to move to the replacement model. You have 90 goldens. You ask for a design and say
+  you care about a five point change.</p>
+<pre><code>  langchef experiment design --suite support --target-effect 0.05
+
+  [as-it-stands]   n=90    detects 13.2%    90 calls, $0.04
+    ! These goldens cannot resolve 5.0%. The smallest effect this design
+      could detect is 13.2%; a real change below that comes back inconclusive.
+
+  [powered]        n=628   detects  5.0%   628 calls, $0.25
+    ! Needs 538 more goldens than the suite has (90). Collect them before
+      running, or accept the detection limit of the design above.</code></pre>
+  <p>Neither of those is a refusal. They are two honest orders, and picking the first one knowingly
+  is a perfectly good decision. Picking it <em>without knowing</em> is the thing this prevents.</p>
+</div>
+
+<h2 id="why-two-candidates-and-not-one-answer">Why two candidates and not one answer</h2>
+
+<p>The first design uses the goldens you have and tells you what they can resolve. The second exists
+only when you named a target the first cannot reach.</p>
+
+<p>The second is usually the more useful, because <strong>"you need 628 examples and you have 90" is
+an answer, where a shrug is not.</strong> The common failure without it is running the underpowered
+version, getting "no significant difference", and reading that as "no difference". Those are not the
+same sentence.</p>
+
+<h2 id="the-number-that-governs-everything">The number that governs everything</h2>
+
+<p>How many goldens you need is driven by how small an effect you want to see, and the relationship
+is brutal:</p>
+
+<pre><code>  detect 20.0%   ->  n =    40
+  detect 10.0%   ->  n =   157
+  detect  5.0%   ->  n =   628
+  detect  2.5%   ->  n =  2512</code></pre>
+
+<p><strong>Halving the effect you want to detect costs roughly four times the examples.</strong>
+That is not a property of this tool, it is the shape of the arithmetic, and it is why "just collect
+more goldens" stops being advice quite quickly.</p>
+
+<p>These are computed from the <em>discordant</em> rate, not the pass rate, because the comparison
+is paired: only examples that change verdict carry information. With no prior comparison to learn
+from, 20% is assumed and the design says so in <code>discordance_source</code>. Run the same arms
+once and the next design uses your real rate instead of the assumption.</p>
+
+<h2 id="what-a-design-actually-fixes">What a design actually fixes</h2>
+
+<p>Everything that could otherwise be decided after seeing the result.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Field</th><th>Why it is decided in advance</th></tr></thead>
+<tbody>
+<tr><td><code>n</code>, <code>mde</code></td><td>So "inconclusive" can be read as "this could never have seen it" rather than "no effect"</td></tr>
+<tr><td><code>margin</code></td><td>A non-inferiority tolerance chosen after seeing the interval is not a tolerance, it is a rationalisation</td></tr>
+<tr><td><code>stopping_rule</code></td><td>Score everything, read out once. Stopping early when it looks good is the most common way an experiment reports an effect that is not there</td></tr>
+<tr><td><code>guardrails</code></td><td>What must not get worse while you chase the thing you are chasing</td></tr>
+<tr><td><code>cost</code></td><td>In calls always, in money only if a price was configured. Inventing a price is worse than admitting the gap</td></tr>
+</tbody></table></div>
+
+<h2 id="non-inferiority-needs-its-margin-up-front-and-refuses-without-one">Non-inferiority needs its margin up front, and refuses without one</h2>
+
+<p>Ask for a non-inferiority design without a margin and it will not produce one:</p>
+
+<pre><code>  a non-inferiority design needs --margin: how much quality you are
+  willing to lose. Deciding it after the run is not a design.</code></pre>
+
+<p>With a three point margin on 90 goldens you get the same two-candidate shape, and a second
+caveat worth reading twice:</p>
+
+<pre><code>  [as-it-stands]  n=90     detects 13.2%
+    ! Quality holds only if the whole interval clears −3.0%.
+      The point estimate is not the test.
+
+  [powered]       n=1745   detects  3.0%    $0.70</code></pre>
+
+<h2 id="approval-and-why-editing-revokes-it">Approval, and why editing revokes it</h2>
+
+<p>An approved design is a TOML file in <code>evals/experiments/</code>. Its digest is computed over
+the body <strong>excluding</strong> the <code>[approval]</code> block, so:</p>
+
+<ul>
+  <li>approving adds a block without changing what was approved</li>
+  <li><strong>editing any part of the design afterwards changes the digest and revokes the approval
+  automatically</strong>, with nobody having to notice</li>
+</ul>
+
+<p>You cannot widen a margin or drop a guardrail after seeing the numbers and still hold an
+approval. That is the whole mechanism, and it is about eight lines of code.</p>
+
+<h2 id="the-gates-as-exit-codes">The gates, as exit codes</h2>
+
+<p>A rule in a prompt is a suggestion. An agent can talk itself past one. These are exit codes.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Code</th><th>When</th><th>What it means</th></tr></thead>
+<tbody>
+<tr><td class="num"><strong>2</strong></td><td>reading out with no approved design, or with more than one run matching an arm</td><td>Refused. Reading out whichever run ran last is how an experiment gets repeated until it says something better</td></tr>
+<tr><td class="num"><strong>5</strong></td><td>the two runs were produced under different pins</td><td>Refused. You would be comparing two rulers, not two systems</td></tr>
+<tr><td class="num"><strong>4</strong></td><td>the agreed call budget ran out</td><td>Stopped. What was left unscored is written to <code>undone.json</code></td></tr>
+</tbody></table></div>
+
+<p><code>experiment check</code> answers the question in between: does the run I have actually match
+the design that was approved. A run that departed from its design is marked exploratory and
+recommends no decision, rather than being quietly reported as a result.</p>
+
+<div class="incode">
+  <div><b>src/langchef/core/design.py</b> — <b>propose()</b>, <b>required_n()</b>, <b>estimate_cost()</b></div>
+  <div><b>src/langchef/workspace/experiments.py</b> — the TOML, and <b>digest()</b> over the body without the approval</div>
+  <div><b>src/langchef/cli/design_cmd.py</b> — design, approve, check, readout, list</div>
+  <div><b>src/langchef/core/gates.py</b> — gate one on the rubric, gate two on the experiment</div>
+</div>
+
+<h2 id="what-we-deliberately-do-not-do">What we deliberately do not do</h2>
+
+<ul>
+  <li><strong>No sequential or always-valid designs.</strong> The stopping rule is score everything,
+  read out once. Peeking and stopping when it looks good inflates the false positive rate badly.
+  Always-valid confidence sequences are the real answer to this and are not built.</li>
+  <li><strong>No multi-arm designs.</strong> Two arms at a time. Sweeping five variants and
+  reporting the winner without correction finds effects that are not there.</li>
+  <li><strong>No automatic approval.</strong> An agent can produce and check a design. It cannot
+  approve one. The approval is the point where a person accepts a cost and a claim, and automating
+  it would remove the only human step in the loop.</li>
+  <li><strong>No cost model beyond calls times a price you supply.</strong> No token estimation, no
+  provider price list to go stale. <code>usd</code> is <code>None</code> until you configure a
+  price, and every caller has to cope with that rather than being handed a made-up number.</li>
+  <li><strong>The <code>feasible</code> flag is not "can I run this".</strong> It means the required
+  n is under 100,000, so a design needing 628 goldens when you have 90 still reports
+  <code>feasible: true</code>. The caveats carry the real constraint. If you are reading the JSON
+  rather than the prose, read <code>caveats</code> and compare <code>required_n</code> against
+  <code>n_available</code> yourself.</li>
+</ul>
+
+<h2 id="further-reading">Further reading</h2>
+
+<ul class="reading">
+  <li><strong>Nosek, Ebersole, DeHaven and Mellor (2018), "The preregistration revolution",
+  <em>PNAS</em> 115(11), 2600–2606.</strong> The argument for why the approval step exists at all:
+  the distinction between generating a hypothesis from observations and testing one with new
+  observations is not respected in practice, and the cost is credibility. Open access, and short.
+  <span class="where">doi:10.1073/pnas.1708274114</span></li>
+
+  <li><strong>Kohavi, Tang and Xu (2020), <em>Trustworthy Online Controlled Experiments</em>,
+  chapter 17.</strong> Power and sample size as practitioners actually meet them. The earlier
+  chapters on trustworthiness are the reason the gates here are exit codes rather than advice.</li>
+
+  <li><strong>Cohen (1988), <em>Statistical Power Analysis for the Behavioral Sciences</em>,
+  chapters 1 and 6.</strong> The ground under <code>required_n()</code>. Chapter 1 is worth reading
+  once even if you never touch the formula.</li>
+
+  <li><strong>The arithmetic itself</strong> lives on the
+  <a href="ref-compare.html#the-smallest-change-you-could-have-seen">comparison page</a>. This page
+  is about the process around it; that one is about the numbers.</li>
+</ul>
+
+<p class="dim">Citations verified against publisher records. Where only a section could be
+confirmed, a section is what is cited.</p>
+
+</main>
+</div>
+
+<footer class="site">
+  <div class="shell">
+    <span>LangChef 0.1.0 — Apache-2.0</span>
+    <span>An installed eval engineer.</span>
+    <span><a href="https://github.com/deepskandpal/LangChef">Source</a></span>
+    <span>&copy; 2026 Deepak Kandpal</span>
+  </div>
+</footer>
+<script src="search.js" defer></script>
+</body>
+</html>
