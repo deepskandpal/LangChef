@@ -537,61 +537,97 @@
 "page": "Designing a run",
 "title": "Designing a run",
 "href": "ref-design.html",
-"text": "You are the diner, not the chef. Something else works out what the experiment has to be, what it will cost and what it can and cannot see. You order it, or you do not."
+"text": "The experiment lifecycle in full: design, approve, check, read out. Every output on this page is real, captured from a workspace built from scratch, including the refusals."
 },
 {
 "page": "Designing a run",
 "title": "Where this sits in a whole run",
 "href": "ref-design.html#where-this-sits-in-a-whole-run",
-"text": "Designing is step nine of thirteen, and the eight before it exist to make it meaningful. The sequence, with the page that owns each part: Command What it is for 1 langchef init Scaffold the workspace 2 collect examples 50–100 from real traffic. Walked through in Start here 3 write the rubric What \"good\" means, one ### per criterion. Judging 4 langchef approve rubric Gate one. Without it, judging r"
+"text": "Designing is step nine of thirteen, and the eight before it are what make it mean anything. Command What it is for 1 langchef init Scaffold the workspace 2 collect examples 50–100 from real traffic 3 write the rubric Judging and pins 4 langchef approve rubric Gate one. Judging refuses at exit 2 without it 5 langchef judge run Judging and pins 6 langchef label plan Label planning 7 label them yours"
+},
+{
+"page": "Designing a run",
+"title": "Step 9 — design",
+"href": "ref-design.html#step-9-design",
+"text": "You have 90 goldens, a scored baseline, and you want to move to the replacement model. You care about a five point change. langchef experiment design --suite support --variant-arm variant --intent \"move to the replacement model\" --target-effect 0.05 --id model-swap Prose to stderr, for you: 2 candidate design(s) for support: move to the replacement model -> as-it-stands n=90 detects >=13.2% 0 judg"
+},
+{
+"page": "Designing a run",
+"title": "What it writes",
+"href": "ref-design.html#what-it-writes",
+"text": "A TOML file in evals/experiments/ , reviewed like code: # LangChef pre-registration. # # Written before the run and reviewed like code. Editing anything below # changes the digest and revokes the approval, which is the point: an # experiment whose design moved after the traffic is not an experiment. [experiment] baseline_arm = \"baseline\" variant_arm = \"variant\" hypothesis = \"move to the replacemen"
+},
+{
+"page": "Designing a run",
+"title": "Step 10 — approve, which is gate two",
+"href": "ref-design.html#step-10-approve-which-is-gate-two",
+"text": "Try to read out first and you get refused, at exit 2 : langchef experiment readout model-swap # exit 2 langchef: refused — an approval gate is unmet — experiment model-swap has not been approved — review the design, then run: langchef experiment approve model-swap Approving appends a block and nothing else: [approval] digest = \"3f1053d32846\" at = \"2026-08-28T17:16:21+00:00\" by = \"human\" That diges"
+},
+{
+"page": "Designing a run",
+"title": "Editing it afterwards revokes it, with nobody watching",
+"href": "ref-design.html#editing-it-afterwards-revokes-it-with-nobody-watching",
+"text": "Change one number in the design and leave the approval block alone: -target_effect = 0.05 +target_effect = 0.15 langchef experiment readout model-swap # exit 2 langchef: refused — an approval gate is unmet — the design for model-swap changed since it was approved (3f1053d32846 -> 510086cece38). Re-read it, then run: langchef experiment approve model-swap It names both digests. You cannot widen a m"
+},
+{
+"page": "Designing a run",
+"title": "Step 11 — score the other arm",
+"href": "ref-design.html#step-11-score-the-other-arm",
+"text": "langchef judge run --suite support --arm variant --run-id var-1 --experiment model-swap judge: n=90 provider_calls=24 cache_hits=66 cache_misses=24 fail=42 pass=48 fail_rate=0.467 budget_exhausted=False unscored=0 24 calls, 66 cache hits. Only the answers that actually changed needed judging, because verdicts are content-addressed on the example and the rubric. How the key works . --experiment lin"
+},
+{
+"page": "Designing a run",
+"title": "Step 12 — read out",
+"href": "ref-design.html#step-12-read-out",
+"text": "langchef experiment readout model-swap # exit 0 readout for model-swap@3f1053d32846 on 90 shared golden(s) difference -26.7% [-35.6%, -17.8%] REGRESSION -> evals/runs/var-1/readout.json The JSON an agent reads carries the working, not only the verdict: { \"experiment_id\": \"model-swap\", \"design_digest\": \"3f1053d32846\", \"baseline_run\": \"base-1\", \"baseline_rate\": 0.8, \"difference\": -0.2666666666666667"
+},
+{
+"page": "Designing a run",
+"title": "experiment check and list",
+"href": "ref-design.html#experiment-check-and-list",
+"text": "check answers \"does what I have match what was registered\", and reports rather than decides: langchef experiment check model-swap # exit 0 model-swap@3f1053d32846: approved the run matches the pre-registration langchef experiment list 1 pre-registration(s) model-swap approved n=90 A known gap in check Run check against an experiment whose variant arm was never scored at all and it still reports th"
 },
 {
 "page": "Designing a run",
 "title": "Why two candidates and not one answer",
 "href": "ref-design.html#why-two-candidates-and-not-one-answer",
-"text": "The first design uses the goldens you have and tells you what they can resolve. The second exists only when you named a target the first cannot reach. The second is usually the more useful, because \"you need 628 examples and you have 90\" is an answer, where a shrug is not. The common failure without it is running the underpowered version, getting \"no significant difference\", and reading that as \"n"
+"text": "The first uses the goldens you have and says what they can resolve. The second appears only when you named a target the first cannot reach, and it is usually the more useful, because \"you need 628 examples and you have 90\" is an answer, where a shrug is not. The failure without it is running the underpowered version, getting \"no significant difference\", and reading that as \"no difference\". Those a"
 },
 {
 "page": "Designing a run",
 "title": "The number that governs everything",
 "href": "ref-design.html#the-number-that-governs-everything",
-"text": "How many goldens you need is driven by how small an effect you want to see, and the relationship is brutal: detect 20.0% -> n = 40 detect 10.0% -> n = 157 detect 5.0% -> n = 628 detect 2.5% -> n = 2512 Halving the effect you want to detect costs roughly four times the examples. That is not a property of this tool, it is the shape of the arithmetic, and it is why \"just collect more goldens\" stops b"
+"text": "detect 20.0% -> n = 40 detect 10.0% -> n = 157 detect 5.0% -> n = 628 detect 2.5% -> n = 2512 Halving the effect you want to detect costs roughly four times the examples. That is the shape of the arithmetic rather than a property of this tool, and it is why \"collect more goldens\" stops being advice quite quickly. It is computed from the discordant rate, not the pass rate, because the comparison is"
 },
 {
 "page": "Designing a run",
-"title": "What a design actually fixes",
-"href": "ref-design.html#what-a-design-actually-fixes",
-"text": "Everything that could otherwise be decided after seeing the result. Field Why it is decided in advance n , mde So \"inconclusive\" can be read as \"this could never have seen it\" rather than \"no effect\" margin A non-inferiority tolerance chosen after seeing the interval is not a tolerance, it is a rationalisation stopping_rule Score everything, read out once. Stopping early when it looks good is the "
+"title": "What a design fixes, and why each one",
+"href": "ref-design.html#what-a-design-fixes-and-why-each-one",
+"text": "Field Why it is decided in advance n , mde So \"inconclusive\" reads as \"this could never have seen it\" rather than \"no effect\" margin A tolerance chosen after seeing the interval is not a tolerance, it is a rationalisation stopping_rule Score everything, read out once. Stopping early when it looks good is the most common way an experiment reports an effect that is not there guardrails What must not"
 },
 {
 "page": "Designing a run",
-"title": "Non-inferiority needs its margin up front, and refuses without one",
-"href": "ref-design.html#non-inferiority-needs-its-margin-up-front-and-refuses-without-one",
-"text": "Ask for a non-inferiority design without a margin and it will not produce one: a non-inferiority design needs --margin: how much quality you are willing to lose. Deciding it after the run is not a design. With a three point margin on 90 goldens you get the same two-candidate shape, and a second caveat worth reading twice: [as-it-stands] n=90 detects 13.2% ! Quality holds only if the whole interval"
-},
-{
-"page": "Designing a run",
-"title": "Approval, and why editing revokes it",
-"href": "ref-design.html#approval-and-why-editing-revokes-it",
-"text": "An approved design is a TOML file in evals/experiments/ . Its digest is computed over the body excluding the [approval] block, so: approving adds a block without changing what was approved editing any part of the design afterwards changes the digest and revokes the approval automatically , with nobody having to notice You cannot widen a margin or drop a guardrail after seeing the numbers and still"
+"title": "Non-inferiority refuses without a margin",
+"href": "ref-design.html#non-inferiority-refuses-without-a-margin",
+"text": "a non-inferiority design needs --margin: how much quality you are willing to lose. Deciding it after the run is not a design. With a three point margin on these 90 goldens you get the same two-candidate shape and a second caveat worth reading twice: [as-it-stands] n=90 detects 13.2% ! Quality holds only if the whole interval clears −3.0%. The point estimate is not the test. [powered] n=1745 detect"
 },
 {
 "page": "Designing a run",
 "title": "The gates, as exit codes",
 "href": "ref-design.html#the-gates-as-exit-codes",
-"text": "A rule in a prompt is a suggestion. An agent can talk itself past one. These are exit codes. Code When What it means 2 reading out with no approved design, or with more than one run matching an arm Refused. Reading out whichever run ran last is how an experiment gets repeated until it says something better 5 the two runs were produced under different pins Refused. You would be comparing two rulers"
+"text": "A rule in a prompt is a suggestion, and an agent can talk itself past one. These are exit codes. Code When Meaning 2 no approved design, the design moved since approval, or more than one run matches an arm Refused. Reading out whichever run ran last is how an experiment gets repeated until it says something better 5 the two runs were produced under different pins Refused. You would be comparing tw"
 },
 {
 "page": "Designing a run",
 "title": "What we deliberately do not do",
 "href": "ref-design.html#what-we-deliberately-do-not-do",
-"text": "No sequential or always-valid designs. The stopping rule is score everything, read out once. Peeking and stopping when it looks good inflates the false positive rate badly. Always-valid confidence sequences are the real answer to this and are not built. No multi-arm designs. Two arms at a time. Sweeping five variants and reporting the winner without correction finds effects that are not there. No "
+"text": "No sequential or always-valid designs. Score everything, read out once. Peeking and stopping when it looks good inflates the false positive rate badly. Always-valid confidence sequences are the real answer and are not built. No multi-arm designs. Two arms at a time. Sweeping five variants and reporting the winner without correction finds effects that are not there. No automatic approval. An agent "
 },
 {
 "page": "Designing a run",
 "title": "Further reading",
 "href": "ref-design.html#further-reading",
-"text": "Nosek, Ebersole, DeHaven and Mellor (2018), \"The preregistration revolution\", PNAS 115(11), 2600–2606. The argument for why the approval step exists at all: the distinction between generating a hypothesis from observations and testing one with new observations is not respected in practice, and the cost is credibility. Open access, and short. doi:10.1073/pnas.1708274114 Kohavi, Tang and Xu (2020), "
+"text": "Nosek, Ebersole, DeHaven and Mellor (2018), \"The preregistration revolution\", PNAS 115(11), 2600–2606. Why the approval step exists at all: the distinction between generating a hypothesis from observations and testing one with new observations is not respected in practice, and the cost is credibility. Open access, and short. doi:10.1073/pnas.1708274114 Kohavi, Tang and Xu (2020), Trustworthy Onlin"
 },
 {
 "page": "Judging and pins",

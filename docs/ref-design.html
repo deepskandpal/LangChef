@@ -71,145 +71,277 @@
 
 <div class="eyebrow">Reference</div>
 <h1>Designing a run</h1>
-<p class="lede">You are the diner, not the chef. Something else works out what the experiment has to
-be, what it will cost and what it can and cannot see. You order it, or you do not.</p>
+<p class="lede">The experiment lifecycle in full: design, approve, check, read out. Every output on
+this page is real, captured from a workspace built from scratch, including the refusals.</p>
 
-<div class="worked">
-  <span class="k">The worked example</span>
-  <p>You want to move to the replacement model. You have 90 goldens. You ask for a design and say
-  you care about a five point change.</p>
-<pre><code>  langchef experiment design --suite support --target-effect 0.05
-
-  [as-it-stands]   n=90    detects 13.2%    90 calls, $0.04
-    ! These goldens cannot resolve 5.0%. The smallest effect this design
-      could detect is 13.2%; a real change below that comes back inconclusive.
-
-  [powered]        n=628   detects  5.0%   628 calls, $0.25
-    ! Needs 538 more goldens than the suite has (90). Collect them before
-      running, or accept the detection limit of the design above.</code></pre>
-  <p>Neither of those is a refusal. They are two honest orders, and picking the first one knowingly
-  is a perfectly good decision. Picking it <em>without knowing</em> is the thing this prevents.</p>
-</div>
+<p><a href="start.html">Start here</a> walks the whole product in nine steps and spends about a
+minute on this part. This page is the other half: what each of these four commands actually writes,
+what it refuses and why, and what the file on disk looks like at every stage.</p>
 
 <h2 id="where-this-sits-in-a-whole-run">Where this sits in a whole run</h2>
 
-<p>Designing is step nine of thirteen, and the eight before it exist to make it meaningful. The
-sequence, with the page that owns each part:</p>
+<p>Designing is step nine of thirteen, and the eight before it are what make it mean anything.</p>
 
 <div class="scroller"><table>
 <thead><tr><th></th><th>Command</th><th>What it is for</th></tr></thead>
 <tbody>
 <tr><td class="num">1</td><td><code>langchef init</code></td><td>Scaffold the workspace</td></tr>
-<tr><td class="num">2</td><td>collect examples</td><td>50–100 from real traffic. <a href="start.html">Walked through in Start here</a></td></tr>
-<tr><td class="num">3</td><td>write the rubric</td><td>What "good" means, one <code>###</code> per criterion. <a href="ref-judging.html#the-rubric-is-the-definition-of-good">Judging</a></td></tr>
-<tr><td class="num">4</td><td><code>langchef approve rubric</code></td><td><strong>Gate one.</strong> Without it, judging refuses at exit 2</td></tr>
-<tr><td class="num">5</td><td><code>langchef judge run</code></td><td>Score every example. <a href="ref-judging.html">Judging and pins</a></td></tr>
-<tr><td class="num">6</td><td><code>langchef label plan</code></td><td>Which forty are worth your ten minutes. <a href="ref-sampling.html">Label planning</a></td></tr>
-<tr><td class="num">7</td><td>label them yourself</td><td>The only part nobody can automate for you</td></tr>
-<tr><td class="num">8</td><td><code>langchef calibrate report</code></td><td>Is the judge trustworthy. <a href="ref-agreement.html">Agreement</a> and <a href="ref-taxonomy.html">taxonomy</a></td></tr>
-<tr><td class="num"><strong>9</strong></td><td><strong><code>langchef experiment design</code></strong></td><td><strong>You are here.</strong> What the run has to be, and what it can see</td></tr>
-<tr><td class="num">10</td><td><code>langchef experiment approve</code></td><td><strong>Gate two.</strong> A person accepts the cost and the claim</td></tr>
-<tr><td class="num">11</td><td><code>langchef judge run --arm variant</code></td><td>Score the other arm, under the same pin</td></tr>
-<tr><td class="num">12</td><td><code>langchef experiment readout</code></td><td>The verdict, against the design. <a href="ref-compare.html">Comparing two arms</a></td></tr>
+<tr><td class="num">2</td><td>collect examples</td><td>50–100 from real traffic</td></tr>
+<tr><td class="num">3</td><td>write the rubric</td><td><a href="ref-judging.html#the-rubric-is-the-definition-of-good">Judging and pins</a></td></tr>
+<tr><td class="num">4</td><td><code>langchef approve rubric</code></td><td><strong>Gate one.</strong> Judging refuses at exit 2 without it</td></tr>
+<tr><td class="num">5</td><td><code>langchef judge run</code></td><td><a href="ref-judging.html">Judging and pins</a></td></tr>
+<tr><td class="num">6</td><td><code>langchef label plan</code></td><td><a href="ref-sampling.html">Label planning</a></td></tr>
+<tr><td class="num">7</td><td>label them yourself</td><td>The only part nobody can automate</td></tr>
+<tr><td class="num">8</td><td><code>langchef calibrate report</code></td><td><a href="ref-agreement.html">Agreement</a>, <a href="ref-taxonomy.html">taxonomy</a></td></tr>
+<tr><td class="num"><strong>9</strong></td><td><strong><code>experiment design</code></strong></td><td><strong>From here down is this page</strong></td></tr>
+<tr><td class="num"><strong>10</strong></td><td><strong><code>experiment approve</code></strong></td><td>Gate two</td></tr>
+<tr><td class="num"><strong>11</strong></td><td><code>judge run --arm variant</code></td><td>The other arm, same pin</td></tr>
+<tr><td class="num"><strong>12</strong></td><td><strong><code>experiment readout</code></strong></td><td><a href="ref-compare.html">Comparing two arms</a></td></tr>
 <tr><td class="num">13</td><td><code>langchef memo write</code></td><td>One page a person can disagree with</td></tr>
 </tbody></table></div>
 
-<p>Steps 3 to 8 are the part that has no equivalent in most eval tooling, and skipping them is what
-makes step 12 meaningless. <strong>If your task has a hard target</strong>, meaning you already know
-the right document or label, steps 3 to 8 do not apply to you at all and the run is 1, 2, 9 to 13.
-<a href="index.html#which-of-these-are-you">Which one am I?</a></p>
+<p><strong>If your task has a hard target</strong>, steps 3 to 8 do not apply and the run is 1, 2,
+then 9 to 13. <a href="index.html#which-of-these-are-you">Which one am I?</a></p>
 
-<p>For the same sequence as a worked tutorial with real output at every step, rather than as a map,
-read <a href="start.html">Start here</a>.</p>
+<h2 id="step-9-design">Step 9 — design</h2>
+
+<p>You have 90 goldens, a scored baseline, and you want to move to the replacement model. You care
+about a five point change.</p>
+
+<pre><code>langchef experiment design --suite support --variant-arm variant   --intent "move to the replacement model" --target-effect 0.05 --id model-swap</code></pre>
+
+<p>Prose to stderr, for you:</p>
+
+<pre><code>2 candidate design(s) for support: move to the replacement model
+ -&gt; as-it-stands   n=90     detects &gt;=13.2%    0 judge call(s)
+      note: These goldens cannot resolve 5.0%. The smallest effect this
+            design could detect is 13.2%; a real change below that will
+            come back inconclusive.
+    powered        n=628    detects &gt;=5.0%   538 judge call(s)
+      note: Needs 538 more golden(s) than the suite has (90). Collect them
+            before running, or accept the detection limit of the design above.</code></pre>
+
+<p>The arrow marks the one recorded. <code>--accept powered</code> records the other. Neither is a
+refusal: choosing the 13.2% design knowingly is a fine decision, and choosing it <em>without
+knowing</em> is the thing this prevents.</p>
+
+<h3 id="what-it-writes">What it writes</h3>
+
+<p>A TOML file in <code>evals/experiments/</code>, reviewed like code:</p>
+
+<pre><code># LangChef pre-registration.
+#
+# Written before the run and reviewed like code. Editing anything below
+# changes the digest and revokes the approval, which is the point: an
+# experiment whose design moved after the traffic is not an experiment.
+
+[experiment]
+baseline_arm = "baseline"
+variant_arm = "variant"
+hypothesis = "move to the replacement model"
+kind = "superiority"
+n = 90
+mde = 0.13206799371997818
+target_effect = 0.05
+power = 0.8
+level = 0.95
+discordance_assumed = 0.2
+discordance_source = "assumed default (20%) — no prior comparison here"
+rubric = "answer-quality@290335165c70"
+stopping_rule = "Score all 90 goldens in both arms, then read out once. No
+  interim looks: stopping early when a result looks good is the most common
+  way an experiment reports an effect that is not there."
+guardrails = [
+  "The rubric must still be answer-quality@290335165c70 at run time; a changed rubric revokes approval.",
+  "Both arms must be scored under the same pin, or compare exits 5.",
+  "Calibration must exist for this judge; a memo without it says so in full.",
+]
+
+[budget]
+judge_calls = 0
+source = "the design's own estimate"</code></pre>
+
+<p>There is no <code>[approval]</code> block yet. That is the next step and a separate one.</p>
+
+<div class="callout warn">
+  <span class="k">It will not overwrite one</span>
+  <p>Run the same command with the same <code>--id</code> again and it refuses:</p>
+  <pre><code>model-swap.toml already exists — pass a different --id, or delete it
+deliberately. Overwriting a pre-registration silently is how one stops
+meaning anything.</code></pre>
+</div>
+
+<h2 id="step-10-approve-which-is-gate-two">Step 10 — approve, which is gate two</h2>
+
+<p>Try to read out first and you get refused, at <strong>exit 2</strong>:</p>
+
+<pre><code>langchef experiment readout model-swap        # exit 2
+
+langchef: refused — an approval gate is unmet — experiment model-swap has not
+been approved — review the design, then run:
+  langchef experiment approve model-swap</code></pre>
+
+<p>Approving appends a block and nothing else:</p>
+
+<pre><code>[approval]
+digest = "3f1053d32846"
+at = "2026-08-28T17:16:21+00:00"
+by = "human"</code></pre>
+
+<p>That digest is a hash of the body <strong>excluding the <code>[approval]</code> block</strong>,
+which is what lets approval be recorded in the same file without changing what was approved.</p>
+
+<h3 id="editing-it-afterwards-revokes-it-with-nobody-watching">Editing it afterwards revokes it, with nobody watching</h3>
+
+<p>Change one number in the design and leave the approval block alone:</p>
+
+<pre><code>-target_effect = 0.05
++target_effect = 0.15</code></pre>
+
+<pre><code>langchef experiment readout model-swap        # exit 2
+
+langchef: refused — an approval gate is unmet — the design for model-swap
+changed since it was approved (3f1053d32846 -&gt; 510086cece38). Re-read it,
+then run: langchef experiment approve model-swap</code></pre>
+
+<p><strong>It names both digests.</strong> You cannot widen a margin, drop a guardrail or move a
+target after seeing the numbers and still hold an approval. The whole mechanism is a hash over the
+body and about eight lines of code.</p>
+
+<h2 id="step-11-score-the-other-arm">Step 11 — score the other arm</h2>
+
+<pre><code>langchef judge run --suite support --arm variant --run-id var-1   --experiment model-swap
+
+judge: n=90  provider_calls=24  cache_hits=66  cache_misses=24
+       fail=42  pass=48  fail_rate=0.467  budget_exhausted=False  unscored=0</code></pre>
+
+<p><strong>24 calls, 66 cache hits.</strong> Only the answers that actually changed needed judging,
+because verdicts are content-addressed on the example and the rubric.
+<a href="ref-judging.html#the-cache-and-what-is-in-the-key">How the key works</a>.</p>
+
+<p><code>--experiment</code> links the run to the pre-registration and applies its budget. Hit the
+ceiling and the run stops, writes what is left to <code>runs/&lt;id&gt;/undone.json</code>, and
+exits <strong>4</strong> rather than returning a partial result that looks whole.</p>
+
+<h2 id="step-12-read-out">Step 12 — read out</h2>
+
+<pre><code>langchef experiment readout model-swap        # exit 0
+
+readout for model-swap@3f1053d32846 on 90 shared golden(s)
+  difference -26.7% [-35.6%, -17.8%]
+  REGRESSION
+  -&gt; evals/runs/var-1/readout.json</code></pre>
+
+<p>The JSON an agent reads carries the working, not only the verdict:</p>
+
+<pre><code>{
+  "experiment_id": "model-swap",
+  "design_digest": "3f1053d32846",
+  "baseline_run": "base-1",
+  "baseline_rate": 0.8,
+  "difference": -0.2666666666666667,
+  "interval": {"lo": -0.3555, "hi": -0.1777, "level": 0.95},
+  "discordance": {"broke": 24, "fixed": 0, "both_pass": 48, "both_fail": 18},
+  "discordant": 24,
+  "exploratory": false,
+  "improvement": false,
+  "inconclusive": false
+}</code></pre>
+
+<p><code>design_digest</code> ties the result to the exact design that was approved. The
+<code>discordance</code> block is the evidence: 66 goldens agreed under both arms and carry no
+information, <strong>24 broke and none were fixed</strong>, and that is what the verdict rests on.
+<a href="ref-compare.html#why-paired-and-not-two-samples">Why only those 24 matter</a>.</p>
+
+<p><code>exploratory: true</code> appears when a run departed from its design. The result is still
+printed, and it recommends no decision.</p>
+
+<h2 id="experiment-check-and-list"><code>experiment check</code> and <code>list</code></h2>
+
+<p><code>check</code> answers "does what I have match what was registered", and reports rather than
+decides:</p>
+
+<pre><code>langchef experiment check model-swap          # exit 0
+
+model-swap@3f1053d32846: approved
+  the run matches the pre-registration</code></pre>
+
+<pre><code>langchef experiment list
+
+1 pre-registration(s)
+  model-swap                   approved   n=90</code></pre>
+
+<div class="callout warn">
+  <span class="k">A known gap in <code>check</code></span>
+  <p>Run <code>check</code> against an experiment whose variant arm was <em>never scored at all</em>
+  and it still reports <code>the run matches the pre-registration</code> at exit 0, with
+  <code>variant_run: null</code> in the payload. It is verifying the approval, not the existence of
+  a run. Read <code>variant_run</code> rather than the sentence until this is fixed.</p>
+</div>
 
 <h2 id="why-two-candidates-and-not-one-answer">Why two candidates and not one answer</h2>
 
-<p>The first design uses the goldens you have and tells you what they can resolve. The second exists
-only when you named a target the first cannot reach.</p>
+<p>The first uses the goldens you have and says what they can resolve. The second appears only when
+you named a target the first cannot reach, and it is usually the more useful, because <strong>"you
+need 628 examples and you have 90" is an answer, where a shrug is not.</strong></p>
 
-<p>The second is usually the more useful, because <strong>"you need 628 examples and you have 90" is
-an answer, where a shrug is not.</strong> The common failure without it is running the underpowered
-version, getting "no significant difference", and reading that as "no difference". Those are not the
-same sentence.</p>
+<p>The failure without it is running the underpowered version, getting "no significant difference",
+and reading that as "no difference". Those are not the same sentence.</p>
 
 <h2 id="the-number-that-governs-everything">The number that governs everything</h2>
-
-<p>How many goldens you need is driven by how small an effect you want to see, and the relationship
-is brutal:</p>
 
 <pre><code>  detect 20.0%   ->  n =    40
   detect 10.0%   ->  n =   157
   detect  5.0%   ->  n =   628
   detect  2.5%   ->  n =  2512</code></pre>
 
-<p><strong>Halving the effect you want to detect costs roughly four times the examples.</strong>
-That is not a property of this tool, it is the shape of the arithmetic, and it is why "just collect
-more goldens" stops being advice quite quickly.</p>
+<p><strong>Halving the effect you want to detect costs roughly four times the examples.</strong> That
+is the shape of the arithmetic rather than a property of this tool, and it is why "collect more
+goldens" stops being advice quite quickly.</p>
 
-<p>These are computed from the <em>discordant</em> rate, not the pass rate, because the comparison
-is paired: only examples that change verdict carry information. With no prior comparison to learn
-from, 20% is assumed and the design says so in <code>discordance_source</code>. Run the same arms
-once and the next design uses your real rate instead of the assumption.</p>
+<p>It is computed from the <em>discordant</em> rate, not the pass rate, because the comparison is
+paired. With no prior comparison, 20% is assumed and <code>discordance_source</code> says so. Run
+the arms once and the next design uses your real rate: the example above came back with 24
+discordant of 90, so the next design for this suite starts from 26.7% rather than the guess.</p>
 
-<h2 id="what-a-design-actually-fixes">What a design actually fixes</h2>
-
-<p>Everything that could otherwise be decided after seeing the result.</p>
+<h2 id="what-a-design-fixes-and-why-each-one">What a design fixes, and why each one</h2>
 
 <div class="scroller"><table>
 <thead><tr><th>Field</th><th>Why it is decided in advance</th></tr></thead>
 <tbody>
-<tr><td><code>n</code>, <code>mde</code></td><td>So "inconclusive" can be read as "this could never have seen it" rather than "no effect"</td></tr>
-<tr><td><code>margin</code></td><td>A non-inferiority tolerance chosen after seeing the interval is not a tolerance, it is a rationalisation</td></tr>
+<tr><td><code>n</code>, <code>mde</code></td><td>So "inconclusive" reads as "this could never have seen it" rather than "no effect"</td></tr>
+<tr><td><code>margin</code></td><td>A tolerance chosen after seeing the interval is not a tolerance, it is a rationalisation</td></tr>
 <tr><td><code>stopping_rule</code></td><td>Score everything, read out once. Stopping early when it looks good is the most common way an experiment reports an effect that is not there</td></tr>
 <tr><td><code>guardrails</code></td><td>What must not get worse while you chase the thing you are chasing</td></tr>
-<tr><td><code>cost</code></td><td>In calls always, in money only if a price was configured. Inventing a price is worse than admitting the gap</td></tr>
+<tr><td><code>rubric</code></td><td>Pinned by hash, so a changed definition of good revokes the approval</td></tr>
+<tr><td><code>cost</code></td><td>Calls always, money only if a price was configured. Inventing a price is worse than admitting the gap</td></tr>
 </tbody></table></div>
 
-<h2 id="non-inferiority-needs-its-margin-up-front-and-refuses-without-one">Non-inferiority needs its margin up front, and refuses without one</h2>
+<h2 id="non-inferiority-refuses-without-a-margin">Non-inferiority refuses without a margin</h2>
 
-<p>Ask for a non-inferiority design without a margin and it will not produce one:</p>
+<pre><code>a non-inferiority design needs --margin: how much quality you are
+willing to lose. Deciding it after the run is not a design.</code></pre>
 
-<pre><code>  a non-inferiority design needs --margin: how much quality you are
-  willing to lose. Deciding it after the run is not a design.</code></pre>
-
-<p>With a three point margin on 90 goldens you get the same two-candidate shape, and a second
+<p>With a three point margin on these 90 goldens you get the same two-candidate shape and a second
 caveat worth reading twice:</p>
 
-<pre><code>  [as-it-stands]  n=90     detects 13.2%
-    ! Quality holds only if the whole interval clears −3.0%.
-      The point estimate is not the test.
+<pre><code>[as-it-stands]  n=90     detects 13.2%
+  ! Quality holds only if the whole interval clears −3.0%.
+    The point estimate is not the test.
 
-  [powered]       n=1745   detects  3.0%    $0.70</code></pre>
-
-<h2 id="approval-and-why-editing-revokes-it">Approval, and why editing revokes it</h2>
-
-<p>An approved design is a TOML file in <code>evals/experiments/</code>. Its digest is computed over
-the body <strong>excluding</strong> the <code>[approval]</code> block, so:</p>
-
-<ul>
-  <li>approving adds a block without changing what was approved</li>
-  <li><strong>editing any part of the design afterwards changes the digest and revokes the approval
-  automatically</strong>, with nobody having to notice</li>
-</ul>
-
-<p>You cannot widen a margin or drop a guardrail after seeing the numbers and still hold an
-approval. That is the whole mechanism, and it is about eight lines of code.</p>
+[powered]       n=1745   detects  3.0%</code></pre>
 
 <h2 id="the-gates-as-exit-codes">The gates, as exit codes</h2>
 
-<p>A rule in a prompt is a suggestion. An agent can talk itself past one. These are exit codes.</p>
+<p>A rule in a prompt is a suggestion, and an agent can talk itself past one. These are exit codes.</p>
 
 <div class="scroller"><table>
-<thead><tr><th>Code</th><th>When</th><th>What it means</th></tr></thead>
+<thead><tr><th>Code</th><th>When</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td class="num"><strong>2</strong></td><td>reading out with no approved design, or with more than one run matching an arm</td><td>Refused. Reading out whichever run ran last is how an experiment gets repeated until it says something better</td></tr>
+<tr><td class="num"><strong>2</strong></td><td>no approved design, the design moved since approval, or more than one run matches an arm</td><td>Refused. Reading out whichever run ran last is how an experiment gets repeated until it says something better</td></tr>
 <tr><td class="num"><strong>5</strong></td><td>the two runs were produced under different pins</td><td>Refused. You would be comparing two rulers, not two systems</td></tr>
-<tr><td class="num"><strong>4</strong></td><td>the agreed call budget ran out</td><td>Stopped. What was left unscored is written to <code>undone.json</code></td></tr>
+<tr><td class="num"><strong>4</strong></td><td>the agreed call budget ran out</td><td>Stopped. What is unscored goes to <code>undone.json</code></td></tr>
 </tbody></table></div>
-
-<p><code>experiment check</code> answers the question in between: does the run I have actually match
-the design that was approved. A run that departed from its design is marked exploratory and
-recommends no decision, rather than being quietly reported as a result.</p>
 
 <div class="incode">
   <div><b>src/langchef/core/design.py</b> — <b>propose()</b>, <b>required_n()</b>, <b>estimate_cost()</b></div>
@@ -221,50 +353,46 @@ recommends no decision, rather than being quietly reported as a result.</p>
 <h2 id="what-we-deliberately-do-not-do">What we deliberately do not do</h2>
 
 <ul>
-  <li><strong>No sequential or always-valid designs.</strong> The stopping rule is score everything,
-  read out once. Peeking and stopping when it looks good inflates the false positive rate badly.
-  Always-valid confidence sequences are the real answer to this and are not built.</li>
+  <li><strong>No sequential or always-valid designs.</strong> Score everything, read out once.
+  Peeking and stopping when it looks good inflates the false positive rate badly. Always-valid
+  confidence sequences are the real answer and are not built.</li>
   <li><strong>No multi-arm designs.</strong> Two arms at a time. Sweeping five variants and
   reporting the winner without correction finds effects that are not there.</li>
-  <li><strong>No automatic approval.</strong> An agent can produce and check a design. It cannot
-  approve one. The approval is the point where a person accepts a cost and a claim, and automating
-  it would remove the only human step in the loop.</li>
+  <li><strong>No automatic approval.</strong> An agent can design and check. It cannot approve.
+  That step is where a person accepts a cost and a claim, and automating it would remove the only
+  human in the loop.</li>
   <li><strong>No cost model beyond calls times a price you supply.</strong> No token estimation, no
-  provider price list to go stale. <code>usd</code> is <code>None</code> until you configure a
-  price, and every caller has to cope with that rather than being handed a made-up number.</li>
-  <li><strong>No boolean for "is this design sensible".</strong> The payload answers a narrower
-  question: <code>runnable_now</code> is true when the design can be executed with the goldens that
-  exist, and <code>shortfall</code> says how many more are needed. A design needing 628 when you
-  have 90 reports <code>runnable_now: false</code> and <code>shortfall: 538</code>. Whether it is
-  <em>worth</em> collecting 538 more goldens is a judgement, and the tool declines to encode one.
-  Past a certain size it says so in words instead: a requirement of several hundred thousand is
-  evidence that the effect cannot be resolved this way, not a plan.</li>
+  provider price list to go stale. <code>usd</code> stays <code>null</code> until you configure a
+  price.</li>
+  <li><strong>No boolean for "is this design sensible".</strong> <code>runnable_now</code> says
+  whether it can be executed with the goldens that exist and <code>shortfall</code> says how many
+  more are needed. Whether 538 more goldens are worth collecting is a judgement, and the tool
+  declines to encode one.</li>
 </ul>
 
 <h2 id="further-reading">Further reading</h2>
 
 <ul class="reading">
   <li><strong>Nosek, Ebersole, DeHaven and Mellor (2018), "The preregistration revolution",
-  <em>PNAS</em> 115(11), 2600–2606.</strong> The argument for why the approval step exists at all:
-  the distinction between generating a hypothesis from observations and testing one with new
-  observations is not respected in practice, and the cost is credibility. Open access, and short.
+  <em>PNAS</em> 115(11), 2600–2606.</strong> Why the approval step exists at all: the distinction
+  between generating a hypothesis from observations and testing one with new observations is not
+  respected in practice, and the cost is credibility. Open access, and short.
   <span class="where">doi:10.1073/pnas.1708274114</span></li>
 
   <li><strong>Kohavi, Tang and Xu (2020), <em>Trustworthy Online Controlled Experiments</em>,
-  chapter 17.</strong> Power and sample size as practitioners actually meet them. The earlier
-  chapters on trustworthiness are the reason the gates here are exit codes rather than advice.</li>
+  chapter 17.</strong> Power and sample size as practitioners meet them. The earlier chapters on
+  trustworthiness are why the gates here are exit codes rather than advice.</li>
 
   <li><strong>Cohen (1988), <em>Statistical Power Analysis for the Behavioral Sciences</em>,
-  chapters 1 and 6.</strong> The ground under <code>required_n()</code>. Chapter 1 is worth reading
-  once even if you never touch the formula.</li>
+  chapters 1 and 6.</strong> The ground under <code>required_n()</code>.</li>
 
-  <li><strong>The arithmetic itself</strong> lives on the
+  <li><strong>The arithmetic</strong> lives on the
   <a href="ref-compare.html#the-smallest-change-you-could-have-seen">comparison page</a>. This page
-  is about the process around it; that one is about the numbers.</li>
+  is the process around it.</li>
 </ul>
 
-<p class="dim">Citations verified against publisher records. Where only a section could be
-confirmed, a section is what is cited.</p>
+<p class="dim">Every command output on this page was captured from a real workspace built from
+scratch, refusals included. Citations verified against publisher records.</p>
 
 <nav class="onward" aria-label="Reference sequence"><a class="prev" href="ref-judging.html"><span>Previous</span>Judging and pins</a><a class="next" href="ref-compare.html"><span>Next</span>Comparing two arms</a></nav>
 
