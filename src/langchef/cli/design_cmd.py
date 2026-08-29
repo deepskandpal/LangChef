@@ -269,6 +269,34 @@ def _violations(resolved, experiment, variant_run) -> list[str]:
     return problems
 
 
+def _resolve_variant_run(resolved, experiment_id, design):
+    """The run this experiment is about, or why there is not exactly one.
+
+    Same resolution order as `readout`: runs that recorded this experiment
+    first, then runs merely matching the suite and arm. Unlike `readout` this
+    returns the difficulty instead of refusing on it -- `check` reports and
+    never decides, so an absent or ambiguous run is information to print, not
+    grounds to exit non-zero.
+    """
+    arm = design.get("variant_arm")
+    linked = runs.for_experiment(resolved.workspace, experiment_id=experiment_id)
+    loose = runs.for_experiment(resolved.workspace, suite=design.get("suite"), arm=arm)
+    candidates = linked or loose
+
+    if not candidates:
+        return None, (
+            f"no run for arm {arm!r} has been scored — there is nothing to compare "
+            "against the pre-registration"
+        )
+    if len(candidates) > 1:
+        named = ", ".join(r.run_id for r in candidates[:4])
+        return None, (
+            f"{len(candidates)} runs exist for arm {arm!r} ({named}...) — name the "
+            "one the pre-registration is about with --variant"
+        )
+    return candidates[0], None
+
+
 @experiment_app.command("check")
 def experiment_check(
     experiment_id: Annotated[str, typer.Argument(help="The experiment to check.")],
@@ -277,24 +305,39 @@ def experiment_check(
     """Does the run match what was registered? Reports, never decides."""
     resolved = common.settings()
     experiment = _load(resolved, experiment_id)
+    design = experiment.design
     gate = experiment_gate(experiment.approved_digest, experiment.digest, experiment_id)
 
     problems: list[str] = []
     variant_run = None
+
     if variant:
         try:
             variant_run = runs.load(resolved.workspace, variant)
         except FormatError:
             fail(Exit.ERROR, f"no such run: {variant}")
-        problems = _violations(resolved, experiment, variant_run)
+    else:
+        # Resolve the same way `readout` does, rather than leaving `variant_run`
+        # None whenever --variant was omitted. Without this, an experiment whose
+        # arm has never been scored reported "the run matches the
+        # pre-registration" -- a reassuring sentence about a run that does not
+        # exist, which is the exact failure this command exists to catch.
+        variant_run, resolution_problem = _resolve_variant_run(resolved, experiment_id, design)
+        if resolution_problem:
+            problems.append(resolution_problem)
 
+    if variant_run is not None:
+        problems.extend(_violations(resolved, experiment, variant_run))
+
+    compared = variant_run is not None
     emit(
         {
             "ok": gate.met and not problems,
             "experiment_id": experiment_id,
             "gate": gate.to_dict(),
             "violations": problems,
-            "variant_run": variant,
+            "variant_run": variant_run.run_id if variant_run else None,
+            "compared": compared,
         }
     )
     say(f"{experiment.ref}: {'approved' if gate.met else 'NOT APPROVED'}")
@@ -302,7 +345,9 @@ def experiment_check(
         say(f"  {gate.remedy}")
     for problem in problems:
         say(f"  violation: {problem}")
-    if gate.met and not problems:
+    # Only claimable when a run was actually found and compared. `gate` is about
+    # the approval, so on its own it says nothing about any run.
+    if gate.met and compared and not problems:
         say("  the run matches the pre-registration")
     raise typer.Exit(Exit.OK)
 
