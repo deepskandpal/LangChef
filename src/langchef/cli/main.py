@@ -17,6 +17,7 @@ from langchef.cli.design_cmd import experiment_app
 from langchef.cli.experiment_cmd import baseline_app, compare
 from langchef.cli.judge_cmd import judge_app
 from langchef.cli.memo_cmd import ledger_app, memo_app
+from langchef.cli.power_cmd import app as power_app
 from langchef.cli.workspace_cmd import approve_app, init
 from langchef.core import contract as contract_mod
 from langchef.core.credentials import present as credentials_present
@@ -48,6 +49,7 @@ app.add_typer(memo_app, name="memo")
 app.add_typer(ledger_app, name="ledger")
 app.add_typer(approve_app, name="approve")
 app.add_typer(experiment_app, name="experiment")
+app.add_typer(power_app, name="power")
 
 SUPPORTED_PYTHON = ((3, 12), (3, 13))
 

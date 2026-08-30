@@ -49,7 +49,7 @@ reasoning tokens to add up.
 | `langchef baseline set | show` | Pin a run as the reference | deterministic | `baselines/` | M3 | yes |
 | `langchef compare` | Paired deltas, confidence intervals, regression flags, minimum detectable effect | deterministic | `runs/<id>/compare.json` | M3 | yes |
 | `langchef triage` | Slice drill-down, deploy correlation, reproduction set | deterministic | `findings/` | M6 | — |
-| `langchef power` | Standalone power arithmetic (available today inside experiment design) | deterministic | `-` | M7 | — |
+| `langchef power` | Is this many examples enough? Detection limit, required n, horizon | deterministic | `-` | M7 | yes |
 | `langchef experiment design` | Propose one or two designs with detection limit, sample size and cost | deterministic | `experiments/<id>.toml` | M4.5 | yes |
 | `langchef experiment approve` | Pre-register a design. Editing it afterwards revokes the approval | deterministic | `experiments/<id>.toml` | M4.5 | yes |
 | `langchef experiment check | list` | Does the run match what was registered? | deterministic | `-` | M4.5 | yes |

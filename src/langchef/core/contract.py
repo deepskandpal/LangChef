@@ -119,11 +119,11 @@ COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "power",
-        "Standalone power arithmetic (available today inside experiment design)",
+        "Is this many examples enough? Detection limit, required n, horizon",
         "deterministic",
         "-",
         "M7",
-        False,
+        True,
     ),
     Command(
         "experiment design",
