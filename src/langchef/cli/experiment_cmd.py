@@ -10,6 +10,7 @@ from typing import Annotated
 import typer
 
 from langchef.cli import common
+from langchef.core.compare import Outcome, by_criterion
 from langchef.core.compare import compare as compare_arms
 from langchef.core.emit import emit, fail, say
 from langchef.core.exits import Exit
@@ -19,6 +20,14 @@ from langchef.workspace.formats import FormatError, read_json, read_scores, writ
 
 baseline_app = typer.Typer(help="The run a comparison is made against.", no_args_is_help=True)
 
+# Shouted for a direction, quiet for a null — and never the overall verdict's
+# words, because a per-criterion line is an attribution, not a second verdict.
+ATTRIBUTION_LABEL = {
+    "moved_worse": "MOVED WORSE",
+    "moved_better": "MOVED BETTER",
+    "inconclusive": "inconclusive",
+}
+
 
 def _load(resolved, run_id: str, what: str):
     try:
@@ -27,12 +36,20 @@ def _load(resolved, run_id: str, what: str):
         fail(Exit.ERROR, f"no such {what} run: {run_id}")
 
 
-def _verdicts(run) -> dict[str, str]:
+def _outcomes(run) -> dict[str, Outcome]:
+    """Verdict plus the criterion the judge cited, per example.
+
+    ``criterion`` is absent from scores written before per-criterion attribution
+    existed, and null on any judgement that failed without naming one. Both read
+    as "not attributable", which is what the breakdown reports.
+    """
     try:
         rows = read_scores(run.file("scores.parquet"))
     except FormatError as exc:
         fail(Exit.ERROR, str(exc))
-    return {row["example_id"]: row["verdict"] for row in rows}
+    return {
+        row["example_id"]: Outcome(row["verdict"], row.get("criterion") or None) for row in rows
+    }
 
 
 def _pinned_baseline(resolved, suite: str) -> str | None:
@@ -113,18 +130,22 @@ def compare(
     except KeyError:
         fail(Exit.ERROR, "one of these runs has no pin recorded; re-run it")
 
-    left, right = _verdicts(baseline_run), _verdicts(variant_run)
+    left, right = _outcomes(baseline_run), _outcomes(variant_run)
     shared = sorted(set(left) & set(right))
     if not shared:
         fail(Exit.ERROR, "the two runs share no goldens")
 
+    before = [left[key] for key in shared]
+    after = [right[key] for key in shared]
     result = compare_arms(
-        [left[key] for key in shared],
-        [right[key] for key in shared],
+        [o.verdict for o in before],
+        [o.verdict for o in after],
         level=resolved.level,
     )
+    attribution = by_criterion(before, after, level=resolved.level)
     payload = {
         **result.to_dict(),
+        "by_criterion": attribution.to_dict(),
         "suite": name,
         "baseline_run": baseline_run.run_id,
         "variant_run": variant_run.run_id,
@@ -142,6 +163,7 @@ def compare(
         verdict=result.verdict,
         difference=result.difference,
         p_value=result.p_value,
+        moved=[c.criterion for c in attribution.criteria if c.attribution != "inconclusive"],
     )
 
     emit({"ok": True, **payload, "artifact": str(artifact)})
@@ -154,5 +176,23 @@ def compare(
     say(f"  {result.verdict.upper()}")
     if result.inconclusive:
         say(f"  (smallest effect this run could have seen: {result.mde:.1%})")
+    if attribution.criteria:
+        say(
+            f"  attribution over {attribution.family} criterion(s), "
+            f"Holm-corrected — not {attribution.family} separate findings:"
+        )
+        for c in attribution.criteria:
+            say(
+                f"    {c.criterion:<14} {c.difference:+.1%} "
+                f"[{c.interval.lo:+.1%}, {c.interval.hi:+.1%}]  "
+                f"p={c.p_adjusted:.4f}  {ATTRIBUTION_LABEL[c.attribution]}"
+            )
+            if c.attribution == "inconclusive":
+                say(f"    {'':<14} (nothing under {c.mde:.1%} was in reach for this criterion)")
+        if attribution.uncited_failures:
+            say(
+                f"    {'(uncited)':<14} {attribution.unattributed:+.1%} "
+                f"from {attribution.uncited_failures} failure(s) naming no criterion"
+            )
     say(f"  -> {artifact}")
     raise typer.Exit(Exit.OK)

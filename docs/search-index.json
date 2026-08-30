@@ -517,6 +517,30 @@
 },
 {
 "page": "Comparing two arms",
+"title": "Which criterion moved",
+"href": "ref-compare.html#which-criterion-moved",
+"text": "\"Quality fell 11 points\" is a fact. \"The generator got more cautious and retrieval held\" is an answer. The judge already names the criterion it cited on every failure, so the comparison can be attributed rather than left as one number over two systems. attribution over 2 criterion(s), Holm-corrected — not 2 separate findings: Directness -16.7% [-24.4%, -8.9%] p=0.0001 MOVED WORSE Correctness +5.6%"
+},
+{
+"page": "Comparing two arms",
+"title": "The pairing is inside a criterion, never across two",
+"href": "ref-compare.html#the-pairing-is-inside-a-criterion-never-across-two",
+"text": "Each criterion gets the same treatment as the whole suite: the same example under both arms, the same exact McNemar over the pairs that flipped on that criterion , the same seeded bootstrap. Nothing switches to a two-sample test on a smaller slice. This matters most for the case the headline cannot see at all. An answer that failed Correctness under the baseline and Groundedness under the variant "
+},
+{
+"page": "Comparing two arms",
+"title": "Five criteria means five chances to be wrong",
+"href": "ref-compare.html#five-criteria-means-five-chances-to-be-wrong",
+"text": "With five criteria and a 5% threshold, one of them crossing by chance is ordinary — about a one-in-four run. Printing five uncorrected verdicts would manufacture a finding roughly every fourth time you ran the tool, and every one of them sends somebody to rewrite a component that was fine. So the p-values are Holm-corrected across the criteria examined . Sort them, hold the smallest to α/k, the ne"
+},
+{
+"page": "Comparing two arms",
+"title": "Each criterion carries its own detection limit",
+"href": "ref-compare.html#each-criterion-carries-its-own-detection-limit",
+"text": "This is the part that is easy to get wrong. The overall detection limit was computed for the overall comparison at the overall threshold; quoting it beside a per-criterion line it cannot support is the failure mode here. So every criterion reports its own, computed at α/k — the strictest rung of the ladder, and the one a lone signal actually faces. It is not automatically wider than the overall li"
+},
+{
+"page": "Comparing two arms",
 "title": "Did quality hold",
 "href": "ref-compare.html#did-quality-hold",
 "text": "Swapping in a cheaper or smaller model is a different question and reading it the same way will mislead you. You are not hunting an improvement; you are checking the drop stays inside a tolerance. Set the margin before the run. Then read the bottom of the interval against it, not the middle: difference -1.2% [-4.1%, +1.7%] INCONCLUSIVE The middle looks fine, barely down. But the range reaches −4.1"
@@ -525,7 +549,7 @@
 "page": "Comparing two arms",
 "title": "What we deliberately do not do",
 "href": "ref-compare.html#what-we-deliberately-do-not-do",
-"text": "No interim looks, no sequential testing. The stopping rule in every design is \"score them all, then read out once\". Peeking at a running experiment and stopping when it looks good inflates the false-positive rate badly. Always-valid sequential bounds are a real answer to this and are not built yet. No multiple-comparison correction. Compare two arms at a time. Sweeping ten variants and reporting t"
+"text": "No interim looks, no sequential testing. The stopping rule in every design is \"score them all, then read out once\". Peeking at a running experiment and stopping when it looks good inflates the false-positive rate badly. Always-valid sequential bounds are a real answer to this and are not built yet. No correction across arms . The per-criterion breakdown is corrected across criteria, because those "
 },
 {
 "page": "Comparing two arms",

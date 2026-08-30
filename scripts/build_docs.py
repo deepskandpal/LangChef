@@ -917,11 +917,33 @@ the one it failed on for every example.</p>
 <tr><td><strong>Directness</strong></td><td>It refused or hedged with the answer in front of it.</td><td>The generator, usually a newer or smaller model being more cautious.</td></tr>
 </tbody></table></div>
 
-<p>Every scored example records its criterion in <code>runs/&lt;id&gt;/scores.parquet</code>, and
-the calibration report groups by criterion and by slice. Rolling that into a criterion-by-criterion
-<em>comparison</em> between two arms is the next thing on the
-<a href="@@blob@@/TRACKER.md">tracker</a>; today you read the breakdown per run and the overall
-verdict for the pair.</p>
+<p><code>compare</code> reports that split for you. Under the overall verdict it prints one line per
+criterion, so the answer to "which half broke" arrives with the answer to "did it break".</p>
+
+<pre><code>  difference -11.1% [-17.8%, -5.6%]  p=0.0020
+  <span class="r">REGRESSION</span>
+  attribution over 2 criterion(s), Holm-corrected — not 2 separate findings:
+    Directness     -16.7% [-24.4%, -8.9%]  p=0.0001  <span class="r">MOVED WORSE</span>
+    Correctness    +5.6% [+1.1%, +11.1%]  p=0.0625  inconclusive
+                   (nothing under 12.0% was in reach for this criterion)</code></pre>
+
+<p>Read that as one finding with a location, not as two results. The generator got more cautious;
+retrieval did not move in a way this run could resolve. <strong>The second line is the one that
+saves a day of looking in the wrong place.</strong></p>
+
+<div class="callout">
+  <span class="k">Why "MOVED WORSE" and not "REGRESSION"</span>
+  <p>Different words on purpose. The overall verdict is one comparison you asked for. The
+  per-criterion lines are that same comparison, broken up — and with five criteria, one of them
+  crossing a threshold by chance is ordinary. The p-values on those lines are corrected for how many
+  criteria were examined, and each carries its own detection limit, because the overall limit does
+  not apply to a slice of the overall comparison. <a href="ref-compare.html#which-criterion-moved">How
+  that correction works</a>.</p>
+</div>
+
+<p>Every scored example records its criterion in <code>runs/&lt;id&gt;/scores.parquet</code>, so
+the calibration report groups by criterion and by slice as well — the same axis, one run at a time
+instead of across a pair.</p>
 
 <h2>Was this even a fair comparison?</h2>
 
@@ -1449,6 +1471,8 @@ common.</p>
   <div><b>discordance()</b> the paired 2×2; only the off-diagonal moves the estimate</div>
   <div><b>mcnemar_p()</b> exact binomial on the discordant pairs</div>
   <div><b>compare()</b> the verdict, the interval, and the detection limit</div>
+  <div><b>by_criterion()</b> the same test inside each criterion, corrected across them</div>
+  <div><b>holm()</b> step-down adjusted p-values for the family of criteria</div>
 </div>
 
 <h3>Exact, not the chi-square approximation</h3>
@@ -1503,6 +1527,85 @@ limit rather than claiming infinite sensitivity.</p>
 <p>Rule of thumb: <strong>halving the effect you want to detect needs roughly four times the
 goldens.</strong></p>
 
+<h2>Which criterion moved</h2>
+
+<p>"Quality fell 11 points" is a fact. "The generator got more cautious and retrieval held" is an
+answer. The judge already names the criterion it cited on every failure, so the comparison can be
+attributed rather than left as one number over two systems.</p>
+
+<pre><code>  attribution over 2 criterion(s), Holm-corrected — not 2 separate findings:
+    Directness     -16.7% [-24.4%, -8.9%]  p=0.0001  <span class="r">MOVED WORSE</span>
+    Correctness    +5.6% [+1.1%, +11.1%]  p=0.0625  inconclusive
+                   (nothing under 12.0% was in reach for this criterion)</code></pre>
+
+<p>That is the dogfood's <code>eager-hedging</code> arm: the app was made to decline more often, and
+nothing else was touched. The overall drop is 11 points; the breakdown puts 17 of them on Directness
+and finds no movement in Correctness it can stand behind.</p>
+
+<h3>The pairing is inside a criterion, never across two</h3>
+
+<p>Each criterion gets the same treatment as the whole suite: the same example under both arms, the
+same exact McNemar over the pairs that flipped <em>on that criterion</em>, the same seeded bootstrap.
+Nothing switches to a two-sample test on a smaller slice.</p>
+
+<p>This matters most for the case the headline cannot see at all. An answer that failed Correctness
+under the baseline and Groundedness under the variant is a fail in both arms — <strong>zero
+discordant pairs, nothing to report</strong> — while the criteria show a Correctness fix and a
+Groundedness break. Something moved, and only the breakdown says what.</p>
+
+<p>Because the judge cites exactly one criterion per failure, the per-criterion differences add up
+to the overall difference. When a judge fails something without naming a criterion, the leftover is
+reported as <code>unattributed</code> rather than quietly dropped.</p>
+
+<h3>Five criteria means five chances to be wrong</h3>
+
+<p>With five criteria and a 5% threshold, one of them crossing by chance is ordinary — about a
+one-in-four run. Printing five uncorrected verdicts would manufacture a finding roughly every fourth
+time you ran the tool, and every one of them sends somebody to rewrite a component that was fine.</p>
+
+<p>So the p-values are <strong>Holm-corrected across the criteria examined</strong>. Sort them, hold
+the smallest to α/k, the next to α/(k−1), and so on; the family-wise error rate stays at 5% no matter
+how the criteria are correlated, and they are correlated here — one cited criterion per failure makes
+them push against each other.</p>
+
+<p>Holm rather than Bonferroni because it is uniformly more powerful at the same guarantee. Holm
+rather than a false-discovery-rate procedure because these criteria are the two or three halves of
+one system: the question is <em>which one broke</em>, so a false positive costs a person a day in the
+wrong file, and that is the error rate worth controlling.</p>
+
+<div class="callout">
+  <span class="k">Different words, on purpose</span>
+  <p>A criterion is never called a <code>regression</code> or an <code>improvement</code>. It is
+  <code>moved_worse</code>, <code>moved_better</code> or <code>inconclusive</code>. Those are
+  attributions of one comparison, and the vocabulary says so in the payload rather than in a footnote
+  a reader drops on the way to the number.</p>
+</div>
+
+<p>A direction is only named when <em>both</em> the corrected p-value clears the threshold and the
+interval sits entirely on one side of zero. Either one alone can mislead: five flips the same way is
+p = 0.0625 and cannot be rejected, but its bootstrap interval still clears zero. That is the
+<code>Correctness</code> line above — the interval alone would have called it an improvement.</p>
+
+<h3>Each criterion carries its own detection limit</h3>
+
+<p>This is the part that is easy to get wrong. The overall detection limit was computed for the
+overall comparison at the overall threshold; quoting it beside a per-criterion line it cannot support
+is the failure mode here.</p>
+
+<p>So every criterion reports its own, computed at α/k — the strictest rung of the ladder, and the
+one a lone signal actually faces. It is <strong>not</strong> automatically wider than the overall
+limit: a criterion that few examples flipped on is estimated <em>more</em> precisely, not less, and
+the multiplicity price pushes the other way. Both effects are real, so the number is computed rather
+than assumed, per criterion, every time.</p>
+
+<div class="callout warn">
+  <span class="k">The attribution is only as good as the judge doing the citing</span>
+  <p>A judge names one criterion per failing example, so an example that failed Correctness tells you
+  nothing about whether it would also have failed Groundedness. A criterion is credited with a
+  failure only when it was cited. That is a real limit, and it is the second reason this is reported
+  as attribution rather than as a set of independent per-criterion measurements.</p>
+</div>
+
 <h2>Did quality hold</h2>
 
 <p>Swapping in a cheaper or smaller model is a different question and reading it the same way will
@@ -1537,12 +1640,15 @@ to ship.</p>
   "score them all, then read out once". Peeking at a running experiment and stopping when it looks
   good inflates the false-positive rate badly. Always-valid sequential bounds are a real answer to
   this and are not built yet.</li>
-  <li><strong>No multiple-comparison correction.</strong> Compare two arms at a time. Sweeping ten
-  variants and reporting the best without correction is a known way to find an effect that is not
-  there.</li>
-  <li><strong>No per-criterion breakdown yet.</strong> The comparison is one verdict over the whole
-  suite. For a retrieval app the useful version is "groundedness fell 9 points while correctness
-  held", which tells you which half broke. Tracked, not built.</li>
+  <li><strong>No correction across <em>arms</em>.</strong> The per-criterion breakdown is corrected
+  across criteria, because those k tests are run together and we know k. Sweeping ten variants and
+  reporting the best is the other multiplicity problem, and this tool does not see it: it compares
+  two arms at a time and cannot know how many comparisons you already ran. That correction is yours
+  to make, and it is a known way to find an effect that is not there.</li>
+  <li><strong>No simultaneous intervals.</strong> Each criterion's interval is at the nominal level,
+  so the k of them do not jointly cover at 95%. The correction is applied to the tests, which is what
+  gates the attribution; the intervals are printed for magnitude. Reading them as k separate verdicts
+  is the mistake the wording is chosen to prevent.</li>
   <li><strong>No continuous or graded outcomes.</strong> Everything here is pass or fail. Retrieval
   metrics like recall@k are continuous and classification is multi-class; both need different tests,
   and that choice is deliberately being made before any code depends on it.</li>
@@ -1565,6 +1671,12 @@ to ship.</p>
   proportions or percentages", <em>Psychometrika</em> 12(2), 153–157.</strong> The original, and
   short. The phrase that matters is "correlated proportions": that correlation is the pairing, and
   it is the thing an unpaired test discards.</li>
+
+  <li><strong>Holm (1979), "A simple sequentially rejective multiple test procedure",
+  <em>Scandinavian Journal of Statistics</em> 6(2), 65–70.</strong> Six pages, and the procedure the
+  per-criterion breakdown uses. The argument worth having is in the opening: the correction costs
+  power, and the alternative is not "no correction", it is a correction performed silently by the
+  reader. Read it before changing how the criteria are gated.</li>
 
   <li><strong>Kohavi, Tang and Xu (2020), <em>Trustworthy Online Controlled Experiments</em>,
   Cambridge University Press.</strong> The practitioner's book on running experiments honestly.
