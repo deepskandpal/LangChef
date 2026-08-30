@@ -12,6 +12,10 @@ from pathlib import Path
 
 import pytest
 
+# The same prose-aware leak check the boundary suite uses, imported rather
+# than re-implemented so the two cannot disagree about what a leak is.
+from tests.test_boundaries import _executable_text, _mentions
+
 from langchef.core.design import OUTCOMES
 from langchef.packs import discover, load, load_class, reporting, search_path, task_classes
 from langchef.packs.manifest import OUTCOME_SHAPES, ManifestError, parse
@@ -272,9 +276,20 @@ def test_a_third_class_is_a_directory_not_a_patch(tmp_path, monkeypatch):
         "n": 1,
     }
 
-    # And the product has never heard of it.
-    shipped = "\n".join(p.read_text(encoding="utf-8") for p in SRC.rglob("*.py"))
-    assert "ranking" not in shipped
+    # And the product has never heard of it. Checked over identifiers and string
+    # literals only, never prose: `core/retrieval.py` explains that "order is the
+    # ranking" while implementing nDCG, and forbidding the English word would push
+    # authors into writing worse comments to satisfy a linter. The distinction is
+    # the same one tests/test_boundaries.py draws, and for the same reason: a
+    # docstring cannot make the product depend on a pack, but a string literal can,
+    # because that is the raw material of a branch or a lookup.
+    named = [
+        f"{path.relative_to(SRC)}:{line}"
+        for path in sorted(SRC.rglob("*.py"))
+        for line, text in _executable_text(path)
+        if _mentions(text, "ranking")
+    ]
+    assert named == [], f"the product names a pack-defined class: {named}"
 
 
 def test_a_pack_earlier_on_the_search_path_shadows_a_class(tmp_path, monkeypatch):

@@ -290,9 +290,18 @@ to ship.</p>
   so the k of them do not jointly cover at 95%. The correction is applied to the tests, which is what
   gates the attribution; the intervals are printed for magnitude. Reading them as k separate verdicts
   is the mistake the wording is chosen to prevent.</li>
-  <li><strong>No continuous or graded outcomes.</strong> Everything here is pass or fail. Retrieval
-  metrics like recall@k are continuous and classification is multi-class; both need different tests,
-  and that choice is deliberately being made before any code depends on it.</li>
+  <li><strong>Retrieval is compared on continuous scores, not thresholded.</strong> recall@k, MRR
+  and nDCG go through a paired comparison of their own: Wilcoxon signed-rank with a bootstrap
+  interval over the per-example differences, because those scores are bounded, pile up at the ends,
+  and are nowhere near normal at the sizes anybody labels. Reducing them to pass or fail was
+  considered and rejected: recall 0.42 and 0.71 are both "fail" against a threshold of 0.8, and the
+  gap between them is the entire finding. See DECISIONS #12.</li>
+  <li><strong>Classification needs no reduction either.</strong> Its per-example outcome is
+  <code>predicted == ideal</code>, which is binary natively, so the paired test above applies
+  unchanged and nothing is lost. Multi-class kappa is a non-goal: it measures agreement between two
+  raters, and a hard label has no second rater.</li>
+  <li><strong>No graded relevance.</strong> nDCG here is over binary relevance. A document is
+  relevant or it is not. Graded judgements are a real thing and this does not do them.</li>
   <li><strong>No bandits over judge scores.</strong> Allocating traffic by a judge's own score
   rewards whatever the judge is biased toward, including verbosity and position. If it is ever done
   here, quality non-inferiority is established first and the bandit runs on cost and latency only.</li>

@@ -21,9 +21,10 @@ from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 
 import numpy as np
-from scipy.stats import binomtest, norm
+from scipy.stats import binomtest, norm, wilcoxon
 
 from langchef.core.agreement import DEFAULT_LEVEL, Interval, Verdict, wilson
+from langchef.core.design import minimum_detectable_effect_continuous
 
 BOOTSTRAP_DRAWS = 10_000
 BOOTSTRAP_SEED = 0  # the contract calls compare deterministic; the seed is the pin
@@ -361,6 +362,112 @@ def _attributed(outcomes: Sequence[Outcome], criterion: str) -> list[Verdict]:
     return [
         "fail" if (o.verdict == "fail" and o.criterion == criterion) else "pass" for o in outcomes
     ]
+
+
+@dataclass(frozen=True)
+class ContinuousComparison:
+    """A paired comparison over scores rather than verdicts.
+
+    Nothing flips on a continuous score, so there are no discordant pairs and
+    McNemar has nothing to count. What carries the information is the
+    distribution of the per-example *differences*, and every number here is
+    computed from those rather than from either arm on its own.
+    """
+
+    n: int
+    baseline_mean: float
+    variant_mean: float
+    difference: float
+    interval: Interval
+    p_value: float
+    sd_difference: float
+    mde: float
+
+    @property
+    def verdict(self) -> str:
+        """A direction only when the whole interval agrees with it."""
+        if self.interval.lo != self.interval.lo:  # NaN
+            return "inconclusive"
+        if self.interval.hi < 0:
+            return "regression"
+        if self.interval.lo > 0:
+            return "improvement"
+        return "inconclusive"
+
+    def to_dict(self) -> dict:
+        payload = asdict(self)
+        payload["verdict"] = self.verdict
+        payload["outcome"] = "continuous"
+        return payload
+
+
+def _paired_difference_interval(diffs: np.ndarray, level: float) -> Interval:
+    """Percentile bootstrap over the paired differences.
+
+    Resamples the differences themselves, which is what preserves the pairing:
+    resampling the two arms independently would compare a baseline example with
+    an unrelated variant one and inflate the spread.
+    """
+    if diffs.size == 0:
+        return Interval(float("nan"), float("nan"))
+    rng = np.random.default_rng(BOOTSTRAP_SEED)
+    draws = rng.choice(diffs, size=(BOOTSTRAP_DRAWS, diffs.size), replace=True).mean(axis=1)
+    lo, hi = np.percentile(draws, [(1 - level) / 2 * 100, (1 + level) / 2 * 100])
+    return Interval(float(lo), float(hi))
+
+
+def compare_continuous(
+    baseline: Sequence[float],
+    variant: Sequence[float],
+    level: float = DEFAULT_LEVEL,
+) -> ContinuousComparison:
+    """Compare two arms on a continuous per-example score.
+
+    Paired, like its binary sibling and for the same reason: both arms answer
+    the same queries, so the difference on each query is the observation. An
+    unpaired reading throws that away, and on retrieval it throws away most of
+    the signal, because query difficulty varies far more than the gap between
+    two retrievers on the same query.
+
+    Wilcoxon signed-rank rather than a paired t-test: retrieval scores are
+    bounded in [0, 1], routinely pile up at the ends, and are not close to
+    normal at the sample sizes anybody actually labels. The interval is a
+    bootstrap for the same reason. See DECISIONS #12.
+    """
+    if len(baseline) != len(variant):
+        raise ValueError("continuous comparison needs the same examples in both arms")
+
+    pairs = [
+        (float(b), float(v))
+        for b, v in zip(baseline, variant, strict=True)
+        if float(b) == float(b) and float(v) == float(v)  # drop unscorable pairs
+    ]
+    if not pairs:
+        nan = float("nan")
+        return ContinuousComparison(0, nan, nan, nan, Interval(nan, nan), 1.0, nan, nan)
+
+    left = np.array([b for b, _ in pairs])
+    right = np.array([v for _, v in pairs])
+    diffs = right - left
+
+    # Every difference identical (usually all zero) means the arms are
+    # indistinguishable on this data. Wilcoxon cannot rank that and raises;
+    # reporting p=1 says the same thing without a traceback.
+    p_value = 1.0
+    if diffs.size and not np.allclose(diffs, diffs[0]):
+        p_value = float(wilcoxon(diffs, zero_method="wilcox").pvalue)
+
+    sd = float(diffs.std(ddof=1)) if diffs.size > 1 else 0.0
+    return ContinuousComparison(
+        n=len(pairs),
+        baseline_mean=float(left.mean()),
+        variant_mean=float(right.mean()),
+        difference=float(diffs.mean()),
+        interval=_paired_difference_interval(diffs, level),
+        p_value=p_value,
+        sd_difference=sd,
+        mde=minimum_detectable_effect_continuous(len(pairs), sd, level),
+    )
 
 
 def by_criterion(
