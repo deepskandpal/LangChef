@@ -4,9 +4,69 @@ One fictional company, five topics, one fact per document. Facts are separate
 from the questions that ask for them so the same fact can be asked three
 different ways — which is what makes the phrasing slice a real cut rather than
 a label we invented.
+
+Tokenisation lives here rather than in the app because it is a property of the
+corpus: the same word list decides what a document is about, what a question
+asks for, and — through ``document_frequency`` — which questions count as head
+and which as tail.
 """
 
+import re
+from collections import Counter
 from dataclasses import dataclass
+
+WORD = re.compile(r"[a-z0-9']+")
+STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "could",
+        "for",
+        "from",
+        "has",
+        "have",
+        "how",
+        "in",
+        "is",
+        "it",
+        "its",
+        "me",
+        "of",
+        "on",
+        "or",
+        "please",
+        "tell",
+        "that",
+        "the",
+        "this",
+        "to",
+        "was",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "why",
+        "will",
+        "with",
+        "you",
+    }
+)
+
+
+def stem(word: str) -> str:
+    """A crude plural strip. 'managers' and 'manager' are the same query term."""
+    return word[:-1] if len(word) > 3 and word.endswith("s") and not word.endswith("ss") else word
+
+
+def words(text: str) -> set[str]:
+    return {stem(w) for w in WORD.findall(text.lower()) if w not in STOPWORDS}
 
 
 @dataclass(frozen=True)
@@ -295,6 +355,29 @@ def documents() -> list[Document]:
     return [Document(f.doc_id, f.topic, f.text) for f in FACTS] + list(DISTRACTORS)
 
 
+def document_frequency() -> Counter[str]:
+    """How many documents each corpus term appears in."""
+    df: Counter[str] = Counter()
+    for doc in documents():
+        df.update(words(doc.text))
+    return df
+
+
+# A question is *head* when its vocabulary is well represented in the corpus —
+# "account", "payment", "return" turn up in many documents — and *tail* when it
+# is carried by words the corpus barely uses: "restocking", "phishing",
+# "timeout". That is the ordinary shape of a support workload, and it is the cut
+# an embedding swap moves: a smaller model matches a larger one on common
+# vocabulary and loses the rare terms first.
+HEAD_DF = 3
+_DF = document_frequency()
+
+
+def frequency(text: str) -> str:
+    """``head`` or ``tail`` for one question, from corpus term frequency."""
+    return "head" if max((_DF[w] for w in words(text)), default=0) >= HEAD_DF else "tail"
+
+
 @dataclass(frozen=True)
 class Question:
     example_id: str
@@ -303,6 +386,7 @@ class Question:
     gold_doc: str
     topic: str
     phrasing: str
+    frequency: str = "head"
 
 
 def questions() -> list[Question]:
@@ -310,14 +394,16 @@ def questions() -> list[Question]:
     asked: list[Question] = []
     for fact in FACTS:
         for style, template in PHRASINGS:
+            text = template.format(subject=fact.subject)
             asked.append(
                 Question(
                     example_id=f"{fact.doc_id}-{style}",
-                    text=template.format(subject=fact.subject),
+                    text=text,
                     expected=fact.expected,
                     gold_doc=fact.doc_id,
                     topic=fact.topic,
                     phrasing=style,
+                    frequency=frequency(text),
                 )
             )
     return asked

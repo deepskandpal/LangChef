@@ -21,12 +21,20 @@ SUITE = "support"
 PUBLIC = ("example_id", "question", "answer", "context", "expected", "slices")
 
 
-def write_arm(workspace: Workspace, config: Config, asked, suite: str = SUITE) -> dict:
-    rows = run(config, asked)
-    path = workspace.goldens / f"{suite}.{config.name}.jsonl"
+def arm_name(config: Config, trial: int) -> str:
+    """The goldens label for one call of one arm. Trial 0 keeps the plain name."""
+    return config.name if trial == 0 else f"{config.name}.t{trial:02d}"
+
+
+def write_arm(
+    workspace: Workspace, config: Config, asked, suite: str = SUITE, trial: int = 0
+) -> dict:
+    rows = run(config, asked, trial=trial)
+    name = arm_name(config, trial)
+    path = workspace.goldens / f"{suite}.{name}.jsonl"
     write_jsonl(path, [{key: row[key] for key in PUBLIC} for row in rows])
 
-    truth_path = HERE / "truth" / f"{suite}.{config.name}.jsonl"
+    truth_path = HERE / "truth" / f"{suite}.{name}.jsonl"
     write_jsonl(
         truth_path,
         [{"example_id": row["example_id"], "verdict": row["_truth"]} for row in rows],
@@ -34,6 +42,7 @@ def write_arm(workspace: Workspace, config: Config, asked, suite: str = SUITE) -
     passed = sum(1 for row in rows if row["_truth"] == "pass")
     return {
         "arm": config.name,
+        "trial": trial,
         "goldens": str(path),
         "truth": str(truth_path),
         "n": len(rows),
@@ -45,6 +54,16 @@ def write_arm(workspace: Workspace, config: Config, asked, suite: str = SUITE) -
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dir", type=Path, default=HERE / "workspace")
+    parser.add_argument(
+        "--trials",
+        type=int,
+        default=1,
+        help=(
+            "Call every arm this many times, one goldens file per call. The consistency "
+            "knob has no signature in a single call by construction — its damage is the "
+            "scatter between repeats — so seeing it needs more than one."
+        ),
+    )
     args = parser.parse_args()
 
     root = args.dir.resolve()
@@ -53,14 +72,21 @@ def main() -> int:
     scaffold.create(workspace, name="dogfood-northwind", application_class="genai-rag")
 
     asked = questions()
-    arms = [write_arm(workspace, BASELINE, asked)]
-    arms += [write_arm(workspace, config, asked) for config in VARIANTS.values()]
+    configs = [BASELINE, *VARIANTS.values()]
+    arms = [
+        write_arm(workspace, config, asked, trial=trial)
+        for trial in range(max(1, args.trials))
+        for config in configs
+    ]
+    first = [arm for arm in arms if arm["trial"] == 0]
 
     print(f"workspace  {workspace.root}")
     print(f"corpus     {len(documents())} documents, {len(asked)} questions")
+    if args.trials > 1:
+        print(f"trials     {args.trials} calls per arm")
     print()
     print(f"{'arm':<20} {'n':>4} {'true pass':>10} {'planted':>9}   config")
-    for arm in arms:
+    for arm in first:
         planted = PLANTED_EFFECT.get(arm["arm"])
         planted_text = f"{planted:+.1%}" if planted is not None else "baseline"
         print(
