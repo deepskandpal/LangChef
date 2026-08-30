@@ -1,0 +1,97 @@
+# Claiming an issue, done by the repository rather than by the claimant.
+#
+# AGENTS.md used to ask a claimant to comment and then move the issue to
+# `lifecycle:doing`. Outside contributors cannot set labels, so step two was
+# impossible for exactly the people the instruction was written for, and for
+# three hours on 27 August #25 looked free after it had been claimed. Two
+# contributors wrote the same fix.
+#
+# The first version of this workflow matched claim phrasings with a regex. On
+# 28 August @raappo wrote "I'd love to" where the pattern expected "I'd like
+# to", #64 stayed `lifecycle:ready` for thirteen hours with a PR already open
+# against it, and a second contributor duplicated the work overnight. The
+# symptom of a missed phrase is silence, which looks exactly like no claim.
+#
+# So there is no phrase list any more. **Any comment from a person on a
+# `lifecycle:ready` issue claims it.** On a board this specific a comment is
+# almost never anything else, and the asymmetry is decisive: a false positive
+# costs one label and is undone by replying, while a false negative costs
+# somebody a night of duplicated work. The confirmation comment says how to
+# undo it, which is what makes the trade safe.
+
+name: Claim
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+
+jobs:
+  claim:
+    if: ${{ !github.event.issue.pull_request && github.event.comment.user.type != 'Bot' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.issue.number;
+            const claimant = context.payload.comment.user.login;
+
+            if (claimant === owner) return;          // the maintainer is not claiming
+
+            const labels = context.payload.issue.labels.map((l) => l.name);
+            const ready = labels.includes("lifecycle:ready");
+            const doing = labels.includes("lifecycle:doing");
+            if (!ready && !doing) return;            // spec, blocked or done: not claimable
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+
+            // The first person who was not the maintainer or a bot. Under this
+            // rule that comment is the claim, whatever it said.
+            const first = comments.find(
+              (c) =>
+                c.id !== context.payload.comment.id &&
+                c.user.login !== owner &&
+                c.user.type !== "Bot",
+            );
+
+            if (doing && first && first.user.login !== claimant) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number,
+                body:
+                  `@${claimant} before you spend time on this: ` +
+                  `@${first.user.login} claimed it on ${first.created_at.slice(0, 10)} ` +
+                  `(${first.html_url}).\n\n` +
+                  "Please check with them before continuing, or take something else from " +
+                  "[`lifecycle:ready`](../../issues?q=is%3Aopen+label%3Alifecycle%3Aready). " +
+                  "If they have gone quiet, say so here and a maintainer will reassign it.",
+              });
+              return;
+            }
+
+            if (!ready) return;                      // already doing, and it is theirs
+
+            await github.rest.issues.addLabels({
+              owner, repo, issue_number, labels: ["lifecycle:doing"],
+            });
+            await github.rest.issues
+              .removeLabel({ owner, repo, issue_number, name: "lifecycle:ready" })
+              .catch(() => {});
+            await github.rest.issues.createComment({
+              owner, repo, issue_number,
+              body:
+                `Marked \`lifecycle:doing\` for @${claimant}.\n\n` +
+                "You cannot set labels on a repository you do not have write access to, " +
+                "so the repository does it for you. Branch as " +
+                `\`${issue_number}-short-slug\` and open a PR when ready.\n\n` +
+                "**If you were only asking a question and did not mean to claim this**, " +
+                "say so and a maintainer will move it back to `lifecycle:ready`. " +
+                "We would rather label one question by mistake than let two people " +
+                "write the same patch, which has happened twice here.",
+            });

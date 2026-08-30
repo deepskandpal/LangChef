@@ -18,35 +18,53 @@
   <div class="shell">
     <a class="wordmark" href="index.html"><span class="dot"></span>LangChef</a>
     <nav class="topnav">
-      <a href="index.html">Overview</a>
-      <a href="start.html">Start here</a>
-      <a href="numbers.html" class="here">Reading the output</a>
-      <a href="cli.html">Commands</a>
-      <a href="integrations.html">Integrations</a>
+      <a href="index.html" class="here">Guide</a>
+      <a href="concepts.html">Reference</a>
+      <a href="cli.html">Project</a>
       <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
     </nav>
   </div>
 </header>
 
 <div class="shell layout">
-
 <nav class="sidebar" aria-label="Documentation">
-  <h4>Documentation</h4>
+  <form class="search" role="search" onsubmit="return false">
+    <input id="q" type="search" placeholder="Search docs" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+  </form>
+  <div id="results" hidden></div>
+  <div id="nav">
+  <h4>Guide</h4>
   <ul>
     <li><a href="index.html">Overview</a></li>
-    <li><a href="start.html">Your first evaluation</a></li>
-    <li><a href="numbers.html">Reading the output</a></li>
-    <li><a href="cli.html">Command reference</a></li>
+    <li><a href="start.html">Start here</a></li>
+    <li><a href="numbers.html" aria-current="page">Reading the output</a></li>
+  </ul>
+  <h4>Reference</h4>
+  <ul>
+    <li><a href="concepts.html">Concepts</a></li>
+    <li><a href="ref-agreement.html">Agreement and kappa</a></li>
+    <li><a href="ref-taxonomy.html">Disagreement taxonomy</a></li>
+    <li><a href="ref-sampling.html">Label planning</a></li>
+    <li><a href="ref-judging.html">Judging and pins</a></li>
+    <li><a href="ref-design.html">Designing a run</a></li>
+    <li><a href="ref-compare.html">Comparing two arms</a></li>
+  </ul>
+  <h4>Project</h4>
+  <ul>
+    <li><a href="cli.html">Commands</a></li>
     <li><a href="integrations.html">Integrations</a></li>
   </ul>
   <h4>In the repository</h4>
   <ul>
     <li><a href="https://github.com/deepskandpal/LangChef/blob/main/docs/AGENT-CONTRACT.md">Agent contract</a></li>
     <li><a href="https://github.com/deepskandpal/LangChef/blob/main/DECISIONS.md">Decisions</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/AGENTS.md">Working agreement</a></li>
     <li><a href="https://github.com/deepskandpal/LangChef/blob/main/dogfood/README.md">Dogfood</a></li>
-    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">Work tracker</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/issues">Issues</a></li>
     <li><a href="https://github.com/deepskandpal/LangChef">Source on GitHub</a></li>
   </ul>
+  </div>
 </nav>
 
 <main>
@@ -56,7 +74,7 @@
 <p class="lede">Plain English first, the textbook name second. You do not need any of this to use the
 tool — it is here for when a number looks wrong and you want to know what it is telling you.</p>
 
-<h2>Can this judge be trusted?</h2>
+<h2 id="can-this-judge-be-trusted">Can this judge be trusted?</h2>
 
 <pre><code>calibration for base on 40 labelled example(s)
   kappa      0.68  0.44..0.92
@@ -64,7 +82,7 @@ tool — it is here for when a number looks wrong and you want to know what it i
   FPR        12.0%
   disagreed  6 ({'false_alarm': 3, 'miss': 3})</code></pre>
 
-<h3>Agreement — the <code>kappa</code> line</h3>
+<h3 id="agreement-the-kappa-line">Agreement — the <code>kappa</code> line</h3>
 
 <p><strong>How much the judge agrees with you, after subtracting the agreement you would get by
 luck.</strong> Runs from 0 (no better than guessing) to 1 (perfect).</p>
@@ -84,7 +102,7 @@ number sees through that; a raw percentage does not.</p>
 
 <p class="dim"><em>Textbook name: Cohen's κ.</em></p>
 
-<h3>Catch rate — the <code>TPR</code> line</h3>
+<h3 id="catch-rate-the-tpr-line">Catch rate — the <code>TPR</code> line</h3>
 
 <p><strong>Of the problems you found by hand, how many did the judge also flag?</strong> Here, 12 of
 the 15. The other three shipped past it.</p>
@@ -94,7 +112,7 @@ it rests on fifteen examples. That is why the tool always prints <code>(12/15)</
 
 <p class="dim"><em>Textbook name: true positive rate, or recall.</em></p>
 
-<h3>False alarm rate — the <code>FPR</code> line</h3>
+<h3 id="false-alarm-rate-the-fpr-line">False alarm rate — the <code>FPR</code> line</h3>
 
 <p><strong>Of the answers that were actually fine, how many did the judge flag anyway?</strong> Every
 one of these is somebody investigating a non-problem. A judge with a high false alarm rate gets
@@ -102,7 +120,7 @@ ignored within about two weeks, which is worse than having no judge.</p>
 
 <p class="dim"><em>Textbook name: false positive rate.</em></p>
 
-<h3>The range after each number</h3>
+<h3 id="the-range-after-each-number">The range after each number</h3>
 
 <p><code>0.44..0.92</code> is not decoration. It is the honest width of what forty labels can tell
 you: the true agreement is probably somewhere in there. <strong>A wide range means "label more
@@ -111,7 +129,7 @@ examples", not "the judge is inconsistent".</strong></p>
 <p class="dim"><em>Textbook name: a 95% confidence interval — Wilson for rates, asymptotic for
 agreement.</em></p>
 
-<h3>Where it disagreed</h3>
+<h3 id="where-it-disagreed">Where it disagreed</h3>
 
 <p>The report also groups the disagreements: which rubric criterion the judge cited when it was
 wrong, and whether any slice of your traffic is worse than the rest. A line like
@@ -125,14 +143,14 @@ of "the judge is unreliable".</p>
   deliberately leaves it out rather than sending you to chase noise.</p>
 </div>
 
-<h2>Did the change help?</h2>
+<h2 id="did-the-change-help">Did the change help?</h2>
 
 <pre><code>base -&gt; variant on 90 shared golden(s)
   baseline 83.3%   variant 63.3%
   difference -20.0% [-27.8%, -12.2%]  p=0.0000
   REGRESSION</code></pre>
 
-<h3>The verdict</h3>
+<h3 id="the-verdict">The verdict</h3>
 
 <div class="scroller"><table>
 <thead><tr><th>Verdict</th><th>Means</th></tr></thead>
@@ -142,13 +160,13 @@ of "the judge is unreliable".</p>
 <tr><td><strong>INCONCLUSIVE</strong></td><td>This test set cannot tell the two versions apart. <strong>Not the same as "no difference".</strong></td></tr>
 </tbody></table></div>
 
-<h3>The difference, and its range</h3>
+<h3 id="the-difference-and-its-range">The difference, and its range</h3>
 
 <p><code>-20.0% [-27.8%, -12.2%]</code> — the pass rate dropped twenty points, and the true drop is
 probably between twelve and twenty-eight. The verdict is decided by the range, not the p-value: a
 direction only counts when the whole range agrees with it.</p>
 
-<h3>How many examples actually changed</h3>
+<h3 id="how-many-examples-actually-changed">How many examples actually changed</h3>
 
 <p>Both versions answered the same questions, so what matters is how many <em>flipped</em>. If 200
 examples pass under both versions and 3 flip, the entire evidence is in those 3. The tool reports
@@ -158,7 +176,7 @@ that count, and everything is computed from it.</p>
 why this is not a two-sample proportion test — treating the arms as independent throws away the fact
 that they answered identical questions, and real regressions then come back "not significant".</em></p>
 
-<h3>The smallest change this run could have caught</h3>
+<h3 id="the-smallest-change-this-run-could-have-caught">The smallest change this run could have caught</h3>
 
 <pre><code>  INCONCLUSIVE
   (smallest effect this run could have seen: 6.0%)</code></pre>
@@ -172,7 +190,7 @@ regression, you need more examples, and no amount of re-reading this output will
 <p class="dim"><em>Textbook name: minimum detectable effect, computed from the flip rate rather than
 the pass rate, because under a paired test that is what carries the information.</em></p>
 
-<h2>"We swapped in a cheaper model — did quality hold?"</h2>
+<h2 id="we-swapped-in-a-cheaper-model-did-quality-hold">"We swapped in a cheaper model — did quality hold?"</h2>
 
 <p>This is a different question from "is it better", and reading the output the same way will
 mislead you. You are not hoping for an improvement. You are checking that the drop is small enough
@@ -203,7 +221,7 @@ the risk deliberately and write down that you did. What you should not do is rea
 <p class="dim"><em>Textbook name: a non-inferiority test. The formal version compares the interval
 bound against a pre-registered margin, which is exactly what you are doing by hand here.</em></p>
 
-<h2>Which stage broke?</h2>
+<h2 id="which-stage-broke">Which stage broke?</h2>
 
 <p>When a retrieval app regresses, the number you get back is one number over two systems. The
 rubric is how you pull them apart: each criterion is a different failure mode, and the judge names
@@ -223,7 +241,7 @@ the calibration report groups by criterion and by slice. Rolling that into a cri
 <a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">tracker</a>; today you read the breakdown per run and the overall
 verdict for the pair.</p>
 
-<h2>Was this even a fair comparison?</h2>
+<h2 id="was-this-even-a-fair-comparison">Was this even a fair comparison?</h2>
 
 <p>Every run records the rubric hash, the provider and the models that produced it. Together those
 are the <strong>pin</strong> — the exact ruler used.</p>
@@ -237,7 +255,34 @@ comparison. Re-run the older arm under the current pin.</code></pre>
 The tool stops rather than drawing the chart. Re-score the older version under the current rubric
 and compare again — the cache makes that cheap.</p>
 
-<h2>When the tool refuses</h2>
+<h2 id="if-your-task-has-a-hard-target">If your task has a hard target</h2>
+
+<p>Retrieval, classification and reranking come with the right answer already known, so the
+calibration half of this page does not apply to you. There is no rubric, no judge and no kappa,
+because nothing is being judged. <strong>Skip every number above that describes agreement.</strong></p>
+
+<p>What still applies, and is most of why this tool exists:</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Number</th><th>Why it still matters</th></tr></thead>
+<tbody>
+<tr><td><strong>The paired difference and its interval</strong></td><td>Both arms answer the same
+queries, so only the ones whose outcome changed carry information. This is true whether the outcome
+came from a judge or from an exact match against your target.</td></tr>
+<tr><td><strong>The detection limit</strong></td><td>The one people most need and least often have.
+"recall@5 moved from 0.71 to 0.69" is not a finding until you know the smallest move your set could
+have resolved.</td></tr>
+<tr><td><strong>The verdict</strong></td><td>Regression, improvement or inconclusive, on the same
+rule: a direction only counts when the whole interval agrees with it.</td></tr>
+<tr><td><strong>The non-inferiority margin</strong></td><td>Swapping a cheaper embedding model is
+still a "did quality hold" question, and still wants its tolerance fixed before the run.</td></tr>
+</tbody></table></div>
+
+<p>The per-task metrics themselves, recall@k, MRR, nDCG for retrieval and accuracy, precision,
+recall and F1 for classification, are computed from your targets rather than judged. They are
+designed and not yet shipped: see <a href="https://github.com/deepskandpal/LangChef/issues/14">#14</a>.</p>
+
+<h2 id="when-the-tool-refuses">When the tool refuses</h2>
 
 <p>Refusals are exit codes, so a script or an agent cannot talk its way past them.</p>
 
@@ -261,12 +306,13 @@ emitted yet. The full table, generated from the binary, is on the
   so in as many words.</p>
 </div>
 
-<h2>The memo</h2>
+<h2 id="the-memo">The memo</h2>
 
 <p><code>langchef memo render</code> assembles all of the above into one page, in a fixed order:
 whether the judge can be trusted, then the result, then what the run could not rule out. That order
 is deliberate. A confident result from an unchecked judge is worse than no result, so the trust
 question is never an appendix.</p>
+
 
 </main>
 </div>
@@ -279,5 +325,6 @@ question is never an appendix.</p>
     <span>&copy; 2026 Deepak Kandpal</span>
   </div>
 </footer>
+<script src="search.js" defer></script>
 </body>
 </html>

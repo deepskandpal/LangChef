@@ -18,35 +18,53 @@
   <div class="shell">
     <a class="wordmark" href="index.html"><span class="dot"></span>LangChef</a>
     <nav class="topnav">
-      <a href="index.html">Overview</a>
-      <a href="start.html">Start here</a>
-      <a href="numbers.html">Reading the output</a>
-      <a href="cli.html">Commands</a>
-      <a href="integrations.html" class="here">Integrations</a>
+      <a href="index.html">Guide</a>
+      <a href="concepts.html">Reference</a>
+      <a href="cli.html" class="here">Project</a>
       <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
     </nav>
   </div>
 </header>
 
 <div class="shell layout">
-
 <nav class="sidebar" aria-label="Documentation">
-  <h4>Documentation</h4>
+  <form class="search" role="search" onsubmit="return false">
+    <input id="q" type="search" placeholder="Search docs" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+  </form>
+  <div id="results" hidden></div>
+  <div id="nav">
+  <h4>Guide</h4>
   <ul>
     <li><a href="index.html">Overview</a></li>
-    <li><a href="start.html">Your first evaluation</a></li>
+    <li><a href="start.html">Start here</a></li>
     <li><a href="numbers.html">Reading the output</a></li>
-    <li><a href="cli.html">Command reference</a></li>
-    <li><a href="integrations.html">Integrations</a></li>
+  </ul>
+  <h4>Reference</h4>
+  <ul>
+    <li><a href="concepts.html">Concepts</a></li>
+    <li><a href="ref-agreement.html">Agreement and kappa</a></li>
+    <li><a href="ref-taxonomy.html">Disagreement taxonomy</a></li>
+    <li><a href="ref-sampling.html">Label planning</a></li>
+    <li><a href="ref-judging.html">Judging and pins</a></li>
+    <li><a href="ref-design.html">Designing a run</a></li>
+    <li><a href="ref-compare.html">Comparing two arms</a></li>
+  </ul>
+  <h4>Project</h4>
+  <ul>
+    <li><a href="cli.html">Commands</a></li>
+    <li><a href="integrations.html" aria-current="page">Integrations</a></li>
   </ul>
   <h4>In the repository</h4>
   <ul>
     <li><a href="https://github.com/deepskandpal/LangChef/blob/main/docs/AGENT-CONTRACT.md">Agent contract</a></li>
     <li><a href="https://github.com/deepskandpal/LangChef/blob/main/DECISIONS.md">Decisions</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/AGENTS.md">Working agreement</a></li>
     <li><a href="https://github.com/deepskandpal/LangChef/blob/main/dogfood/README.md">Dogfood</a></li>
-    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">Work tracker</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/issues">Issues</a></li>
     <li><a href="https://github.com/deepskandpal/LangChef">Source on GitHub</a></li>
   </ul>
+  </div>
 </nav>
 
 <main>
@@ -78,7 +96,7 @@ trying to replace the tools you already run — if your runs live in MLflow, the
 <tr><td><strong>GitHub Actions</strong></td><td>CI</td><td><span class="pill no">planned</span></td><td>Run the loop on a schedule in CI for teams without an agent harness, opening a pull request with the memo. The scheduled loop is the product; the harness is one way to run it.</td></tr>
 </tbody></table></div>
 
-<h2>Why MLflow is first</h2>
+<h2 id="why-mlflow-is-first">Why MLflow is first</h2>
 
 <p>Two reasons, and neither is popularity.</p>
 
@@ -92,7 +110,7 @@ that automates judge-versus-human agreement at all. That makes it the nearest th
 on the one problem LangChef leads with, which is exactly why interoperating beats competing:
 a team that has already aligned a judge in MLflow should be able to bring it, not redo it.</p>
 
-<h2>What an integration is allowed to do</h2>
+<h2 id="what-an-integration-is-allowed-to-do">What an integration is allowed to do</h2>
 
 <ul>
   <li><strong>Read-only by default.</strong> Connectors sample and read; they do not write to your
@@ -104,12 +122,13 @@ a team that has already aligned a judge in MLflow should be able to bring it, no
   repository. If you drop an integration, you keep everything.</li>
 </ul>
 
-<h2>Asking for one</h2>
+<h2 id="asking-for-one">Asking for one</h2>
 
 <p>The list is short on purpose and the order is not fixed. If a tool your team depends on is
 missing or sitting in "considering", say so on the
 <a href="https://github.com/deepskandpal/LangChef/issues">issue tracker</a> — what teams actually run beats what looks strategic
 from here.</p>
+
 
 </main>
 </div>
@@ -122,5 +141,6 @@ from here.</p>
     <span>&copy; 2026 Deepak Kandpal</span>
   </div>
 </footer>
+<script src="search.js" defer></script>
 </body>
 </html>

@@ -9,11 +9,22 @@ budget on cases the judge already called clean, and the resulting TPR rests on
 one or two examples. **Uncertainty**, because a judgement the judge was unsure
 about separates two rubrics, and one it was certain about usually does not.
 
-Sampling is stratified by the judge's own verdict, so the inclusion probability
-differs between strata and is recorded per row. Rates computed on the labelled
-set are therefore sample rates, not population rates, and anything that quotes
-them has to say so — ``weight`` is here so that a later post-stratified
-estimator has what it needs.
+Sampling is stratified by the judge's own verdict, so allocation differs between
+strata and a ``weight`` is recorded per row. Rates computed on the labelled set
+are sample rates, not population rates, and anything quoting them has to say so.
+
+**That weight is not a valid inclusion weight, and post-stratification will not
+make it one.** Selection *within* a stratum is deterministic: the lowest
+confidence rows are taken, so a row's inclusion probability is 0 or 1 given its
+confidence rank rather than ``n/N``. Post-stratification corrects allocation
+*between* strata and cannot recover population rates when selection inside one
+tracks the quantity being estimated, which confidence does almost by definition.
+
+A seeded coverage check on #30 put a nominal 95% interval at 43% actual coverage
+for TPR and 100% for TNR, the opposite failure and equally useless. Whether one
+label budget can buy estimation and diagnosis at once is open at #60; it probably
+cannot, in which case this splits into a random part for measuring and an
+uncertainty-selected part for diagnosing.
 """
 
 import hashlib

@@ -3,21 +3,216 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="refresh" content="0; url=numbers.html">
-<meta name="robots" content="noindex">
-<link rel="canonical" href="numbers.html">
-<title>Moved — LangChef</title>
+<title>Concepts — LangChef</title>
+<meta name="description" content="Every idea LangChef uses, in a few lines each, with a link to the page that explains it properly. No statistics background assumed.">
+<meta property="og:title" content="Concepts — LangChef">
+<meta property="og:description" content="Every idea LangChef uses, in a few lines each, with a link to the page that explains it properly. No statistics background assumed.">
+<meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=Spectral:ital,wght@0,600;1,400&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="shell" style="padding: 72px 24px; max-width: 60ch;">
-  <div class="eyebrow">This page moved</div>
-  <h1>Reading the output</h1>
-  <p class="lede">These docs were rewritten. If you are not redirected automatically,
-  <a href="numbers.html">continue to Reading the output</a>.</p>
+<header class="topbar">
+  <div class="shell">
+    <a class="wordmark" href="index.html"><span class="dot"></span>LangChef</a>
+    <nav class="topnav">
+      <a href="index.html">Guide</a>
+      <a href="concepts.html" class="here">Reference</a>
+      <a href="cli.html">Project</a>
+      <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="shell layout">
+<nav class="sidebar" aria-label="Documentation">
+  <form class="search" role="search" onsubmit="return false">
+    <input id="q" type="search" placeholder="Search docs" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+  </form>
+  <div id="results" hidden></div>
+  <div id="nav">
+  <h4>Guide</h4>
+  <ul>
+    <li><a href="index.html">Overview</a></li>
+    <li><a href="start.html">Start here</a></li>
+    <li><a href="numbers.html">Reading the output</a></li>
+  </ul>
+  <h4>Reference</h4>
+  <ul>
+    <li><a href="concepts.html" aria-current="page">Concepts</a></li>
+    <li><a href="ref-agreement.html">Agreement and kappa</a></li>
+    <li><a href="ref-taxonomy.html">Disagreement taxonomy</a></li>
+    <li><a href="ref-sampling.html">Label planning</a></li>
+    <li><a href="ref-judging.html">Judging and pins</a></li>
+    <li><a href="ref-design.html">Designing a run</a></li>
+    <li><a href="ref-compare.html">Comparing two arms</a></li>
+  </ul>
+  <h4>Project</h4>
+  <ul>
+    <li><a href="cli.html">Commands</a></li>
+    <li><a href="integrations.html">Integrations</a></li>
+  </ul>
+  <h4>In the repository</h4>
+  <ul>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/docs/AGENT-CONTRACT.md">Agent contract</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/DECISIONS.md">Decisions</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/AGENTS.md">Working agreement</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/dogfood/README.md">Dogfood</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/issues">Issues</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef">Source on GitHub</a></li>
+  </ul>
+  </div>
+</nav>
+
+<main>
+
+<div class="eyebrow">Reference</div>
+<h1>Concepts</h1>
+<p class="lede">Every idea LangChef uses, in a few lines each, with a link to the page that explains
+it properly. Start here if a word in the output is unfamiliar, or if you are about to change the
+code and want to know what you are changing.</p>
+
+<div class="callout">
+  <span class="k">You do not need statistics to use this</span>
+  <p>The tool computes all of it. This section exists so that the numbers are not a black box, and
+  so that anyone who wants to change how they are computed can find the ground they rest on.
+  Every page opens with a worked example from the project's own test data before it explains
+  anything.</p>
 </div>
+
+<h2 id="the-things-you-supply">The things you supply</h2>
+
+<h3 id="example">Example</h3>
+<p>One question your app was asked, the answer it gave, and the context it retrieved. Also called a
+<em>golden</em>. Fifty to a hundred is a normal starting set, taken from real traffic rather than
+invented, because invented questions are always easier than the ones users actually ask.</p>
+
+<h3 id="rubric">Rubric</h3>
+<p>What "a good answer" means, written down as Markdown. Each <code>###</code> heading is one
+criterion and the judge must name the one it failed on. Roughly what you would tell a new teammate
+on their first day. It is hashed, so editing it revokes its approval.
+<a href="ref-agreement.html#what-the-rubric-has-to-do">Why the headings matter</a>.</p>
+
+<h3 id="label">Label</h3>
+<p>Your own verdict on an example, pass or fail, recorded by hand. This is the ground truth
+everything else is measured against. It is the only part nobody can automate for you, and roughly
+forty of them is the usual ask.</p>
+
+<h2 id="judging">Judging</h2>
+
+<h3 id="judge">Judge</h3>
+<p>The thing that reads an answer and says pass or fail. Usually a model with your rubric in the
+prompt; sometimes, as in the default here, plain token matching. A judge is a measuring instrument,
+not a metric, which is the single idea the rest of the product is built on.</p>
+
+<h3 id="pin">Pin</h3>
+<p>The rubric hash, the provider and the models that produced a set of verdicts, recorded on every
+run. Two runs are only comparable if their pins match. When they do not, <code>compare</code> exits
+5 rather than drawing a chart of two different measurements.</p>
+
+<h3 id="two-tier-judging">Two-tier judging</h3>
+<p>A cheap model scores everything; a strong model re-scores only the cases the cheap one was
+unsure about. Built in from the start rather than added later, because the model is part of the
+cache key and retrofitting it would invalidate every cached verdict in every workspace. <a href="ref-judging.html#two-tiers">More</a>.</p>
+
+<h2 id="calibration-is-the-judge-any-good">Calibration: is the judge any good</h2>
+
+<h3 id="calibration">Calibration</h3>
+<p>Comparing the judge's verdicts against your labels on the same examples, to find out how far it
+can be trusted. It comes before everything else because an eval suite built on an unchecked judge
+produces confident nonsense, and no downstream statistic repairs that.
+<a href="ref-agreement.html">Full page</a>.</p>
+
+<h3 id="agreement-or-cohen-s-kappa">Agreement, or Cohen's kappa</h3>
+<p>How much you and the judge agree, after subtracting the agreement two coins would produce by
+luck. Runs 0 to 1. It exists because raw accuracy flatters any judge on a lopsided suite: where 95%
+of answers are fine, a judge that says "fine" to everything is 95% accurate and worthless.
+<a href="ref-agreement.html#kappa-subtract-the-luck">How it is computed</a>.</p>
+
+<h3 id="catch-rate-and-false-alarm-rate">Catch rate and false alarm rate</h3>
+<p>Of the problems you found, how many the judge also flagged (catch rate, or TPR). Of the answers
+that were fine, how many it flagged anyway (false alarm rate, or FPR). These two say <em>how</em> a
+judge fails, which is what actually changes a rubric.
+<a href="ref-agreement.html#the-two-numbers-you-act-on">More</a>.</p>
+
+<h3 id="confidence-interval">Confidence interval</h3>
+<p>The range the true value probably sits in. Printed beside every rate, because "80%" measured on
+fifteen examples and "80%" measured on fifteen hundred are different claims. A wide interval means
+label more examples, not that the judge is erratic.
+<a href="ref-agreement.html#the-interval-and-why-wilson">Why Wilson and not the textbook one</a>.</p>
+
+<h3 id="disagreement-taxonomy">Disagreement taxonomy</h3>
+<p>Six disagreements is a count, not a finding. The taxonomy groups them by which rubric criterion
+the judge cited and which slice of traffic they fell in, and refuses to report a slice whose
+interval does not clear the base rate.
+<a href="ref-taxonomy.html">Full page</a>.</p>
+
+<h3 id="label-planning">Label planning</h3>
+<p>Choosing which examples are worth a person's ten minutes. Sampling at random on a suite where the
+judge flags 15% wastes most of the budget confirming passes, so the plan takes every flagged example
+plus a sample of the rest, and prefers cases the judge was unsure about.
+<a href="ref-sampling.html">Full page</a>.</p>
+
+<h2 id="experiments-did-the-change-help">Experiments: did the change help</h2>
+
+<h3 id="arm-run-baseline">Arm, run, baseline</h3>
+<p>An <strong>arm</strong> is one version of your app. A <strong>run</strong> is one scoring pass
+over one arm. The <strong>baseline</strong> is the run you pinned as the reference. Both arms answer
+the same questions with the same example ids; that pairing is what lets a small set say anything.</p>
+
+<h3 id="paired-comparison">Paired comparison</h3>
+<p>Because both arms answer identical questions, only the examples that <em>changed verdict</em>
+carry information. If 200 pass under both and 3 flip, the evidence is in the 3. Treating the arms as
+independent samples throws that away and real regressions come back as noise.
+<a href="ref-compare.html#why-paired-and-not-two-samples">Full page</a>.</p>
+
+<h3 id="minimum-detectable-effect">Minimum detectable effect</h3>
+<p>The smallest change your run could have caught. Quoted on every inconclusive result, because "no
+significant difference" on ninety examples usually means "this set could never have seen it". It
+turns a shrug into a plan: collect more, or accept the limit knowingly.
+<a href="ref-compare.html#the-smallest-change-you-could-have-seen">More</a>, and how a run is <a href="ref-design.html">designed around it</a>.</p>
+
+<h3 id="non-inferiority-and-the-margin">Non-inferiority and the margin</h3>
+<p>Swapping in a cheaper model is not a hunt for an improvement, it is a check that the drop stays
+inside a tolerance you set <em>before</em> the run. You read the bottom of the interval against that
+margin, not the middle. Deciding the margin afterwards is how a null result becomes a green light.
+<a href="ref-compare.html#did-quality-hold">More</a>.</p>
+
+<h2 id="discipline">Discipline</h2>
+
+<h3 id="pre-registration">Pre-registration</h3>
+<p>The experiment design, written to <code>evals/experiments/</code> and approved by a person before
+any traffic. It carries a content hash, so editing it afterwards revokes the approval on its own.
+Reading out without one exits 2; reading out a run that departed from one marks the result
+exploratory and recommends no decision. <a href="ref-design.html#editing-it-afterwards-revokes-it-with-nobody-watching">Full page</a>.</p>
+
+<h3 id="gates-as-exit-codes">Gates as exit codes</h3>
+<p>A rule in a prompt is a suggestion. These are exit codes: <code>2</code> refused because an
+approval is missing, <code>5</code> refused because the two runs were measured differently,
+<code>4</code> stopped because the agreed budget ran out. An agent cannot argue with a non-zero
+exit. <a href="numbers.html#when-the-tool-refuses">The full table</a>.</p>
+
+<h3 id="the-quality-ledger">The quality ledger</h3>
+<p>An append-only record of every run, calibration and decision. Entries are never edited; a
+correction is a new entry, so what was believed at the time survives. It answers the question a
+leaderboard cannot: has quality moved this quarter, and what did we do about it.</p>
+
+<nav class="onward" aria-label="Reference sequence"><a class="next" href="ref-agreement.html"><span>Next</span>Agreement and kappa</a></nav>
+
+</main>
+</div>
+
+<footer class="site">
+  <div class="shell">
+    <span>LangChef 0.1.0 — Apache-2.0</span>
+    <span>An installed eval engineer.</span>
+    <span><a href="https://github.com/deepskandpal/LangChef">Source</a></span>
+    <span>&copy; 2026 Deepak Kandpal</span>
+  </div>
+</footer>
+<script src="search.js" defer></script>
 </body>
 </html>

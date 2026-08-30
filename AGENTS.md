@@ -50,8 +50,25 @@ function instead of declared in a pre-registration.
 ## Claiming it
 
 1. Comment on the issue saying you are starting.
-2. Move it to `lifecycle:doing`.
-3. Branch: `<issue-number>-short-slug`, e.g. `28-per-criterion-compare`.
+2. Branch: `<issue-number>-short-slug`, e.g. `28-per-criterion-compare`.
+
+That is all of it. **You do not move the label yourself**, and if you do not have
+write access you could not anyway. A workflow reads the comment and moves the
+issue to `lifecycle:doing` for you, then says so on the issue.
+
+**Any comment from a person on a `lifecycle:ready` issue claims it**, whatever it
+says. If you only meant to ask a question, say so and a maintainer will move it
+back. That is deliberately blunt, and it is the second version of this rule.
+
+The first version asked contributors to set `lifecycle:doing` themselves, which
+outside contributors cannot do; #25 looked free for three hours after it was
+claimed and two people wrote the same fix. The second version matched claim
+phrasings with a regex; on 28 August somebody wrote "I'd love to" where it
+expected "I'd like to", #64 sat `lifecycle:ready` for thirteen hours with a PR
+already open against it, and it happened again.
+
+A missed claim is silent and looks exactly like no claim. A false claim costs one
+label and a reply. So there is no phrase list.
 
 **Two agents must not hold issues carrying the same `area:` label at the same
 time.** The area labels map to directories and exist precisely to be collision
@@ -73,6 +90,42 @@ boundaries:
 An issue that genuinely needs two areas is usually two issues.
 
 ---
+
+## Say what wrote it
+
+If an agent prepared the change, say so. One line in the claim or the pull request
+description is enough.
+
+This is a disclosure norm, not a permission gate. Nothing here is closed to agents:
+this repository has an `agent:ready` label, a machine-readable working agreement,
+and a product thesis that evaluation belongs inside the harness a team already
+runs. Refusing agent contributions would contradict the thing being built.
+
+The reason to ask is that it changes how a change is read, not whether it is
+accepted. The most valuable contribution this project has received was an agent
+that found a statistical flaw in `core/sampling.py`, stopped, and opened no pull
+request at all. The least valuable was a change to `src/` with no tests. Neither
+outcome was predicted by whether a person or a model wrote it, and both were
+predicted by whether the contributor engaged with the issue first.
+
+## How much review a change needs, by what it can break
+
+The `area:` labels are already collision boundaries. They are also the honest
+measure of blast radius, so they set the bar.
+
+| Area | Bar |
+|---|---|
+| `area:docs`, `area:dogfood`, `area:adapters` | open. Low risk, easy to revert |
+| `area:cli`, `area:workspace`, `area:judge` | normal. Tests expected, `verify.sh` green |
+| **`area:core`** | **agree the approach on the issue before writing code** |
+| `DECISIONS.md`, the agent contract, `packs/` | a decision issue first, never a direct pull request |
+
+`area:core` is the statistics. A wrong answer there is invisible: it does not
+crash, it does not fail a test that nobody wrote, and it produces numbers that
+look exactly like the right numbers. That is the entire failure mode this
+product exists to prevent, so it is the one place where discussion comes before
+a diff. [#60](https://github.com/deepskandpal/LangChef/issues/60) exists because
+a contributor did precisely this without being asked.
 
 ## The lifecycle
 
@@ -174,6 +227,21 @@ announces itself. A statistic that is off by a factor of two produces output tha
 looks exactly like correct output, survives review, and is believed.
 
 ---
+
+## What runs on your pull request
+
+Two automatic checks, both of which only leave a comment. Neither fails the build,
+because a bot that blocks a good contribution costs more than one a maintainer can
+ignore.
+
+- **Already-held.** If the issue you close is `lifecycle:doing` and somebody else
+  claimed it first, the pull request says so. Three separate people implemented
+  [#25](https://github.com/deepskandpal/LangChef/issues/25) on 27 August before
+  this existed.
+- **`src/` without `tests/`.** Most issues name the tests they expect. If the
+  change is genuinely untestable, say so in the description.
+
+`main` requires both CI legs to pass before anything merges.
 
 ## Before opening a pull request
 
