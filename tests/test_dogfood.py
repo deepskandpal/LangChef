@@ -2,17 +2,40 @@
 
 Every other test here checks that a function computes what it claims. This one
 checks the product's actual claim — that a team running this would find out
-their system got worse — by breaking a known-good app in three known ways and
+their system got worse — by breaking a known-good app in six known ways and
 asking the harness what it sees.
 
-The third arm is the one worth reading. Its regression is real and smaller than
-90 goldens can resolve, and the required outcome is *not* a detection: it is an
-inconclusive verdict with an honest account of what the run could have seen. A
-harness that reported a clean bill of health there would be worse than useless.
+Three of the six are worth reading, because for each of them the *required*
+answer is something other than "regression detected":
+
+``truncated-context``
+    A real regression, smaller than 90 goldens can resolve. The required outcome
+    is an inconclusive verdict with an honest account of what the run could have
+    seen. A clean bill of health here would be worse than useless.
+
+``embedding-swap``
+    Head queries are untouched and the tail loses a third. "Quality fell" is
+    true, useless, and a miss; the finding is a slice.
+
+``temperature-0.9``
+    Ground truth is identical in every trial, so a comparison of means finds
+    nothing and is right to. The damage is the scatter between repeated calls,
+    and only a spread sees it.
 """
 
+import statistics
+
 import pytest
-from dogfood.app import BASELINE, PLANTED_EFFECT, VARIANTS
+from dogfood.app import (
+    BASELINE,
+    PLANTED_EFFECT,
+    PLANTED_RECALL_EFFECT,
+    PLANTED_SLICE_EFFECT,
+    PLANTED_VARIANCE_RATIO,
+    TRIALS,
+    VARIANTS,
+    recall,
+)
 from dogfood.app import run as run_app
 from dogfood.corpus import questions
 
@@ -62,9 +85,9 @@ def test_the_planted_effects_are_what_the_dogfood_claims(asked):
         assert observed == pytest.approx(PLANTED_EFFECT[name], abs=0.02), name
 
 
-def test_the_two_large_regressions_are_detected(asked, tmp_path):
+def test_the_large_regressions_are_detected(asked, tmp_path):
     baseline = _judge(run_app(BASELINE, asked), tmp_path, "base")
-    for name in ("stale-index", "eager-hedging"):
+    for name in ("stale-index", "eager-hedging", "embedding-swap"):
         variant = _judge(run_app(VARIANTS[name], asked), tmp_path, name)
         result = compare(baseline, variant)
         assert result.regression, f"{name} went undetected"
@@ -83,6 +106,132 @@ def test_the_small_regression_is_reported_as_inconclusive_not_as_clean(asked, tm
     # And it says so honestly: the effect it could not see is larger than the
     # one that is actually there.
     assert result.mde > abs(PLANTED_EFFECT["truncated-context"])
+
+
+def test_the_chunking_knob_breaks_retrieval_before_it_breaks_the_answer(asked, tmp_path):
+    """Doubling the chunk is a retrieval regression that the pass rate under-reports.
+
+    Both halves are planted and both are checked, because the gap between them
+    is the finding. A chunk holding two facts sits half way between them, so the
+    gold document reaches the prompt 14 points less often — unmistakable, and
+    measured at the retrieval layer. Only about half of that survives into a
+    wrong answer, which puts the end-to-end effect under what 90 goldens can
+    resolve. The honest report is "retrieval is broken, and this suite is the
+    wrong instrument to prove it".
+    """
+    variant = VARIANTS["chunk-size-doubled"]
+    measured = recall(variant, asked) - recall(BASELINE, asked)
+    assert measured == pytest.approx(PLANTED_RECALL_EFFECT["chunk-size-doubled"], abs=0.02)
+
+    base_rows = run_app(BASELINE, asked)
+    rows = run_app(variant, asked)
+    base_chars = statistics.mean(len(row["answer"]) for row in base_rows)
+    chars = statistics.mean(len(row["answer"]) for row in rows)
+    assert chars > 1.8 * base_chars, "a doubled chunk should roughly double the answer"
+
+    result = compare(_judge(base_rows, tmp_path, "base"), _judge(rows, tmp_path, "chunk"))
+    assert result.inconclusive
+    assert result.mde > abs(PLANTED_EFFECT["chunk-size-doubled"])
+    assert result.interval.lo <= PLANTED_EFFECT["chunk-size-doubled"] <= result.interval.hi
+
+
+def test_the_embedding_swap_is_a_tail_finding_not_a_quality_finding(asked, tmp_path):
+    """Slice attribution has to find what the aggregate only hints at.
+
+    The planted truth is that the swapped model matches the old one exactly on
+    head queries and loses a third of the tail. A harness that reports "quality
+    fell by 12 points" has said something true and sent someone to look in the
+    wrong place.
+    """
+    name = "embedding-swap"
+    base_rows = run_app(BASELINE, asked)
+    rows = run_app(VARIANTS[name], asked)
+    baseline = _judge(base_rows, tmp_path, "base")
+    variant = _judge(rows, tmp_path, name)
+
+    assert compare(baseline, variant).regression
+
+    planted = PLANTED_SLICE_EFFECT[name]
+    for label, expected in planted.items():
+        keep = [i for i, q in enumerate(asked) if q.frequency == label]
+        assert keep, label
+        sliced = compare([baseline[i] for i in keep], [variant[i] for i in keep])
+        assert sliced.difference == pytest.approx(expected, abs=0.06), label
+
+    head = [i for i, q in enumerate(asked) if q.frequency == "head"]
+    head_result = compare([baseline[i] for i in head], [variant[i] for i in head])
+    assert head_result.discordance.discordant == 0, "head queries must be untouched"
+    assert head_result.inconclusive
+
+    tail = [i for i, q in enumerate(asked) if q.frequency == "tail"]
+    tail_result = compare([baseline[i] for i in tail], [variant[i] for i in tail])
+    assert tail_result.regression, "the tail is where the swap shows"
+    assert tail_result.difference < head_result.difference - 0.2
+
+
+@pytest.fixture(scope="module")
+def repeated(asked, tmp_path_factory):
+    """The same question set asked ``TRIALS`` times under both temperatures.
+
+    Judged once and shared: the consistency knob is the only one that needs more
+    than a single call, and it needs two statistics off the same calls.
+    """
+    tmp = tmp_path_factory.mktemp("trials")
+    return {
+        tag: [_judge(run_app(config, asked, trial=t), tmp, f"{tag}{t}") for t in range(TRIALS)]
+        for tag, config in (("baseline", BASELINE), ("hot", VARIANTS["temperature-0.9"]))
+    }
+
+
+def test_a_means_only_comparison_finds_nothing_in_the_temperature_knob(asked, repeated):
+    """The case that justifies reporting a spread at all.
+
+    Ground truth is identical in every trial — the wording moves, the content
+    does not — so every comparison of means here is *correctly* inconclusive,
+    including the pooled one over every trial at once. Nothing is wrong with the
+    statistic. It is measuring the wrong thing, and that is the finding.
+    """
+    base_truth = _truth(run_app(BASELINE, asked))
+    for trial in range(TRIALS):
+        rows = run_app(VARIANTS["temperature-0.9"], asked, trial=trial)
+        assert _truth(rows) == base_truth, f"trial {trial} moved ground truth"
+
+    for trial in range(TRIALS):
+        result = compare(repeated["baseline"][trial], repeated["hot"][trial])
+        assert result.inconclusive, f"trial {trial} claimed a mean shift"
+
+    pooled = compare(
+        [v for trial in repeated["baseline"] for v in trial],
+        [v for trial in repeated["hot"] for v in trial],
+    )
+    assert pooled.discordance.n == TRIALS * len(asked)
+    assert pooled.inconclusive, "24x the goldens and there is still no shift in the mean"
+    assert abs(pooled.difference) < 0.01
+    # And it is not for want of power: the pooled run could have seen a shift an
+    # order of magnitude smaller than the smallest knob in the rig.
+    assert pooled.mde < 0.02
+
+
+def test_the_temperature_knob_moves_the_spread_the_mean_hid(asked, repeated):
+    """The other half: the measured pass rate will not sit still.
+
+    Same rewording rate at both temperatures, so the same mean. What changes is
+    whether a call keeps the wording it used last time — 37 times likelier to
+    depart at 0.9 than at 0.2 — and the pass rate scatters accordingly.
+    """
+    rates = {
+        tag: [trial.count("pass") / len(asked) for trial in trials]
+        for tag, trials in repeated.items()
+    }
+    assert statistics.mean(rates["hot"]) == pytest.approx(
+        statistics.mean(rates["baseline"]), abs=0.01
+    )
+
+    ratio = statistics.pvariance(rates["hot"]) / statistics.pvariance(rates["baseline"])
+    # The estimate is an F ratio off TRIALS draws and is wide; the planted value
+    # is quoted in the README and the assertion is the floor it must clear.
+    assert ratio > PLANTED_VARIANCE_RATIO["temperature-0.9"] / 4, ratio
+    assert len(set(rates["baseline"])) < len(set(rates["hot"]))
 
 
 def test_the_judge_has_the_blind_spot_the_dogfood_planted(asked, tmp_path):
@@ -195,3 +344,21 @@ def test_the_unresolvable_arm_attributes_nothing_and_says_what_it_missed(asked, 
     for c in result.criteria:
         assert c.attribution == "inconclusive", c.criterion
         assert c.mde > abs(PLANTED_EFFECT["truncated-context"]), c.criterion
+
+
+def test_a_trial_is_reproducible_not_merely_repeatable(asked):
+    """Temperature must not smuggle in randomness that survives a restart.
+
+    A trial is a pure function of its number, so trial 7 is the same call on
+    every machine and in every process. Without that the spread the consistency
+    knob plants would be indistinguishable from an unseeded generator, and the
+    rig could not tell a detected regression from a different random seed.
+    """
+    hot = VARIANTS["temperature-0.9"]
+    for trial in (0, 7, TRIALS - 1):
+        first = [row["answer"] for row in run_app(hot, asked, trial=trial)]
+        second = [row["answer"] for row in run_app(hot, asked, trial=trial)]
+        assert first == second, trial
+    assert [row["answer"] for row in run_app(hot, asked, trial=0)] != [
+        row["answer"] for row in run_app(hot, asked, trial=1)
+    ], "two calls at temperature 0.9 should not be word-for-word identical"
