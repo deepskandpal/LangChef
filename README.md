@@ -18,6 +18,15 @@ improvement, or noise.
 **Documentation: <https://deepskandpal.github.io/LangChef/>** — start with
 [your first evaluation](https://deepskandpal.github.io/LangChef/start.html).
 
+**Already have a labelled test set in a spreadsheet?** Point at it instead:
+[bring your own data](https://deepskandpal.github.io/LangChef/byod.html). Name
+the columns in `evals/config.toml` and start. For classification, retrieval and
+reranking there is no rubric to write and nothing to label, because those have a
+hard target — so setup is minutes rather than an afternoon. The trade is honest
+and stated on that page: with a hard target there is no judge to calibrate, so
+what you get is the paired comparison, the detection limit and the experiment
+discipline rather than "the judge you can trust".
+
 ### The three mistakes it exists to prevent
 
 **Trusting a grader nobody graded.** Your judge marks 95% of answers good. If

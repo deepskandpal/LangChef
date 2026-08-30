@@ -1,5 +1,41 @@
 [
 {
+"page": "Bring your own data",
+"title": "Bring your own data",
+"href": "byod.html",
+"text": "You already have a labelled test set in a spreadsheet. Point at it, name the columns, and start. No trace collection, no rubric writing, no labelling session."
+},
+{
+"page": "Bring your own data",
+"title": "Declare it once, in the workspace",
+"href": "byod.html#declare-it-once-in-the-workspace",
+"text": "The column mapping lives in evals/config.toml , not on the command line: [dataset] path = \"data/support-tickets.parquet\" class = \"classification\" input = \"ticket_body\" label = \"resolved_category\" That is deliberate. Which column is the input and which is the target is a claim about what your data means , and it belongs somewhere a colleague can disagree with it in a pull request. As a flag it woul"
+},
+{
+"page": "Bring your own data",
+"title": "The class decides almost everything",
+"href": "byod.html#the-class-decides-almost-everything",
+"text": "Class A row is Needs a judge? Calibration applies? Setup qna / generation question → golden answer yes yes an afternoon classification text → ideal label no no minutes retrieval query → relevant doc ids no no minutes reranking query + candidates → ordering no no minutes An unknown class is refused, and the message lists what is available. It does not fall back to qna , because that would quietly a"
+},
+{
+"page": "Bring your own data",
+"title": "What gets compared",
+"href": "byod.html#what-gets-compared",
+"text": "Each class has a per-example outcome, and the comparison follows its shape: Class Per-example outcome Comparison qna / generation the judge says pass or fail exact McNemar, paired classification predicted == ideal exact McNemar, paired retrieval recall@k, MRR, nDCG Wilcoxon signed-rank , paired reranking nDCG, MAP Wilcoxon signed-rank , paired Classification is not reduced to pass or fail. \"Correc"
+},
+{
+"page": "Bring your own data",
+"title": "What is not padded, guessed, or quietly dropped",
+"href": "byod.html#what-is-not-padded-guessed-or-quietly-dropped",
+"text": "A row that cannot be read is reported, never dropped. Silent row loss changes the denominator of every statistic downstream. A run over 900 of a thousand rows that reports 900 is lying by omission, and nothing later can detect that it happened. A misnamed column names itself, and lists what was actually found. Not a KeyError . You should not have to guess which of your columns was wrong. recall@10"
+},
+{
+"page": "Bring your own data",
+"title": "Adding a task class",
+"href": "byod.html#adding-a-task-class",
+"text": "Task classes live in a pack manifest, not in the statistics core. Adding one is a directory: declare its schema, its metric set and its outcome shape in pack.toml , and the loader resolves it. Nothing in src/langchef/core/ knows any class by name, and a test fails the build if that ever stops being true."
+},
+{
 "page": "Commands",
 "title": "Commands",
 "href": "cli.html",

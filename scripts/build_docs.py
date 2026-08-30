@@ -44,6 +44,7 @@ NAV = (
         (
             ("index.html", "Overview"),
             ("start.html", "Start here"),
+            ("byod.html", "Bring your own data"),
             ("numbers.html", "Reading the output"),
         ),
     ),
@@ -2681,6 +2682,110 @@ scratch, refusals included. Citations verified against publisher records.</p>
 """
 
 
+BYOD = """
+<div class="eyebrow">Guide</div>
+<h1>Bring your own data</h1>
+<p class="lede">You already have a labelled test set in a spreadsheet. Point at it, name the columns,
+and start. No trace collection, no rubric writing, no labelling session.</p>
+
+<div class="callout">
+  <span class="k">The short version</span>
+  <p><a href="start.html">Start here</a> is the path for a team whose data is still inside a running
+  app: collect traces, assemble them, write a rubric, label forty examples. That is an afternoon of
+  work before the tool has told you anything. If your data already exists as a file, this page is a
+  much shorter road, and for three of the four task classes it takes minutes.</p>
+</div>
+
+<h2>Declare it once, in the workspace</h2>
+
+<p>The column mapping lives in <code>evals/config.toml</code>, not on the command line:</p>
+
+<pre><code>[dataset]
+path  = "data/support-tickets.parquet"
+class = "classification"
+input = "ticket_body"
+label = "resolved_category"</code></pre>
+
+<p>That is deliberate. Which column is the input and which is the target is a <strong>claim about
+what your data means</strong>, and it belongs somewhere a colleague can disagree with it in a pull
+request. As a flag it would be invisible and unversioned, and the next person would have no way to
+tell what the last run actually measured.</p>
+
+<p>CSV and Parquet both work. The file stays where it is; nothing is copied into the workspace.</p>
+
+<h2>The class decides almost everything</h2>
+
+<div class="scroller"><table>
+<thead><tr><th>Class</th><th>A row is</th><th>Needs a judge?</th><th>Calibration applies?</th><th>Setup</th></tr></thead>
+<tbody>
+<tr><td><code>qna</code> / <code>generation</code></td><td>question → golden answer</td><td><strong>yes</strong></td><td><strong>yes</strong></td><td>an afternoon</td></tr>
+<tr><td><code>classification</code></td><td>text → ideal label</td><td>no</td><td>no</td><td><strong>minutes</strong></td></tr>
+<tr><td><code>retrieval</code></td><td>query → relevant doc ids</td><td>no</td><td>no</td><td><strong>minutes</strong></td></tr>
+<tr><td><code>reranking</code></td><td>query + candidates → ordering</td><td>no</td><td>no</td><td><strong>minutes</strong></td></tr>
+</tbody></table></div>
+
+<p>An unknown class is refused, and the message lists what is available. It does not fall back to
+<code>qna</code>, because that would quietly attach a judge and a calibration to data that has a hard
+answer, and produce numbers that mean nothing.</p>
+
+<div class="callout warn">
+  <span class="k">The honest part: calibration does not apply to three of these</span>
+  <p>LangChef's usual pitch is <em>the judge you can trust</em>. That only makes sense when the target
+  is free text and something has to decide whether an answer is good. <strong>A classification label,
+  a relevance judgement and an ideal ordering are hard targets. There is nothing to calibrate.</strong></p>
+  <p>What you get instead is the other half, and it is a real offer: the paired comparison, the
+  detection limit, the refusal to call an underpowered result a pass, and the experiment discipline.
+  Those are worth having. They are not the same pitch, and saying they were would be dishonest.</p>
+  <p>So on those three classes, <code>calibrate</code>, <code>taxonomy</code> and
+  <code>label plan</code> <strong>refuse</strong> rather than returning a number nobody can
+  interpret.</p>
+</div>
+
+<h2>What gets compared</h2>
+
+<p>Each class has a per-example outcome, and the comparison follows its shape:</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Class</th><th>Per-example outcome</th><th>Comparison</th></tr></thead>
+<tbody>
+<tr><td><code>qna</code> / <code>generation</code></td><td>the judge says pass or fail</td><td>exact McNemar, paired</td></tr>
+<tr><td><code>classification</code></td><td><code>predicted == ideal</code></td><td>exact McNemar, paired</td></tr>
+<tr><td><code>retrieval</code></td><td>recall@k, MRR, nDCG</td><td><strong>Wilcoxon signed-rank</strong>, paired</td></tr>
+<tr><td><code>reranking</code></td><td>nDCG, MAP</td><td><strong>Wilcoxon signed-rank</strong>, paired</td></tr>
+</tbody></table></div>
+
+<p><strong>Classification is not reduced to pass or fail.</strong> "Correct or not" <em>is</em> the
+comparison you want, and McNemar on it is exact, so nothing is thrown away.</p>
+
+<p><strong>Retrieval is not thresholded.</strong> This was the decision worth arguing about. Recall
+0.42 and recall 0.71 are both "fail" against a threshold of 0.8, and the difference between them is
+the entire finding. So retrieval scores stay continuous and get a comparison of their own.
+<a href="ref-compare.html">How that works</a>.</p>
+
+<h2>What is not padded, guessed, or quietly dropped</h2>
+
+<ul>
+  <li><strong>A row that cannot be read is reported, never dropped.</strong> Silent row loss changes
+  the denominator of every statistic downstream. A run over 900 of a thousand rows that reports 900
+  is lying by omission, and nothing later can detect that it happened.</li>
+  <li><strong>A misnamed column names itself, and lists what was actually found.</strong> Not a
+  <code>KeyError</code>. You should not have to guess which of your columns was wrong.</li>
+  <li><strong>recall@10 from six documents scores the six.</strong> It is not padded to ten, because
+  that would penalise your retriever for a truncation you chose.</li>
+  <li><strong>A query with no relevant documents scores <code>nan</code>, not zero.</strong> That
+  query cannot be measured, and a zero would drag your average down with a number that means "we
+  could not ask".</li>
+</ul>
+
+<h2>Adding a task class</h2>
+
+<p>Task classes live in a pack manifest, not in the statistics core. Adding one is a directory:
+declare its schema, its metric set and its outcome shape in <code>pack.toml</code>, and the loader
+resolves it. Nothing in <code>src/langchef/core/</code> knows any class by name, and a test fails the
+build if that ever stops being true.</p>
+"""
+
+
 CLI = """
 <div class="eyebrow">Reference</div>
 <h1>Commands</h1>
@@ -3092,6 +3197,13 @@ def build() -> dict[str, str]:
             fill(REF_COMPARE, common),
             "Paired comparison, exact McNemar, the minimum detectable effect, and why "
             "inconclusive is a result rather than a shrug.",
+        ),
+        "byod.html": shell(
+            "byod.html",
+            "Bring your own data — LangChef",
+            fill(BYOD, common),
+            "Point at a CSV or Parquet you already own, name the columns, and start. "
+            "For three of the four task classes, setup takes minutes rather than an afternoon.",
         ),
         "cli.html": shell(
             "cli.html",
