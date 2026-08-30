@@ -195,3 +195,42 @@ def test_every_command_writes_json_to_stdout_and_prose_to_stderr(workspace, run_
         result = run_cli(*args, cwd=workspace)
         assert json.loads(result.out), f"{args} did not put JSON on stdout"
         assert result.err.strip(), f"{args} said nothing to a person on stderr"
+
+
+def test_compare_says_which_criterion_the_regression_landed_on(workspace, run_cli):
+    """One verdict is a fact; the criterion it landed on is the actionable half.
+
+    Six goldens break, all of them by stating the wrong fact, so the whole of
+    the twenty-point drop has to be attributed to Correctness — and the artifact
+    has to carry it, because a memo may quote no number that is not in a file
+    under ``runs/``.
+    """
+
+    def cli(*args):
+        return run_cli(*args, cwd=workspace)
+
+    assert cli("approve", "rubric").code == Exit.OK
+    assert cli("judge", "run", "--arm", "baseline", "--run-id", "base").code == Exit.OK
+    assert cli("baseline", "set", "--run", "base").code == Exit.OK
+    assert cli("judge", "run", "--arm", "variant", "--run-id", "var").code == Exit.OK
+
+    code, payload, err = cli("compare", "--variant", "var")
+    assert code == Exit.OK
+
+    breakdown = payload["by_criterion"]
+    assert breakdown["method"] == "holm"
+    assert breakdown["uncited_failures"] == 0
+    assert breakdown["attributed"] == pytest.approx(payload["difference"])
+
+    correctness = next(c for c in breakdown["criteria"] if c["criterion"] == "Correctness")
+    assert correctness["attribution"] == "moved_worse"
+    assert correctness["difference"] == pytest.approx(-0.2)
+    assert correctness["mde"] > 0
+    # Not the overall comparison's word, and never both at once.
+    assert correctness["attribution"] not in ("regression", "improvement")
+
+    written = json.loads(
+        (workspace / "evals" / "runs" / "var" / "compare.json").read_text(encoding="utf-8")
+    )
+    assert written["by_criterion"] == breakdown
+    assert "Correctness" in err and "MOVED WORSE" in err
