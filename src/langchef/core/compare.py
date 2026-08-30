@@ -111,10 +111,15 @@ def mcnemar_p(d: Discordance) -> float:
     return float(binomtest(d.broke, d.discordant, 0.5).pvalue)
 
 
-def _bootstrap_interval(
+def paired_bootstrap_interval(
     baseline: Sequence[Verdict], variant: Sequence[Verdict], level: float
 ) -> Interval:
-    """Percentile bootstrap over pairs, resampled together to keep the pairing."""
+    """Percentile bootstrap over pairs, resampled together to keep the pairing.
+
+    Public because ``core.delta`` needs the same estimator for the difference of
+    two correlated rates. One implementation, so the two paired intervals this
+    product reports cannot drift apart.
+    """
     b = np.array([v == "pass" for v in baseline])
     v = np.array([v == "pass" for v in variant])
     rng = np.random.default_rng(BOOTSTRAP_SEED)
@@ -163,7 +168,7 @@ def compare(
     d = discordance(baseline, variant)
     baseline_rate = (d.both_pass + d.broke) / d.n
     variant_rate = (d.both_pass + d.fixed) / d.n
-    interval = _bootstrap_interval(baseline, variant, level)
+    interval = paired_bootstrap_interval(baseline, variant, level)
     p_value = mcnemar_p(d)
 
     # The interval decides. The p-value is reported because people ask for it,
@@ -401,7 +406,7 @@ def by_criterion(
     for name in names:
         left, right = _attributed(baseline, name), _attributed(variant, name)
         d = discordance(left, right)
-        measured.append((name, d, _bootstrap_interval(left, right, level), mcnemar_p(d)))
+        measured.append((name, d, paired_bootstrap_interval(left, right, level), mcnemar_p(d)))
 
     adjusted = holm([p for *_, p in measured])
     results = []

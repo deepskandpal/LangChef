@@ -44,7 +44,7 @@ reasoning tokens to add up.
 | `langchef label import` | Ingest returned human labels | deterministic | `labels/<judge>.jsonl` | M1 | yes |
 | `langchef judge run` | Score examples against a pinned rubric | cached | `runs/<id>/scores.parquet` | M2 | yes |
 | `langchef calibrate report` | Agreement: TPR, TNR, confusion matrix, Cohen's kappa, disagreement taxonomy | deterministic | `runs/<id>/calibration.json` | M1 | yes |
-| `langchef calibrate diff` | Re-score a revised rubric against the same labels, report the delta | deterministic | `runs/<id>/delta.json` | M6 | — |
+| `langchef calibrate diff` | Re-score a revised rubric against the same labels, report the delta | deterministic | `runs/<id>/delta.json` | M6 | yes |
 | `langchef eval run` | Run a suite over goldens | cached | `runs/<id>/` | M6 | — |
 | `langchef baseline set | show` | Pin a run as the reference | deterministic | `baselines/` | M3 | yes |
 | `langchef compare` | Paired deltas, confidence intervals, regression flags, minimum detectable effect | deterministic | `runs/<id>/compare.json` | M3 | yes |

@@ -428,3 +428,248 @@ def test_no_tolerance_means_no_non_inferiority_block(workspace, run_cli):
 
     assert result.payload["non_inferiority"] is None
     assert "QUALITY" not in result.err
+
+
+def _diff_suite():
+    """Thirty examples, and what an honest person says about each.
+
+    Twelve quote the context, ten paraphrase it correctly, eight are wrong. The
+    shipped rubric flags all eighteen of the paraphrases and wrong answers; a
+    person only calls the eight wrong ones bad, so the ten paraphrases are false
+    alarms and the revision's whole job is to stop them.
+    """
+    rows, labels = [], {}
+    for index in range(CORRECT + PARAPHRASED + WRONG_ANSWER):
+        if index < CORRECT:
+            answer, human = DIFF_CONTEXT, "pass"
+        elif index < CORRECT + PARAPHRASED:
+            answer, human = PARAPHRASE, "pass"
+        else:
+            answer, human = DIFF_WRONG, "fail"
+        example_id = f"ex-{index:02}"
+        rows.append(
+            {
+                "example_id": example_id,
+                "question": "Tell me the payment terms.",
+                "answer": answer,
+                "context": [DIFF_CONTEXT],
+                "expected": "net thirty days",
+                "slices": {"topic": "billing"},
+            }
+        )
+        labels[example_id] = human
+    return rows, labels
+
+
+@pytest.fixture
+def calibrated(tmp_path, run_cli):
+    """A workspace with one scored run and a full set of human labels on it."""
+    code, payload, _ = run_cli("init", "--name", "diff-test", cwd=tmp_path)
+    assert code == Exit.OK, payload
+    rows, labels = _diff_suite()
+    write_jsonl(tmp_path / "evals" / "goldens" / "support.jsonl", rows)
+
+    def cli(*args):
+        return run_cli(*args, cwd=tmp_path)
+
+    assert cli("approve", "rubric").code == Exit.OK
+    assert cli("judge", "run", "--run-id", "base").code == Exit.OK
+    assert cli("label", "plan", "--budget", "40", "--run", "base").code == Exit.OK
+
+    todo = tmp_path / "evals" / "labels" / "answer-quality.todo.jsonl"
+    write_jsonl(todo, [{**row, "verdict": labels[row["example_id"]]} for row in read_jsonl(todo)])
+    assert cli("label", "import", str(todo)).code == Exit.OK
+    return tmp_path
+
+
+def _write_v2(workspace):
+    path = workspace / "evals" / "rubrics" / "answer-quality-v2.md"
+    path.write_text(RUBRIC_V2, encoding="utf-8")
+    return path
+
+
+DIFF_CONTEXT = (
+    "Payment terms on every Northwind invoice are net thirty days, payable one month from receipt."
+)
+PARAPHRASE = "Payable one month from receipt."
+DIFF_WRONG = "Payment is due immediately on receipt."
+CORRECT, PARAPHRASED, WRONG_ANSWER = 12, 10, 8
+
+RUBRIC_V2 = """# Answer quality, revised
+
+Correctness has been dropped: the judge was reading it as word containment and
+flagging correct paraphrases. Whether that helped is what `calibrate diff` says.
+
+### Groundedness
+
+Every claim in the answer is supported by the retrieved context.
+
+### Directness
+
+The answer answers rather than declining.
+"""
+
+
+def _write_v2(workspace):
+    path = workspace / "evals" / "rubrics" / "answer-quality-v2.md"
+    path.write_text(RUBRIC_V2, encoding="utf-8")
+    return path
+
+
+def test_calibrate_diff_reports_the_delta_a_rubric_revision_bought(calibrated, run_cli):
+    def cli(*args):
+        return run_cli(*args, cwd=calibrated)
+
+    code, before, _ = cli("calibrate", "report", "--run", "base")
+    assert code == Exit.OK
+    assert before["confusion"] == {"tp": 8, "fp": 10, "fn": 0, "tn": 12}
+
+    _write_v2(calibrated)
+    code, payload, err = cli("calibrate", "diff", "--run", "base", "--rubric", "answer-quality-v2")
+    assert code == Exit.OK, payload
+
+    # Both hashes on the record: a delta between two unnamed rubrics is unusable.
+    assert payload["rubric"]["before"] == before["pin"]["rubric"]
+    assert payload["rubric"]["after"].startswith("answer-quality-v2@")
+    assert payload["rubric"]["before"] != payload["rubric"]["after"]
+    assert payload["approved"] == {"before": True, "after": False}
+
+    # Ten false alarms stop, nothing else moves.
+    assert payload["movement"]["false_alarms_fixed"] == PARAPHRASED
+    assert payload["movement"]["misses_introduced"] == 0
+    assert payload["n"] == CORRECT + PARAPHRASED + WRONG_ANSWER
+
+    assert payload["kappa"]["after"] > payload["kappa"]["before"]
+    assert payload["kappa"]["interval"]["lo"] > 0
+    assert payload["verdict"] == "improved"
+    assert payload["pairing"] == "paired"
+
+    # Both statistics, each with an interval — the acceptance criteria, literally.
+    for part in ("kappa", "tpr", "tnr"):
+        assert {"lo", "hi", "level"} <= set(payload[part]["interval"])
+    assert payload["tnr"]["difference"] == pytest.approx(PARAPHRASED / (CORRECT + PARAPHRASED))
+    assert payload["tpr"]["difference"] == 0.0
+
+    # The taxonomy for both, so a person can see which bucket moved.
+    assert payload["taxonomy"]["before"]["kinds"] == {"false_alarm": PARAPHRASED, "miss": 0}
+    assert payload["taxonomy"]["after"]["kinds"] == {"false_alarm": 0, "miss": 0}
+
+    artifact = calibrated / "evals" / "runs" / "base" / "delta.json"
+    assert artifact.is_file()
+    assert json.loads(artifact.read_text(encoding="utf-8"))["kappa"] == payload["kappa"]
+    assert "paired" in err
+
+
+def test_calibrate_diff_pays_only_for_the_new_rubric(calibrated, run_cli):
+    """The cache does the work: the old verdicts are on file and the new ones stick."""
+
+    def cli(*args):
+        return run_cli(*args, cwd=calibrated)
+
+    _write_v2(calibrated)
+    scores = calibrated / "evals" / "runs" / "base" / "scores.parquet"
+    original = scores.read_bytes()
+
+    code, first, _ = cli("calibrate", "diff", "--run", "base", "--rubric", "answer-quality-v2")
+    assert code == Exit.OK
+    assert first["cost"]["judge_calls"] == CORRECT + PARAPHRASED + WRONG_ANSWER
+
+    code, again, _ = cli("calibrate", "diff", "--run", "base", "--rubric", "answer-quality-v2")
+    assert code == Exit.OK
+    assert again["cost"]["judge_calls"] == 0
+    assert again["cost"]["cache_hits"] == CORRECT + PARAPHRASED + WRONG_ANSWER
+    assert again["kappa"] == first["kappa"]  # deterministic, per the contract
+
+    # The old rubric was never re-run; its verdicts were read, not recomputed.
+    assert scores.read_bytes() == original
+
+
+def test_calibrate_diff_takes_an_edited_rubric_without_a_fresh_approval(calibrated, run_cli):
+    """Deliberately outside gate one: this is the evidence approval rests on."""
+
+    def cli(*args):
+        return run_cli(*args, cwd=calibrated)
+
+    rubric = calibrated / "evals" / "rubrics" / "answer-quality.md"
+    rubric.write_text(RUBRIC_V2, encoding="utf-8")
+    # The edit has revoked the approval, and scoring is refused because of it.
+    assert cli("judge", "run", "--run-id", "after").code == Exit.REFUSED
+
+    code, payload, err = cli("calibrate", "diff", "--run", "base")
+    assert code == Exit.OK, payload
+    assert payload["approved"]["after"] is False
+    assert payload["movement"]["false_alarms_fixed"] == PARAPHRASED
+    assert "not approved" in err
+
+
+def test_calibrate_diff_refuses_at_exit_5_when_the_model_pin_moved(calibrated, run_cli):
+    """A rubric delta across a model change measures the model as much as the rubric."""
+    _write_v2(calibrated)
+    config = calibrated / "evals" / "config.toml"
+    config.write_text(
+        config.read_text(encoding="utf-8").replace(
+            'cheap_model = "containment/v2"', 'cheap_model = "containment/v3"'
+        ),
+        encoding="utf-8",
+    )
+
+    code, payload, err = run_cli(
+        "calibrate", "diff", "--run", "base", "--rubric", "answer-quality-v2", cwd=calibrated
+    )
+    assert code == Exit.PIN_MISMATCH
+    assert payload["moved"] == {"cheap_model": ["containment/v2", "containment/v3"]}
+    assert "rubric" not in payload["moved"]  # the rubric is the thing being changed
+    assert "measures nothing" in err
+    assert not (calibrated / "evals" / "runs" / "base" / "delta.json").exists()
+
+
+def test_calibrate_diff_refuses_a_rubric_that_did_not_move(calibrated, run_cli):
+    code, payload, _ = run_cli("calibrate", "diff", "--run", "base", cwd=calibrated)
+    assert code == Exit.ERROR
+    assert "nothing to diff" in payload["message"]
+
+
+def test_calibrate_diff_without_labels_says_what_to_run(workspace, run_cli):
+    assert run_cli("approve", "rubric", cwd=workspace).code == Exit.OK
+    assert run_cli("judge", "run", "--arm", "baseline", "--run-id", "b", cwd=workspace).code == 0
+    code, payload, _ = run_cli("calibrate", "diff", "--run", "b", cwd=workspace)
+    assert code == Exit.ERROR
+    assert "langchef label plan" in payload["message"]
+
+
+def test_calibrate_diff_keeps_the_two_streams_apart(calibrated, run_cli):
+    """DECISIONS.md #3, on the newest command rather than only the oldest."""
+    _write_v2(calibrated)
+    result = run_cli(
+        "calibrate", "diff", "--run", "base", "--rubric", "answer-quality-v2", cwd=calibrated
+    )
+    assert result.code == Exit.OK
+    assert json.loads(result.out)["verdict"] == "improved"
+    assert result.err.strip()
+    assert "kappa" in result.err and "{" not in result.err
+
+
+def test_calibrate_diff_files_a_note_rather_than_a_calibration(calibrated, run_cli):
+    """An unapproved candidate's kappa must never become a memo's headline."""
+
+    def cli(*args):
+        return run_cli(*args, cwd=calibrated)
+
+    assert cli("calibrate", "report", "--run", "base").code == Exit.OK
+    _write_v2(calibrated)
+    assert cli("calibrate", "diff", "--run", "base", "--rubric", "answer-quality-v2").code == 0
+
+    code, ledger, _ = cli("ledger", "query", "--limit", "50")
+    assert code == Exit.OK
+    entries = ledger["entries"]
+    notes = [e for e in entries if e.get("what") == "calibration-delta"]
+    assert len(notes) == 1 and notes[0]["kind"] == "note"
+    # The most recent calibration entry is still the approved rubric's.
+    calibrations = [e for e in entries if e["kind"] == "calibration"]
+    assert calibrations and calibrations[0]["kappa"] == pytest.approx(
+        json.loads(
+            (calibrated / "evals" / "runs" / "base" / "calibration.json").read_text(
+                encoding="utf-8"
+            )
+        )["kappa"]
+    )

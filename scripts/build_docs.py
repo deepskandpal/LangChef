@@ -655,6 +655,19 @@ properly, including what to do when the number is bad.</p>
 <p>If agreement had come back below 0.4, the correct move is to stop, fix the rubric, and try again
 — not to carry on and report pass rates from a judge that disagrees with you.</p>
 
+<p>"Try again" has a command. Once you have changed the rubric,
+<code>langchef calibrate diff</code> re-scores the new one against the labels you already have and
+tells you whether agreement actually moved — no re-labelling, and only the new rubric costs
+anything:</p>
+
+<pre><code>$ langchef calibrate diff
+  kappa  +0.57 -&gt; +0.84   +0.27 [+0.11, +0.45]   <span class="g">IMPROVED</span>
+  moved  0 miss(es) fixed, 0 introduced; 8 false alarm(s) fixed, 0 introduced</code></pre>
+
+<p>That interval is a paired one, because both rubrics judged the same examples against the same
+labels. <a href="ref-agreement.html">Agreement and kappa</a> explains why that matters more than it
+sounds like it should.</p>
+
 <h2>Step 7 — Have the experiment designed · 1 minute</h2>
 
 <p>You do not have to work out how many examples you need, or what size of change counts as real.
@@ -1395,6 +1408,83 @@ a 2.2x lift</strong>, on nine examples, with an interval of [12.1%, 64.6%]. The 
 interval sits below the base rate, so it is not reported. That guard is the most important thing in
 the codebase and it has its own page: <a href="ref-taxonomy.html">disagreement taxonomy</a>.</p>
 
+<h2>Did the rubric change help?</h2>
+
+<p>The taxonomy tells you <em>where</em> the judge disagrees. You act on it by rewriting the rubric —
+and then you have two calibrations and one question: did that help, or did it just move the noise
+around? <code>langchef calibrate diff</code> answers it. It re-scores the revised rubric against the
+same labels and reports the change in kappa <em>and</em> in both rates, each with an interval.</p>
+
+<p>The worked example below uses a larger labelled set — sixty rather than the forty above — for a
+reason worth knowing before you run this. On forty labels, a revision that repairs two false alarms
+lands at <strong>+0.10, interval [0.00, 0.25]</strong>: inconclusive. Forty labels are enough to
+measure a judge and not enough to resolve a small change to one.</p>
+
+<pre><code>$ langchef calibrate diff --rubric answer-quality-v2
+rubric delta on 60 labelled example(s) from run base
+  answer-quality@290335165c70  -&gt;  answer-quality-v2@8ad25d2ca381
+  kappa  +0.57 -&gt; +0.84   +0.27 [+0.11, +0.45]   <span class="g">IMPROVED</span>
+  TPR    80.0% -&gt; 80.0%   +0.0% [+0.0%, +0.0%]   p=1.0000  inconclusive
+         (nothing under 25.1% was in reach on these labels)
+  TNR    80.0% -&gt; 100.0%   +20.0% [+7.5%, +32.5%]   p=0.0156  improved
+  moved  0 miss(es) fixed, 0 introduced; 8 false alarm(s) fixed, 0 introduced</code></pre>
+
+<p>In plain words: dropping the criterion the judge was reading as word-containment stopped all eight
+false alarms and cost nothing in catch rate. The <code>moved</code> line is the actionable one — a
+revision that fixes four false alarms by introducing four misses is not the same change as this, and
+kappa alone cannot tell them apart.</p>
+
+<div class="worked">
+  <span class="k">Why this is not two reports side by side</span>
+  <p>Both rubrics scored <em>the same sixty examples</em> against <em>the same sixty labels</em>. A
+  rubric revision changes the instrument, not the ground truth. So the two kappas are two
+  measurements on one sample, not two samples — and they move together, because the eight repaired
+  examples are the only thing separating them.</p>
+  <p>The two calibrations on their own read <strong>0.57 [0.36, 0.78]</strong> and
+  <strong>0.84 [0.69, 0.99]</strong>. Those intervals overlap, and "they overlap, so nothing
+  changed" is the mistake. Do the same thing arithmetically — add the two variances as though the
+  calibrations were independent — and you get <strong>[+0.01, +0.53]</strong>: more than twice as
+  wide, and on data one repaired example lighter it straddles zero and the revision gets thrown
+  away.</p>
+  <p>The paired interval is <strong>[+0.11, +0.45]</strong>. It is not a tighter answer to the same
+  question; it is the answer to the right one.</p>
+</div>
+
+<p>This is the same defect as the minimum detectable effect computed with an unpaired formula on
+paired data, which reported 15.6% where the truth was 6.0%. It does not crash and it does not look
+wrong. It quietly turns real improvements into shrugs, which is how a rubric-iteration loop stops
+being worth running.</p>
+
+<h3>The two rates get an exact test, not a bootstrap</h3>
+
+<p>Kappa is not an average of anything, so its interval is a bootstrap that resamples examples and
+carries the human label and both verdicts on every draw. The catch rate and the false-alarm rate are
+simpler than that. Because the human labels do not move, <strong>the human-fail examples are
+literally the same examples under both rubrics</strong>: the denominator is fixed and only the
+numerator can move. That is exactly McNemar's setting, so only the examples where the two rubrics
+disagree <em>with each other</em> carry information — the same arithmetic, and the same code, that
+<a href="ref-compare.html">compare</a> uses on two arms.</p>
+
+<p>Two more things the output commits to. <strong>Kappa is the headline and the two rates are its
+halves</strong>, so their p-values are Holm-corrected across that family of two and a direction is
+named only when the corrected p clears alpha <em>and</em> the whole interval agrees with it — never
+one without the other. And <strong>a delta needs the same judge model at both ends</strong>: move the
+model between the two and the command exits 5 rather than reporting a rubric change that is partly a
+model change.</p>
+
+<p>The revised rubric does not need approving first, and deliberately so. Gate one stops a rubric
+nobody has read from scoring a suite for real; this command produces the evidence that reading is
+supposed to rest on. The output records that the candidate is unapproved, so nothing downstream can
+mistake it for a signed-off instrument.</p>
+
+<div class="incode">
+  <div>Computed in <b>src/langchef/core/delta.py</b></div>
+  <div><b>kappa_delta()</b> the paired percentile bootstrap over examples</div>
+  <div><b>delta()</b> both rates, exact McNemar, Holm-corrected across the pair</div>
+  <div>The unpaired interval is written out once, in <b>tests/test_delta.py</b>, purely so the paired
+  one can be measured against it. It appears nowhere under <b>src/</b>.</div>
+</div>
+
 <h2>What the rubric has to do</h2>
 
 <p>Each <code>###</code> heading in your rubric is one criterion, and the judge must name the one it
@@ -1413,6 +1503,10 @@ reported along, so renaming one silently changes what every past number meant.</
   <li><strong>No multi-class kappa yet.</strong> The variance formula is written for a 2×2 table.
   Classification datasets with more than two labels need an N×N version, tracked as part of the
   bring-your-own-dataset work.</li>
+  <li><strong>A delta compares two rubrics, never two label sets.</strong> <code>calibrate diff</code>
+  is paired on the labelled examples the two calibrations share, and refuses when they share none:
+  two calibrations on different examples differ by rubric <em>and</em> by example set, and no
+  interval can separate those two causes.</li>
   <li><strong>No inter-annotator agreement.</strong> We compare one judge against one set of human
   labels. Multiple human labellers disagreeing with each other is a real and harder problem, and
   Krippendorff's alpha is the usual tool. Out of scope for now.</li>
@@ -2596,6 +2690,7 @@ with <a href="start.html">your first evaluation</a> instead.</p>
 <tr><td class="mono">langchef label plan --budget 40</td><td>Once at the start, then monthly.</td></tr>
 <tr><td class="mono">langchef label import FILE</td><td>After you have filled the plan in.</td></tr>
 <tr><td class="mono">langchef calibrate report</td><td>After importing labels. Tells you if the judge is trustworthy.</td></tr>
+<tr><td class="mono">langchef calibrate diff</td><td>After changing the rubric. Tells you whether the change helped.</td></tr>
 <tr><td class="mono">langchef baseline set</td><td>Once you have a version worth comparing against.</td></tr>
 <tr><td class="mono">langchef compare --variant X</td><td>The question you came here to answer.</td></tr>
 <tr><td class="mono">langchef memo render</td><td>To write the decision down.</td></tr>

@@ -90,7 +90,7 @@ COMMANDS: tuple[Command, ...] = (
         "deterministic",
         "runs/<id>/delta.json",
         "M6",
-        False,
+        True,
     ),
     Command("eval run", "Run a suite over goldens", "cached", "runs/<id>/", "M6", False),
     Command(

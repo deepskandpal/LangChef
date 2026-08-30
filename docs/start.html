@@ -264,6 +264,19 @@ properly, including what to do when the number is bad.</p>
 <p>If agreement had come back below 0.4, the correct move is to stop, fix the rubric, and try again
 — not to carry on and report pass rates from a judge that disagrees with you.</p>
 
+<p>"Try again" has a command. Once you have changed the rubric,
+<code>langchef calibrate diff</code> re-scores the new one against the labels you already have and
+tells you whether agreement actually moved — no re-labelling, and only the new rubric costs
+anything:</p>
+
+<pre><code>$ langchef calibrate diff
+  kappa  +0.57 -&gt; +0.84   +0.27 [+0.11, +0.45]   <span class="g">IMPROVED</span>
+  moved  0 miss(es) fixed, 0 introduced; 8 false alarm(s) fixed, 0 introduced</code></pre>
+
+<p>That interval is a paired one, because both rubrics judged the same examples against the same
+labels. <a href="ref-agreement.html">Agreement and kappa</a> explains why that matters more than it
+sounds like it should.</p>
+
 <h2 id="step-7-have-the-experiment-designed-1-minute">Step 7 — Have the experiment designed · 1 minute</h2>
 
 <p>You do not have to work out how many examples you need, or what size of change counts as real.

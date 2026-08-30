@@ -31,12 +31,14 @@
 | M4.75 | Bring your own dataset | next ([#14](https://github.com/deepskandpal/LangChef/issues/14)) | point at rows you already own; the cheapest first contact available |
 | M5 | Unattended | not started ([#16](https://github.com/deepskandpal/LangChef/issues/16)) | scheduling, weekly recalibration, spend caps, connectors + sampling |
 | M5.5 | Integrations | not started ([#26](https://github.com/deepskandpal/LangChef/issues/26)) | MLflow first, then Langfuse and OTel GenAI conventions |
-| M6 | Job one | not started ([#17](https://github.com/deepskandpal/LangChef/issues/17)) | eval suites, `calibrate diff`, triage, variance-derived thresholds |
+| M6 | Job one | not started ([#17](https://github.com/deepskandpal/LangChef/issues/17)) | eval suites, triage, variance-derived thresholds — `calibrate diff` pulled forward, as `compare` was |
 | M7 | Experiments | not started | standalone `power` and the remaining integrity checks |
 
 `langchef contract` is the authority on what exists. The table in
-`src/langchef/core/contract.py` is where a command's status changes; the five
-unbuilt ones are [#42](https://github.com/deepskandpal/LangChef/issues/42)–[#46](https://github.com/deepskandpal/LangChef/issues/46).
+`src/langchef/core/contract.py` is where a command's status changes; the three
+unbuilt ones are [#43](https://github.com/deepskandpal/LangChef/issues/43),
+[#44](https://github.com/deepskandpal/LangChef/issues/44) and
+[#46](https://github.com/deepskandpal/LangChef/issues/46).
 
 ---
 
