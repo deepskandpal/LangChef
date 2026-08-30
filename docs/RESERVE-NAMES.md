@@ -71,6 +71,16 @@ uploads.
 - [x] GitHub name held: `deepskandpal/LangChef`
 - [x] `langchef` confirmed free on PyPI, 30 August 2026
 - [x] `release.yml` wired for Trusted Publishing, both indexes
-- [ ] PyPI account and pending publisher created **(needs you)**
-- [ ] First release published
-- [ ] Install instructions in the docs verified true against the published package
+- [x] PyPI account and pending publisher created, 30 August 2026
+- [x] **First release published: `langchef 0.1.0`, 30 August 2026**
+- [x] Install instructions verified true: `uv run --with langchef langchef --version`
+      resolves from PyPI and prints `langchef 0.1.0` in a clean environment
+
+## Still open
+
+TestPyPI has **no** pending publisher. The rehearsal run failed with
+`invalid-publisher: valid token, but no corresponding publisher`, which is the
+test index refusing a token GitHub minted correctly. That is a separate form on
+<https://test.pypi.org> with environment name `testpypi`, and it is worth filling
+in before 0.2.0: a PyPI upload cannot be replaced, only yanked, so the rehearsal
+is the only place a version-number mistake is cheap.

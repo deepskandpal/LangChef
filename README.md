@@ -106,7 +106,22 @@ where each command lands.
 
 ## Install
 
-[uv](https://docs.astral.sh/uv/) is the only prerequisite. It fetches the
+```sh
+pip install langchef
+```
+
+Or without installing anything permanently:
+
+```sh
+uv run --with langchef langchef --version
+```
+
+Python 3.12 or 3.13. Both are tested in CI on every push.
+
+### From source
+
+For the dogfood app and the test suite, which are not in the wheel.
+[uv](https://docs.astral.sh/uv/) is the only prerequisite; it fetches the
 interpreter itself, so no system Python is involved and nothing is installed
 globally.
 
