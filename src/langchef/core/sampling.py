@@ -115,12 +115,26 @@ def plan(rows: Sequence[dict], budget: int, seed: int = 0) -> list[Selection]:
 def summarise(selections: Sequence[Selection], rows: Sequence[dict]) -> dict:
     """What the plan did, in the terms the person labelling will ask about."""
     strata: dict[str, int] = {}
+    weights: dict[str, float] = {}
     for selection in selections:
         strata[selection.stratum] = strata.get(selection.stratum, 0) + 1
+        # Read the weight `plan` recorded rather than deriving a second one.
+        #
+        # This used to compute `len(rows) / count` -- the whole suite over one
+        # stratum's count -- which put a suite-level numerator over a
+        # stratum-level denominator and is not a quantity that means anything.
+        # On a 90-example suite with 15 judge-fails and a budget of 40 it
+        # reported 6.0 and 3.6 where the rows carried 1.0 and 3.0.
+        #
+        # Nothing consumed the reported figure, so no published number was
+        # wrong; the cost was that one module offered two candidate weights
+        # with nothing to say which was intended. Taking it from the selection
+        # leaves exactly one definition, in `plan`.
+        weights[selection.stratum] = round(selection.weight, 3)
     return {
         "selected": len(selections),
         "available": len(rows),
         "by_stratum": strata,
         "design": "stratified by judge verdict; inclusion probability differs between strata",
-        "weights": {name: round(len(rows) / count, 3) for name, count in strata.items() if count},
+        "weights": weights,
     }
