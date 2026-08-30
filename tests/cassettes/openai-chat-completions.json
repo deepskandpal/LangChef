@@ -1,0 +1,160 @@
+{
+  "provenance": "OpenAI chat-completions payloads, shaped exactly as the API returns them, written by hand rather than captured from a live model. This repository's CI runs with no provider credential and scripts/assert_no_credentials.py asserts their absence before anything else, so a live recording needs a person with a key: see issue #31. What these bytes prove is that the litellm code path runs at all, which nothing had ever shown.",
+  "model": "gpt-4o-mini",
+  "interactions": {
+    "grades-pass": {
+      "status": 200,
+      "body": {
+        "id": "chatcmpl-langchef-0001",
+        "object": "chat.completion",
+        "created": 1756512000,
+        "model": "gpt-4o-mini-2024-07-18",
+        "choices": [
+          {
+            "index": 0,
+            "finish_reason": "stop",
+            "message": {
+              "role": "assistant",
+              "content": "{\"verdict\": \"pass\", \"criterion\": null, \"confidence\": 0.88, \"rationale\": \"The answer states the payment terms and every claim appears in the retrieved context.\"}"
+            }
+          }
+        ],
+        "usage": {"prompt_tokens": 214, "completion_tokens": 41, "total_tokens": 255}
+      }
+    },
+    "grades-fail-fenced": {
+      "status": 200,
+      "body": {
+        "id": "chatcmpl-langchef-0002",
+        "object": "chat.completion",
+        "created": 1756512001,
+        "model": "gpt-4o-mini-2024-07-18",
+        "choices": [
+          {
+            "index": 0,
+            "finish_reason": "stop",
+            "message": {
+              "role": "assistant",
+              "content": "```json\n{\"verdict\": \"fail\", \"criterion\": \"Groundedness\", \"confidence\": 0.71, \"rationale\": \"The Leeds office is not in the retrieved context.\"}\n```"
+            }
+          }
+        ],
+        "usage": {"prompt_tokens": 219, "completion_tokens": 38, "total_tokens": 257}
+      }
+    },
+    "stops-without-text": {
+      "status": 200,
+      "body": {
+        "id": "chatcmpl-langchef-0003",
+        "object": "chat.completion",
+        "created": 1756512002,
+        "model": "gpt-4o-mini-2024-07-18",
+        "choices": [
+          {
+            "index": 0,
+            "finish_reason": "content_filter",
+            "message": {"role": "assistant", "content": null}
+          }
+        ],
+        "usage": {"prompt_tokens": 214, "completion_tokens": 0, "total_tokens": 214}
+      }
+    },
+    "message-without-content": {
+      "status": 200,
+      "body": {
+        "id": "chatcmpl-langchef-0004",
+        "object": "chat.completion",
+        "created": 1756512003,
+        "model": "gpt-4o-mini-2024-07-18",
+        "choices": [
+          {
+            "index": 0,
+            "finish_reason": "length",
+            "message": {"role": "assistant"}
+          }
+        ],
+        "usage": {"prompt_tokens": 214, "completion_tokens": 16, "total_tokens": 230}
+      }
+    },
+    "prose-not-json": {
+      "status": 200,
+      "body": {
+        "id": "chatcmpl-langchef-0005",
+        "object": "chat.completion",
+        "created": 1756512004,
+        "model": "gpt-4o-mini-2024-07-18",
+        "choices": [
+          {
+            "index": 0,
+            "finish_reason": "stop",
+            "message": {
+              "role": "assistant",
+              "content": "Honestly this one looks fine to me, I would let it through."
+            }
+          }
+        ],
+        "usage": {"prompt_tokens": 214, "completion_tokens": 14, "total_tokens": 228}
+      }
+    },
+    "json-but-not-an-object": {
+      "status": 200,
+      "body": {
+        "id": "chatcmpl-langchef-0006",
+        "object": "chat.completion",
+        "created": 1756512005,
+        "model": "gpt-4o-mini-2024-07-18",
+        "choices": [
+          {
+            "index": 0,
+            "finish_reason": "stop",
+            "message": {"role": "assistant", "content": "\"pass\""}
+          }
+        ],
+        "usage": {"prompt_tokens": 214, "completion_tokens": 3, "total_tokens": 217}
+      }
+    },
+    "rate-limited": {
+      "status": 429,
+      "body": {
+        "error": {
+          "message": "Rate limit reached for gpt-4o-mini in organization on requests per min (RPM): Limit 3, Used 3, Requested 1.",
+          "type": "requests",
+          "param": null,
+          "code": "rate_limit_exceeded"
+        }
+      }
+    },
+    "server-error": {
+      "status": 500,
+      "body": {
+        "error": {
+          "message": "The server had an error while processing your request. Sorry about that!",
+          "type": "server_error",
+          "param": null,
+          "code": null
+        }
+      }
+    },
+    "bad-request": {
+      "status": 400,
+      "body": {
+        "error": {
+          "message": "Unsupported value: 'temperature' does not support 0.0 with this model.",
+          "type": "invalid_request_error",
+          "param": "temperature",
+          "code": "unsupported_value"
+        }
+      }
+    },
+    "no-choices": {
+      "status": 200,
+      "body": {
+        "id": "chatcmpl-langchef-0007",
+        "object": "chat.completion",
+        "created": 1756512006,
+        "model": "gpt-4o-mini-2024-07-18",
+        "usage": {"prompt_tokens": 214, "completion_tokens": 0, "total_tokens": 214}
+      }
+    }
+  }
+}

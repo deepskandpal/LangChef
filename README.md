@@ -261,9 +261,19 @@ uv run python scripts/render_contract.py    # regenerate docs/AGENT-CONTRACT.md
 uv run langchef doctor                      # what the agent sees
 ```
 
-Judge calls, when they arrive in M2, are recorded once and replayed forever, so
-no test can ever spend money — and CI asserts the absence of a key rather than
-assuming it.
+Judge calls are recorded once and replayed forever, so no test can ever spend
+money — and CI asserts the absence of a key rather than assuming it.
+
+That leaves one awkward path: the litellm backend is the one every real user
+runs and the one a keyless build machine cannot run, so for a while it was the
+only part of the codebase nothing had ever executed. It is covered now by
+faking the socket rather than the credential — `tests/test_litellm_path.py`
+hands litellm an `httpx.MockTransport` through its own `client_session` seam and
+replays recorded chat-completion bytes through it, so litellm's request
+building, its response parsing, its retries and every line of the shim above
+them genuinely run. Recording a session against a live model is still worth
+doing and still needs a person with a key
+([#31](https://github.com/deepskandpal/LangChef/issues/31)).
 
 ---
 

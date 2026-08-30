@@ -43,6 +43,12 @@ dev = [
   # Independent implementation for the known-answer tests (DECISIONS.md #7).
   # A test dependency on purpose: core hand-rolls every statistic it ships.
   "scikit-learn>=1.5,<2",
+  # The providers extra, installed for the suite and not for users, so that the
+  # litellm path is executed rather than skipped in CI (#31). It still costs
+  # nothing and touches no network: tests/test_litellm_path.py replaces the
+  # socket with a recorded transport, and verify.sh step 1 still asserts that no
+  # provider credential is present before any of it runs.
+  "langchef[providers]",
 ]
 
 [build-system]

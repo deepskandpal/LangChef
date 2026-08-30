@@ -23,6 +23,16 @@ Three backends, and the difference between them is where the verdict comes from:
 
 ``litellm``
     The real thing, any provider litellm speaks. Lazily imported.
+
+    It is the backend every real user runs and the one CI can never run: there
+    is no key on the build machine, and ``scripts/assert_no_credentials.py``
+    asserts there never will be. So the credential is not what gets faked in
+    ``tests/test_litellm_path.py`` — the socket is. litellm hands a module-level
+    ``litellm.client_session`` to the provider SDK as its HTTP client, so an
+    ``httpx.MockTransport`` plugged in there replays recorded chat-completion
+    bytes and nothing else changes: the request litellm builds, the auth header
+    the SDK attaches, litellm's parsing of the reply, its retries and the
+    exceptions it raises all genuinely run.
 """
 
 import json
@@ -268,7 +278,19 @@ def build_prompt(example: Example, rubric: Rubric) -> str:
 
 
 def parse_reply(reply: str, example_id: str, model: str) -> Judgement:
-    """Turn a model's JSON into a judgement, or say why it could not be read."""
+    """Turn a model's JSON into a judgement, or say why it could not be read.
+
+    Every way this can fail is a ``ProviderError``, because the CLI catches that
+    one and nothing else. Two of the checks below look redundant and are not: a
+    reply that is not text at all, and JSON that parses to something other than
+    an object. Both crashed with an ``AttributeError`` out of the shim until the
+    litellm path was first executed — ``None.strip()`` on a model that stopped
+    without text, ``"pass".get()`` on a model that answered with a bare string.
+    """
+    if not isinstance(reply, str):
+        raise ProviderError(
+            f"{model} returned {type(reply).__name__} where the reply text should be"
+        )
     text = reply.strip()
     if text.startswith("```"):
         text = re.sub(r"^```[a-z]*\s*|\s*```$", "", text, flags=re.MULTILINE).strip()
@@ -276,6 +298,10 @@ def parse_reply(reply: str, example_id: str, model: str) -> Judgement:
         raw = json.loads(text)
     except json.JSONDecodeError as exc:
         raise ProviderError(f"{model} did not return JSON: {reply[:200]!r}") from exc
+    if not isinstance(raw, dict):
+        raise ProviderError(
+            f"{model} returned a JSON {type(raw).__name__}, not an object: {reply[:200]!r}"
+        )
 
     verdict = str(raw.get("verdict", "")).lower().strip()
     if verdict not in ("pass", "fail"):
@@ -314,9 +340,45 @@ class ReplayProvider:
         if key not in self.recorded:
             raise ProviderError(
                 f"no cassette for {example.example_id} under {model} (key {key}). "
-                f"Record one with LANGCHEF_RECORD=1, or run with --provider containment."
+                f"Record one with LANGCHEF_RECORD_TO={self.cassettes} and "
+                f"--provider litellm, or run with --provider containment."
             )
         return parse_reply(self.recorded[key], example.example_id, model)
+
+
+def reply_text(response: object, model: str) -> str:
+    """The assistant's text out of a completion, or a refusal naming what moved.
+
+    Deliberately outside the ``try`` around the call itself. A provider that is
+    down and a provider whose reply is shaped differently than this shim expects
+    are different diagnoses, and reporting both as ``{model}: {exc}`` sends a
+    reader to look at the network when what actually changed was the schema.
+
+    A model that stops for a content filter, a length limit or a tool call
+    returns ``content: null`` rather than text. That is ordinary, and until this
+    path was first executed it raised ``AttributeError: 'NoneType' object has no
+    attribute 'strip'`` out of the shim — which the CLI does not catch, so the
+    run died with a traceback and no JSON on stdout.
+    """
+    try:
+        choice = response["choices"][0]  # type: ignore[index]
+        content = choice["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ProviderError(
+            f"{model} returned a reply this shim cannot read ({exc!r}); "
+            "the provider's response schema has moved"
+        ) from exc
+    if isinstance(content, str):
+        return content
+    try:
+        finish = choice["finish_reason"]
+    except (KeyError, IndexError, TypeError):
+        finish = None
+    raise ProviderError(
+        f"{model} returned no text to grade (finish_reason={finish!r}). "
+        "A content filter, a length limit or a tool call stops a model without text; "
+        "there is no verdict to read out of that."
+    )
 
 
 @dataclass
@@ -330,30 +392,34 @@ class LiteLLMProvider:
     def judge(self, example: Example, rubric: Rubric, model: str) -> Judgement:
         try:
             import litellm
-        except ModuleNotFoundError as exc:  # pragma: no cover - depends on the extra
+        except ModuleNotFoundError as exc:
             raise ProviderError(
                 "litellm is not installed. Either `uv sync --extra providers`, "
                 "or use --provider containment, which needs no model at all."
             ) from exc
 
         prompt = build_prompt(example, rubric)
-        try:  # pragma: no cover - needs a network and a key
+        try:
             response = litellm.completion(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=self.temperature,
             )
-            reply = response["choices"][0]["message"]["content"]
-        except Exception as exc:  # pragma: no cover - provider failures are opaque
+        except Exception as exc:
+            # Provider failures are opaque and provider-specific; litellm's
+            # exception text is the most useful thing there is to say.
             raise ProviderError(f"{model}: {exc}") from exc
 
-        if self.record_to is not None:  # pragma: no cover - recording needs a key
+        reply = reply_text(response, model)
+        if self.record_to is not None:
             self._record(prompt, model, reply)
         return parse_reply(reply, example.example_id, model)
 
-    def _record(self, prompt: str, model: str, reply: str) -> None:  # pragma: no cover
+    def _record(self, prompt: str, model: str, reply: str) -> None:
+        """Append one reply to a cassette, keyed by the exact bytes that earned it."""
         from langchef.judge.cache import prompt_key
 
+        assert self.record_to is not None
         self.record_to.parent.mkdir(parents=True, exist_ok=True)
         existing = (
             json.loads(self.record_to.read_text(encoding="utf-8"))
@@ -361,7 +427,9 @@ class LiteLLMProvider:
             else {}
         )
         existing[prompt_key(prompt, model)] = reply
-        self.record_to.write_text(json.dumps(existing, indent=2, sort_keys=True), encoding="utf-8")
+        self.record_to.write_text(
+            json.dumps(existing, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
 
 
 def resolve(name: str, cassettes: Path | None = None) -> Provider:
