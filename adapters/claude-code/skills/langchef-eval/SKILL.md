@@ -102,6 +102,8 @@ langchef label plan --budget 40      # pick what a person should label
 #   -> a human fills in the verdicts, then:
 langchef label import evals/labels/<rubric>.todo.jsonl
 langchef calibrate report            # kappa, TPR, FPR, where they disagreed
+#   -> weak? revise the rubric, then:
+langchef calibrate diff              # did the revision move agreement? paired
 langchef baseline set                # pin the reference
 langchef judge run --arm variant     # score the change
 langchef compare                     # paired, with an interval

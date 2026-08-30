@@ -3,7 +3,7 @@
 "page": "Commands",
 "title": "Commands",
 "href": "cli.html",
-"text": "Generated from the contract inside the binary, so this table cannot claim a command that does not exist. 18 of 22 are live today. If you are here to learn the tool, start with your first evaluation instead."
+"text": "Generated from the contract inside the binary, so this table cannot claim a command that does not exist. 19 of 22 are live today. If you are here to learn the tool, start with your first evaluation instead."
 },
 {
 "page": "Commands",
@@ -469,6 +469,18 @@
 },
 {
 "page": "Agreement and kappa",
+"title": "Did the rubric change help?",
+"href": "ref-agreement.html#did-the-rubric-change-help",
+"text": "The taxonomy tells you where the judge disagrees. You act on it by rewriting the rubric — and then you have two calibrations and one question: did that help, or did it just move the noise around? langchef calibrate diff answers it. It re-scores the revised rubric against the same labels and reports the change in kappa and in both rates, each with an interval. The worked example below uses a larger"
+},
+{
+"page": "Agreement and kappa",
+"title": "The two rates get an exact test, not a bootstrap",
+"href": "ref-agreement.html#the-two-rates-get-an-exact-test-not-a-bootstrap",
+"text": "Kappa is not an average of anything, so its interval is a bootstrap that resamples examples and carries the human label and both verdicts on every draw. The catch rate and the false-alarm rate are simpler than that. Because the human labels do not move, the human-fail examples are literally the same examples under both rubrics : the denominator is fixed and only the numerator can move. That is exa"
+},
+{
+"page": "Agreement and kappa",
 "title": "What the rubric has to do",
 "href": "ref-agreement.html#what-the-rubric-has-to-do",
 "text": "Each ### heading in your rubric is one criterion, and the judge must name the one it failed on. That is what makes the taxonomy possible at all: without an attributed failure there is nothing to group by, and a regression in a retrieval app cannot be told apart from a regression in the generator. It is also why editing a rubric revokes its approval. The criteria are the axis the taxonomy is report"
@@ -477,7 +489,7 @@
 "page": "Agreement and kappa",
 "title": "What we deliberately do not do",
 "href": "ref-agreement.html#what-we-deliberately-do-not-do",
-"text": "No weighted kappa. Verdicts here are pass or fail, so there is no notion of a near-miss to weight. If task classes with ordered labels arrive, this is where it changes. No multi-class kappa yet. The variance formula is written for a 2×2 table. Classification datasets with more than two labels need an N×N version, tracked as part of the bring-your-own-dataset work. No inter-annotator agreement. We "
+"text": "No weighted kappa. Verdicts here are pass or fail, so there is no notion of a near-miss to weight. If task classes with ordered labels arrive, this is where it changes. No multi-class kappa yet. The variance formula is written for a 2×2 table. Classification datasets with more than two labels need an N×N version, tracked as part of the bring-your-own-dataset work. A delta compares two rubrics, nev"
 },
 {
 "page": "Agreement and kappa",

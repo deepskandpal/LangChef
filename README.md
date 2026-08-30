@@ -54,11 +54,14 @@ deterministic, so a fresh clone runs the entire flow on any machine.
 **Works today**
 
 - `init`, `approve rubric`, `judge run`, `label plan`, `label import`,
-  `calibrate report`, `baseline set | show`, `compare`, `memo render`,
-  `ledger append | query`, plus `doctor`, `contract`, `packs list`
+  `calibrate report`, `calibrate diff`, `baseline set | show`, `compare`,
+  `memo render`, `ledger append | query`, plus `doctor`, `contract`, `packs list`
 - Calibration statistics — Cohen's kappa with an interval, TPR/TNR/PPV/NPV with
   Wilson intervals, MCC, and a disagreement taxonomy that only flags a slice
   when its interval clears the base rate
+- Rubric iteration that costs one pass — `calibrate diff` re-scores a revised
+  rubric against the labels you already have and reports the change in kappa and
+  in both rates, **paired**, because both rubrics judged the same examples
 - Paired experiment comparison — exact McNemar, bootstrap interval, and a
   minimum detectable effect on every inconclusive result
 - A judgement cache keyed on content, rubric hash and model pin, so a rerun is

@@ -53,11 +53,19 @@ class Pin:
         )
 
 
-def check_pin(expected: Pin, actual: Pin) -> None:
+PIN_FIELDS = ("rubric", "provider", "cheap_model", "strong_model")
+# The rubric is the thing a calibration delta is deliberately changing, so
+# `calibrate diff` checks the model half of the pin and nothing else. Every other
+# caller compares whole pins: a comparison of two arms across a moved rubric is
+# two measurements, and exits 5.
+MODEL_FIELDS = ("provider", "cheap_model", "strong_model")
+
+
+def check_pin(expected: Pin, actual: Pin, fields: Sequence[str] = PIN_FIELDS) -> None:
     """Raise unless two runs were measured the same way."""
     moved = {
         field: (str(getattr(expected, field)), str(getattr(actual, field)))
-        for field in ("rubric", "provider", "cheap_model", "strong_model")
+        for field in fields
         if getattr(expected, field) != getattr(actual, field)
     }
     if moved:

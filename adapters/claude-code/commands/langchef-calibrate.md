@@ -15,5 +15,11 @@ Calibrate the judge in this workspace.
    any concentration where `separated` is true.
 5. State plainly whether the judge is strong, usable, weak, or not usable, using
    the thresholds in the `langchef-eval` skill.
+6. If it is weak or not usable, propose a rubric revision — that part is yours —
+   and measure it with `langchef calibrate diff`. Do not re-label: the labels
+   are unchanged and the command re-scores against them. Read `verdict`,
+   `kappa.interval` and `movement` before recommending the revision be kept.
+   An exit of 5 means the judge model moved between the two runs, which makes
+   the delta meaningless; fix the pin rather than the rubric.
 
 Quote no number you did not read out of the command's JSON.
