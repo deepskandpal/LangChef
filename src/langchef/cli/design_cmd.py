@@ -178,7 +178,11 @@ def experiment_design(
         mark = "->" if c.name == chosen.name else "  "
         money = f"  ~${c.cost.usd}" if c.cost.usd is not None else ""
         say(
-            f" {mark} {c.name:<14} n={c.n:<6} detects >={c.mde:.1%}  "
+            # The outcome shape is named beside the limit because a continuous
+            # limit and a discordant one both print as a percentage, and a
+            # reader who cannot tell them apart will compare two numbers that
+            # were never comparable (DECISIONS #12).
+            f" {mark} {c.name:<14} n={c.n:<6} detects >={c.mde:.1%} ({c.outcome})  "
             f"{c.cost.judge_calls} judge call(s){money}"
         )
         for caveat in c.caveats:

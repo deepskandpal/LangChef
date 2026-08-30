@@ -94,6 +94,11 @@ class Design:
     # constraint only in prose would invert the split the contract rests on.
     runnable_now: bool
     shortfall: int
+    # Which arithmetic produced `mde`. A continuous limit and a discordant one
+    # are different quantities that both print as a percentage, so a reader who
+    # cannot tell them apart will compare two numbers that were never
+    # comparable. See DECISIONS #12.
+    outcome: str = "binary"
     caveats: tuple[str, ...] = field(default_factory=tuple)
 
     def to_dict(self) -> dict:
@@ -102,6 +107,9 @@ class Design:
         payload["guardrails"] = list(self.guardrails)
         payload["caveats"] = list(self.caveats)
         return payload
+
+
+OUTCOMES = ("binary", "continuous")
 
 
 def _z(level: float, power: float) -> tuple[float, float]:
@@ -121,6 +129,49 @@ def minimum_detectable_effect(
         return float("nan")
     z_alpha, z_beta = _z(level, power)
     return float((z_alpha + z_beta) * np.sqrt(max(discordance, 1e-9) / n))
+
+
+def minimum_detectable_effect_continuous(
+    n: int, sd_difference: float, level: float = DEFAULT_LEVEL, power: float = DEFAULT_POWER
+) -> float:
+    """Smallest paired difference ``n`` examples could resolve on a *continuous* score.
+
+    The binary version above is driven by the discordant rate, which counts
+    verdicts that flipped. Nothing flips on a continuous score: recall moving
+    from 0.42 to 0.71 did not change category, and asking how often it did is
+    not a question the data can answer. What carries the information instead is
+    the spread of the **per-example differences**.
+
+    That distinction is the whole reason this function exists. ``sd_difference``
+    is the standard deviation of ``variant[i] - baseline[i]``, not of either arm.
+    Using an arm's own spread would ignore the pairing and inflate the estimate,
+    which is the same mistake in the other direction: two arms can both vary
+    widely while the difference between them is nearly constant, and that
+    experiment is far more sensitive than an unpaired reading of it suggests.
+
+    See DECISIONS #12 for why only ``compare`` and this module generalise.
+    """
+    if n <= 0:
+        return float("nan")
+    if sd_difference < 0:
+        raise DesignError("the standard deviation of the differences cannot be negative")
+    z_alpha, z_beta = _z(level, power)
+    return float((z_alpha + z_beta) * sd_difference / np.sqrt(n))
+
+
+def required_n_continuous(
+    effect: float,
+    sd_difference: float,
+    level: float = DEFAULT_LEVEL,
+    power: float = DEFAULT_POWER,
+) -> int:
+    """Examples needed to detect ``effect`` on a continuous score. The inverse."""
+    if effect <= 0:
+        raise DesignError("target effect must be greater than zero")
+    if sd_difference < 0:
+        raise DesignError("the standard deviation of the differences cannot be negative")
+    z_alpha, z_beta = _z(level, power)
+    return int(np.ceil(((z_alpha + z_beta) * sd_difference / effect) ** 2))
 
 
 def required_n(
@@ -212,6 +263,8 @@ def propose(
     power: float = DEFAULT_POWER,
     discordance: float | None = None,
     discordance_source: str = "",
+    outcome: str = "binary",
+    sd_difference: float | None = None,
     cached: int = 0,
     price_per_call_usd: float | None = None,
     escalation_rate: float = 0.0,
@@ -226,6 +279,22 @@ def propose(
     """
     if kind not in ("superiority", "non_inferiority"):
         raise DesignError(f"unknown experiment kind {kind!r}")
+    # The sizing arithmetic follows the shape of the outcome, never a flag and
+    # never a task-class name: `core/` must not know that "retrieval" exists
+    # (DECISIONS #5, enforced by tests/test_boundaries.py). The caller resolves
+    # class to shape; this module only knows the two shapes it can size.
+    if outcome not in OUTCOMES:
+        raise DesignError(
+            f"no sizing rule for a {outcome!r} outcome. This tool can size a "
+            f"{' or a '.join(sorted(OUTCOMES))} outcome; it will not guess at a "
+            "third, because a plausible sample size is worse than no answer."
+        )
+    if outcome == "continuous" and sd_difference is None:
+        raise DesignError(
+            "sizing a continuous outcome needs the standard deviation of the "
+            "per-example differences. Without it there is nothing to compute, "
+            "and a default here would be a number nobody chose."
+        )
     if kind == "non_inferiority" and not margin:
         raise DesignError(
             "a non-inferiority design needs --margin: how much quality you are "
@@ -236,6 +305,28 @@ def propose(
 
     if discordance is None:
         discordance, discordance_source = estimate_discordance(None, None)
+
+    # One pair of callables, chosen once, so the two designs below cannot end up
+    # sized by different arithmetic than the one recorded on them.
+    if outcome == "continuous":
+        assert sd_difference is not None  # guarded above
+        spread = sd_difference
+
+        def _mde(n: int) -> float:
+            return minimum_detectable_effect_continuous(n, spread, level, power)
+
+        def _needed(e: float) -> int:
+            return required_n_continuous(e, spread, level, power)
+
+        discordance_source = f"sd of paired differences ({spread:.4g})"
+    else:
+        flip = discordance
+
+        def _mde(n: int) -> float:
+            return minimum_detectable_effect(n, flip, level, power)
+
+        def _needed(e: float) -> int:
+            return required_n(e, flip, level, power)
 
     effect = target_effect if target_effect is not None else margin
     common = dict(
@@ -257,9 +348,10 @@ def propose(
             "most common way an experiment reports an effect that is not there."
         ),
         guardrails=tuple(guardrails),
+        outcome=outcome,
     )
 
-    at_hand_mde = minimum_detectable_effect(n_available, discordance, level, power)
+    at_hand_mde = _mde(n_available)
     caveats: list[str] = []
     if effect is not None and effect < at_hand_mde:
         caveats.append(
@@ -288,7 +380,7 @@ def propose(
     ]
 
     if effect is not None and effect < at_hand_mde:
-        needed = required_n(effect, discordance, level, power)
+        needed = _needed(effect)
         shortfall = max(0, needed - n_available)
         powered_caveats = [
             f"Needs {shortfall} more golden(s) than the suite has "
@@ -307,7 +399,7 @@ def propose(
             Design(
                 name="powered",
                 n=needed,
-                mde=minimum_detectable_effect(needed, discordance, level, power),
+                mde=_mde(needed),
                 required_n=needed,
                 cost=estimate_cost(needed, cached, price_per_call_usd, escalation_rate),
                 runnable_now=shortfall == 0,

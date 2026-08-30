@@ -5,8 +5,10 @@ refusals: an unapproved design, a design edited after approval, a run that did
 not finish, and a budget that ran out mid-run.
 """
 
+import numpy as np
 import pytest
 
+from langchef.core import design
 from langchef.core.exits import Exit
 from langchef.workspace import experiments as store
 from langchef.workspace import scaffold
@@ -436,3 +438,121 @@ def test_check_says_matches_when_both_runs_exist_and_match(project, run_cli):
     assert res.payload["ok"]
     assert not res.payload["violations"]
     assert "the run matches the pre-registration" in res.err
+
+
+# --- #68: sizing a continuous outcome ---------------------------------------
+
+
+def test_the_continuous_limit_is_driven_by_the_spread_of_the_differences():
+    """Not by either arm's own spread, which is the mistake pairing exists to avoid.
+
+    Two arms can both vary enormously while the difference between them is
+    nearly constant. Read unpaired, that experiment looks hopeless; read paired,
+    it is extremely sensitive. A sizing rule that used an arm's spread would
+    tell a retrieval team to collect thousands of queries they do not need.
+    """
+    tight = design.minimum_detectable_effect_continuous(90, sd_difference=0.02)
+    loose = design.minimum_detectable_effect_continuous(90, sd_difference=0.20)
+
+    assert tight < loose
+    # Linear in the spread: ten times the spread, ten times the limit.
+    assert loose == pytest.approx(tight * 10)
+
+
+def test_the_continuous_limit_is_a_known_answer():
+    """Checked against the closed form written out independently.
+
+    (z_alpha + z_beta) * sd / sqrt(n). Recomputed here from scipy rather than
+    reusing the module's own `_z`, so a sign or tail error in that helper cannot
+    hide behind agreeing with itself.
+    """
+    from scipy.stats import norm
+
+    n, sd, level, power = 120, 0.15, 0.95, 0.8
+    z_alpha = norm.ppf(1 - (1 - level) / 2)
+    z_beta = norm.ppf(power)
+    expected = (z_alpha + z_beta) * sd / (n**0.5)
+
+    assert design.minimum_detectable_effect_continuous(n, sd, level, power) == pytest.approx(
+        expected
+    )
+
+
+def test_the_promised_power_is_actually_delivered():
+    """The claim the number makes, tested as a rate rather than as algebra.
+
+    `mde` says: at this n, an effect this size is caught 80% of the time. That is
+    a falsifiable statement about repeated experiments, so this simulates them.
+    Formula-vs-formula tests cannot catch a limit that is simply too optimistic;
+    this can, and it is the check LangChef asks of its own users.
+    """
+    rng = np.random.default_rng(68)
+    n, sd, power = 200, 0.10, 0.8
+    effect = design.minimum_detectable_effect_continuous(n, sd, power=power)
+
+    detected = 0
+    trials = 600
+    for _ in range(trials):
+        diffs = rng.normal(effect, sd, size=n)
+        # The paired interval a reader would act on: whole interval above zero.
+        se = diffs.std(ddof=1) / np.sqrt(n)
+        if diffs.mean() - 1.96 * se > 0:
+            detected += 1
+
+    achieved = detected / trials
+    # Nominal 80%. Monte Carlo error at 600 trials is about 1.6pp, so this is a
+    # real check rather than a wide-open one.
+    assert 0.76 < achieved < 0.86, f"achieved power {achieved:.1%} against a nominal {power:.0%}"
+
+
+def test_required_n_inverts_the_limit():
+    """The two must agree, or the waiter proposes an n its own readout disowns."""
+    sd, effect = 0.12, 0.03
+    n = design.required_n_continuous(effect, sd)
+
+    assert design.minimum_detectable_effect_continuous(n, sd) <= effect
+    assert design.minimum_detectable_effect_continuous(n - 1, sd) > effect
+
+
+def test_a_design_records_which_arithmetic_sized_it():
+    """A continuous limit and a discordant one both print as a percentage.
+
+    A reader who cannot tell them apart will compare two numbers that were never
+    comparable, which is the failure `pin` exists to prevent elsewhere.
+    """
+    binary = design.propose("s", "is it better?", 90, "base", "var", target_effect=0.05)[0]
+    continuous = design.propose(
+        "s",
+        "is it better?",
+        90,
+        "base",
+        "var",
+        target_effect=0.05,
+        outcome="continuous",
+        sd_difference=0.1,
+    )[0]
+
+    assert binary.outcome == "binary"
+    assert continuous.outcome == "continuous"
+    assert binary.mde != continuous.mde
+    assert "sd of paired differences" in continuous.discordance_source
+
+
+def test_design_refuses_an_outcome_it_cannot_size():
+    """A plausible sample size is worse than no answer.
+
+    The whole promise of the waiter is that somebody who is not a statistician
+    can trust the proposal it hands them. Guessing at a shape it has no rule for
+    would break that quietly, which is the worst way to break it.
+    """
+    with pytest.raises(design.DesignError) as caught:
+        design.propose("s", "?", 90, "base", "var", outcome="ordinal")
+    assert "ordinal" in str(caught.value)
+    assert "will not guess" in str(caught.value)
+
+
+def test_a_continuous_design_refuses_without_the_spread():
+    """There is nothing to compute, and a default would be a number nobody chose."""
+    with pytest.raises(design.DesignError) as caught:
+        design.propose("s", "?", 90, "base", "var", outcome="continuous")
+    assert "standard deviation" in str(caught.value)
