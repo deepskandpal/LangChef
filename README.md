@@ -44,7 +44,7 @@ dashboard.
 
 ---
 
-## Status — M4, a working loop end to end
+## Status — M4.75, 18 of 22 commands, 279 tests
 
 The whole loop runs: score a suite, choose what a person should label, take
 their labels back, report how far the judge can be trusted, compare two arms,
@@ -55,19 +55,35 @@ deterministic, so a fresh clone runs the entire flow on any machine.
 
 - `init`, `approve rubric`, `judge run`, `label plan`, `label import`,
   `calibrate report`, `baseline set | show`, `compare`, `memo render`,
-  `ledger append | query`, plus `doctor`, `contract`, `packs list`
+  `ledger append | query`, `power`, `experiment design | approve | check |
+  readout | list`, plus `doctor`, `contract`, `packs list`
 - Calibration statistics — Cohen's kappa with an interval, TPR/TNR/PPV/NPV with
   Wilson intervals, MCC, and a disagreement taxonomy that only flags a slice
   when its interval clears the base rate
 - Paired experiment comparison — exact McNemar, bootstrap interval, and a
   minimum detectable effect on every inconclusive result
+- **Per-criterion attribution** — which rubric criterion the loss landed on,
+  Holm-corrected across criteria, so "groundedness fell, correctness held" is a
+  finding rather than five uncorrected tests
+- **`compare --tolerance`** — non-inferiority in three words, `held`, `failed`
+  or `unresolved`, with `unresolved` explicitly not a pass and the detection
+  limit printed beside it
+- **`langchef power`** — is forty examples enough? Answered with no workspace,
+  because requiring one to do arithmetic is ceremony
 - A judgement cache keyed on content, rubric hash and model pin, so a rerun is
   free; two-tier judging, with a strong model re-scoring only the unsure cases
-- Gate one, enforced: an unapproved or edited rubric exits 2, and a comparison
-  across moved pins exits 5
-- A [dogfood](dogfood/) app with three planted regressions and a self-test that
-  asserts the harness finds two of them and honestly reports that it cannot
-  resolve the third
+- Gate one and gate two, enforced: an unapproved or edited rubric exits 2, a
+  comparison across moved pins exits 5, a readout with no pre-registration
+  exits 2, and a `--tolerance` that disagrees with a registered margin is
+  refused rather than preferred
+- The waiter: `experiment design` proposes a sized experiment before anything
+  runs, sizing a continuous outcome from the spread of paired differences and a
+  binary one from the discordant rate, and **refusing** rather than guessing at
+  a shape it has no rule for
+- A [dogfood](dogfood/) app with six planted regressions and a self-test that
+  asserts the harness finds the ones it can and **honestly reports that it
+  cannot resolve the one deliberately planted below the detection limit**. That
+  last property is the point: the tool does not claim to find what it cannot
 
 **Not built yet** — production connectors and sampling, scheduling and
 unattended operation, eval suites and triage, experiment pre-registration. See
@@ -116,7 +132,7 @@ second list to drift:
 ```console
 $ ./scripts/verify.sh
 1. no provider credentials present        PASS
-2. pinned interpreter (3.12)              PASS
+2. interpreter 3.12                       PASS
 3. dependencies match the lock            PASS
 4. lint                                   PASS
 5. format                                 PASS
@@ -133,6 +149,10 @@ Step 1 comes first on purpose: the suite exercises the deterministic core and
 replays recorded judge responses, so a provider key in the environment means a
 test could quietly start spending money. Any failure prints the last 25 lines
 of that step and exits non-zero.
+
+CI runs this same script on **both 3.12 and 3.13**, the range `pyproject.toml`
+declares, because advertising support for a version nothing runs is a claim
+rather than a fact. Both must pass before `main` will accept a merge.
 
 ---
 
@@ -161,6 +181,49 @@ $ langchef compare --variant support-truncated-context
 That last one is the product in one screen. There *is* a regression in that arm
 — we planted a 3.3-point one — and the honest answer at this sample size is not
 "no regression found", it is "nothing we could have seen".
+
+**Which half broke.** One verdict is a fact; the criterion it landed on is the
+actionable half, and for a RAG app it tells you whether to look at the retriever
+or the generator:
+
+```console
+$ langchef compare --baseline base --variant hedge-run
+base -> hedge-run on 90 shared golden(s)
+  baseline 83.3%   variant 72.2%
+  difference -11.1% [-17.8%, -5.6%]  p=0.0020
+  REGRESSION
+  attribution over 2 criterion(s), Holm-corrected — not 2 separate findings:
+    Directness     -16.7% [-24.4%, -10.0%]  p=0.0001  MOVED WORSE
+    Correctness    +5.6% [+1.1%, +11.1%]  p=0.0625  inconclusive
+                   (nothing under 12.0% was in reach for this criterion)
+```
+
+Holm-corrected, because reporting *k* uncorrected tests is how you find an
+effect that is not there. And a criterion is only given a direction when the
+adjusted p clears alpha **and** the interval lies wholly one side of zero, so
+the output can never print a direction its own interval contradicts.
+
+**Did quality hold?** The question a cheaper model actually asks:
+
+```console
+$ langchef compare --baseline base --variant hedge-run --tolerance 0.15
+  against a 15.0% tolerance: QUALITY UNRESOLVED
+    margin came from the command line, not a pre-registration, so it
+    constrains nobody: it could have been chosen after seeing the interval.
+    unresolved is not held. This run could not resolve 15.0%;
+    it needed to see 13.0% or larger.
+```
+
+**Is forty examples even enough?** Needs no workspace — it is arithmetic, and
+asking early is the whole point:
+
+```console
+$ langchef power --n 90 --effect 0.05 --per-week 40
+90 examples detect a difference of 13.2% or larger (binary).
+  basis: assumed default (20%) — no prior comparison here
+  5.0% needs 628 examples. You have 90, so 538 short.
+  At 40 a week that is about 13.4 weeks away.
+```
 
 ```console
 $ langchef doctor 2>/dev/null     # stdout — written for the agent (abridged)
@@ -286,9 +349,11 @@ doing and still needs a person with a key
 | **M2** ✅ | Judge runner | Batched scoring, content-addressed cache, two-tier escalation, pins |
 | **M3** ✅ | Workspace | `langchef init`, file formats, run ledger, comparison, decision memos |
 | **M4** ✅ | Agent layer | Claude Code plugin, calibration playbook as a skill, gate one enforced |
+| **M4.5** ✅ | The waiter | `experiment design`, pre-registration, gate two, budgets as exit 4 |
+| M4.75 | Bring your own dataset | CSV and Parquet, task classes in the pack manifest, retrieval metrics |
 | M5 | Unattended | Scheduling, weekly recalibration, spend caps, connectors and sampling |
 | M6 | Job one | Eval suites, variance-derived thresholds, triage, rubric diffing |
-| M7 | Experiments | Pre-registration, integrity checks, gated readout, power |
+| M7 ~ | Experiments | Pre-registration, integrity checks, gated readout ✅; `power` ✅ |
 
 Calibration comes first on purpose. A judge is a measuring instrument, not a
 metric; an eval suite built on an uncalibrated judge produces confident garbage,
