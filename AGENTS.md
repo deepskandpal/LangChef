@@ -56,11 +56,19 @@ That is all of it. **You do not move the label yourself**, and if you do not hav
 write access you could not anyway. A workflow reads the comment and moves the
 issue to `lifecycle:doing` for you, then says so on the issue.
 
-If somebody else has already claimed it, that same workflow tells you before you
-start rather than after you have written the patch. This was not always true: for
-three hours on 27 August 2026 issue #25 looked free after it had been claimed,
-because the rule asked contributors to set a label they had no permission to set,
-and two people wrote the same fix. The rule was the bug, not the people.
+**Any comment from a person on a `lifecycle:ready` issue claims it**, whatever it
+says. If you only meant to ask a question, say so and a maintainer will move it
+back. That is deliberately blunt, and it is the second version of this rule.
+
+The first version asked contributors to set `lifecycle:doing` themselves, which
+outside contributors cannot do; #25 looked free for three hours after it was
+claimed and two people wrote the same fix. The second version matched claim
+phrasings with a regex; on 28 August somebody wrote "I'd love to" where it
+expected "I'd like to", #64 sat `lifecycle:ready` for thirteen hours with a PR
+already open against it, and it happened again.
+
+A missed claim is silent and looks exactly like no claim. A false claim costs one
+label and a reply. So there is no phrase list.
 
 **Two agents must not hold issues carrying the same `area:` label at the same
 time.** The area labels map to directories and exist precisely to be collision
