@@ -138,3 +138,55 @@ see, and this run could not have resolved anything under six points" is. The
 dogfood exists partly to keep this honest: one of its three planted regressions
 is deliberately below what the sample can resolve, and the test suite asserts
 that LangChef says so rather than reporting a clean bill of health.
+
+## 12. Task classes reduce where reduction is free. One continuous path, in `compare` only.
+
+**Closed 30 August 2026.** #18 asked whether to reduce every BYOD task class to
+pass/fail at ingestion, or generalise the deterministic core. Neither, as posed.
+
+Map the core to the classes and the question dissolves. `agreement.py`,
+`taxonomy.py` and `sampling.py` are the **calibration** half, and calibration
+only applies where the target is free text and a judge has to be trusted. Three
+of the four task classes have a hard target, so those three modules never see
+them. They stay binary, unchanged, and their forty-one dependent test files never
+move.
+
+`compare.py` and `design.py` are the **experiment** half and every class needs
+them. Per example:
+
+| Class | Outcome | Reduction cost |
+|---|---|---|
+| `qna` / `generation` | judge says pass or fail | none, already binary |
+| `classification` | `predicted == ideal` | **none, that is the outcome** |
+| `retrieval` | recall@k, MRR, nDCG | **total, and unacceptable** |
+| `reranking` | nDCG, MAP | same |
+
+Classification is the case that makes the point. "Correct or not" is not a
+reduction of a multi-class label, it is the comparison you actually want, and
+McNemar on it is exact. Multi-class κ would only matter for two humans
+disagreeing with each other, which is not something this tool does.
+
+Retrieval is the case that makes the other point. Recall 0.42 and 0.71 are both
+"fail" against a threshold of 0.8, and the difference between them is the entire
+finding. So retrieval and reranking get a **paired comparison over continuous
+scores**, and that is the only generalisation anywhere in the core.
+
+**Consequences.**
+
+- One new continuous paired path in `compare.py`, and a matching detection limit
+  in `design.py`. The waiter currently sizes every experiment from the discordant
+  rate, which is a binary concept; pointed at a retrieval arm it would size
+  confidently using arithmetic that does not apply.
+- `calibrate`, `taxonomy` and `label plan` **refuse at exit 2** on a class with no
+  judge, naming the class, rather than computing a κ that means nothing. A number
+  with no meaning is worse than a refusal, because somebody will quote it.
+- Where a threshold is genuinely needed, it lives in the pre-registration and is
+  therefore under gate two. Editing it revokes approval, which is the whole point
+  of the gate.
+- Multi-class κ is a non-goal until something needs it.
+
+**What this rejects.** Reducing everything (option a) would have hidden a
+threshold in a loader where nobody reviews it, which #18 named as the likely
+default and the outcome it existed to prevent. Generalising everything (option b)
+would have rewritten the most heavily tested code in the repository to serve
+three classes that never touch it.

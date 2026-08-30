@@ -65,3 +65,13 @@ name the evidence that would close it, and record the call in
 The failure mode this file exists to prevent is not one bad decision. It is
 twelve reasonable ones, each defensible alone, that together turn a tool with a
 sharp claim into another dashboard.
+
+## Multi-class kappa
+
+Deferred by [DECISIONS #12](DECISIONS.md). Cohen's kappa over an NxN confusion
+matrix measures how much two *raters* agree beyond chance. LangChef compares one
+judge against one set of human labels, and for a classification dataset the label
+is a hard target with no second rater at all.
+
+It becomes worth building the day two humans label the same set and disagree with
+each other, which is a real problem and not one anything on the board has.
