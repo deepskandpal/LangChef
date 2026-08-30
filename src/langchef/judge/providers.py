@@ -25,9 +25,15 @@ Three backends, and the difference between them is where the verdict comes from:
     The real thing, any provider litellm speaks. Lazily imported.
 """
 
+import ast
+import hashlib
+import inspect
+import io
 import json
 import os
 import re
+import textwrap
+import tokenize
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -102,6 +108,77 @@ HEDGE_KEYS = ("hedg", "refus", "abstain", "direct")
 GROUNDED_KEYS = ("ground", "faithful", "hallucin")
 CORRECT_KEYS = ("correct", "accur", "answer")
 VERSION = "containment/v2"
+
+# The digest of everything a containment verdict depends on, recorded here
+# beside the VERSION it guards so the two things that must move together are
+# adjacent. ``test_containment_checks_digest`` fails if they drift apart.
+#
+# Changing a check WITHOUT bumping VERSION is the failure this guards: VERSION
+# is part of the cache key, so every workspace with a warm cache would go on
+# serving verdicts produced by the old check. Nothing errors, and the numbers
+# look exactly like the right numbers.
+#
+# To change a check: edit it, bump VERSION, then run the test and paste the
+# digest it prints here.
+CHECKS_DIGEST = "fc7b2758193b"
+
+
+# Layout-only tokens. Dropping these is what makes `ruff format` invisible to
+# the digest: reflowing a call across lines or moving a comment produces COMMENT
+# and NL tokens and nothing else. INDENT and DEDENT are deliberately kept --
+# they carry block structure, so moving a statement into or out of an `if` is a
+# real behaviour change and must trip.
+_LAYOUT_TOKENS = frozenset({tokenize.COMMENT, tokenize.NL})
+
+_JOIN = "\n"
+
+
+def _normalise_source(source: str) -> str:
+    """Reduce Python source to the tokens that decide what it does.
+
+    String literals are reduced to their *value*, so `ruff format` normalising
+    a quote style cannot trip the digest while an edit to the text still does.
+    """
+    tokens: list[str] = []
+    reader = io.StringIO(textwrap.dedent(source)).readline
+    for tok in tokenize.generate_tokens(reader):
+        if tok.type in _LAYOUT_TOKENS:
+            continue
+        if tok.type in (tokenize.INDENT, tokenize.DEDENT):
+            tokens.append(tokenize.tok_name[tok.type])
+        elif tok.type == tokenize.STRING:
+            tokens.append(repr(ast.literal_eval(tok.string)))
+        else:
+            tokens.append(tok.string)
+    return " ".join(t for t in tokens if t.strip())
+
+
+def _significant_source(obj: object) -> str:
+    """``_normalise_source`` over the source of ``obj``."""
+    return _normalise_source(inspect.getsource(obj))
+
+
+def checks_digest() -> str:
+    """Content hash of everything that decides a containment verdict.
+
+    Covers the scoring code *and* the data it matches against. The keyword
+    tuples are matched by substring, so adding one word to ``HEDGE_KEYS``
+    changes which criterion a failure is cited under just as surely as editing
+    the branch that reads it -- and a digest over code alone would miss it.
+    """
+    parts = [
+        repr(HEDGES),
+        repr(HEDGE_KEYS),
+        repr(GROUNDED_KEYS),
+        repr(CORRECT_KEYS),
+        repr(WORD.pattern),
+        repr(sorted(STOPWORDS)),
+        _significant_source(_words),
+        _significant_source(_overlap),
+        _significant_source(ContainmentProvider.judge),
+        _significant_source(ContainmentProvider.criteria_covered),
+    ]
+    return hashlib.sha256(_JOIN.join(parts).encode("utf-8")).hexdigest()[:12]
 
 
 class ProviderError(RuntimeError):
