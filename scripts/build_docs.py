@@ -900,8 +900,55 @@ the risk deliberately and write down that you did. What you should not do is rea
   quality wants a tolerance set in advance and the interval read against it.</p>
 </div>
 
-<p class="dim"><em>Textbook name: a non-inferiority test. The formal version compares the interval
-bound against a pre-registered margin, which is exactly what you are doing by hand here.</em></p>
+<p><strong>You do not have to do it by hand.</strong> Pass the tolerance and the tool applies it:</p>
+
+<pre><code>langchef compare --variant new-model <span class="o">--tolerance 0.03</span>
+
+  difference -1.2% [-4.1%, +1.7%]  p=0.4127
+  INCONCLUSIVE
+  against a 3.0% tolerance: QUALITY <span class="o">UNRESOLVED</span>
+    unresolved is not held. This run could not resolve 3.0%;
+    it needed to see 6.0% or larger.</code></pre>
+
+<h3>The three answers, in plain words</h3>
+
+<div class="scroller"><table>
+<thead><tr><th>Verdict</th><th>Means</th><th>Do</th></tr></thead>
+<tbody>
+<tr><td><strong>held</strong></td><td>the whole range clears your tolerance</td><td>ship it, and quote the range</td></tr>
+<tr><td><strong>failed</strong></td><td>the whole range is past your tolerance</td><td>do not ship; the loss is real and bigger than you agreed to</td></tr>
+<tr><td><strong>unresolved</strong></td><td>the range straddles it. <strong>This run cannot tell you</strong></td><td>collect more, or accept the risk knowingly. <strong>Not permission to ship</strong></td></tr>
+</tbody></table></div>
+
+<div class="callout warn">
+  <span class="k">Unresolved is the one that gets misread</span>
+  <p>It looks like a pass and it is not. It is the tool saying the evidence is absent, which is a
+  different statement from the evidence being reassuring. That is why it prints the detection limit
+  beside it: <em>"it needed to see 6.0% or larger"</em> tells you the run was never capable of
+  answering, and roughly how many more examples would make it capable.</p>
+</div>
+
+<h3>When the margin was decided is the whole mechanism</h3>
+
+<p>A tolerance passed on the command line and one carried in a pre-registration produce the same
+three words. They are not the same evidence. A margin set before the run constrains the person who
+set it; one typed after seeing the interval constrains nobody, and can be retyped until the answer is
+agreeable.</p>
+
+<p>So the output says which it was, every time:</p>
+
+<pre><code>    margin came from the command line, not a pre-registration,
+    so it constrains nobody: it could have been chosen after
+    seeing the interval above.</code></pre>
+
+<p>And if the run belongs to a pre-registered experiment, a <code>--tolerance</code> that disagrees
+with the registered margin is <strong>refused at exit 2</strong> rather than preferred. Otherwise the
+one command that sits outside the gate would be the way around it.</p>
+
+<p class="dim"><em>Textbook name: a non-inferiority test. One detail worth knowing: the interval is
+two-sided at your confidence level, and this test reads one bound of it, so the effective one-sided
+level is higher than the number quoted. That is the conservative direction, and the payload reports
+both rather than letting you assume.</em></p>
 
 <h2>Which stage broke?</h2>
 

@@ -556,3 +556,53 @@ def test_a_continuous_design_refuses_without_the_spread():
     with pytest.raises(design.DesignError) as caught:
         design.propose("s", "?", 90, "base", "var", outcome="continuous")
     assert "standard deviation" in str(caught.value)
+
+
+def test_a_flag_may_not_overrule_a_registered_margin(project, run_cli):
+    """#29: the gate cannot be walked around by the command that sits outside it.
+
+    `compare` is deliberately outside gate two, because re-running is exactly
+    what you should be doing while exploring. But when a run belongs to a
+    pre-registered experiment, honouring a different tolerance typed on the
+    command line would let the margin be re-chosen after the interval was
+    visible. That is the thing pre-registration exists to prevent, so it is a
+    refusal rather than a preference.
+    """
+
+    def cli(*args):
+        return run_cli(*args, cwd=project)
+
+    designed = cli(
+        "experiment",
+        "design",
+        "--intent",
+        "is the cheaper model good enough?",
+        "--variant-arm",
+        "variant",
+        "--kind",
+        "non-inferiority",
+        "--margin",
+        "0.03",
+        "--accept",
+        "as-it-stands",
+    )
+    assert designed.code == Exit.OK, designed.payload
+    experiment_id = designed.payload["experiment_id"]
+    assert cli("experiment", "approve", experiment_id).code == Exit.OK
+    assert (
+        cli(
+            "judge", "run", "--arm", "variant", "--run-id", "var", "--experiment", experiment_id
+        ).code
+        == Exit.OK
+    )
+
+    clash = cli("compare", "--variant", "var", "--tolerance", "0.10")
+    assert clash.code == Exit.REFUSED
+    assert "disagrees" in clash.err
+
+    # With no flag, the registered margin is used and reported as registered.
+    honoured = cli("compare", "--variant", "var")
+    block = honoured.payload["non_inferiority"]
+    assert block["source"] == "pre-registration"
+    assert block["declared_before_the_run"] is True
+    assert block["margin"] == pytest.approx(0.03)

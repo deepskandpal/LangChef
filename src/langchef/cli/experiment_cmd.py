@@ -10,11 +10,13 @@ from typing import Annotated
 import typer
 
 from langchef.cli import common
+from langchef.core import design as design_mod
 from langchef.core.compare import Outcome, by_criterion
 from langchef.core.compare import compare as compare_arms
 from langchef.core.emit import emit, fail, say
 from langchef.core.exits import Exit
 from langchef.judge.runner import Pin, PinMismatch, check_pin
+from langchef.workspace import experiments as store
 from langchef.workspace import ledger, runs
 from langchef.workspace.formats import FormatError, read_json, read_scores, write_json
 
@@ -76,6 +78,71 @@ def baseline_set(
     raise typer.Exit(Exit.OK)
 
 
+def _non_inferiority(
+    resolved,
+    variant_run,
+    tolerance: float | None,
+    result,
+    level: float,
+) -> dict | None:
+    """Test the interval against a declared margin, and say where the margin came from.
+
+    The whole mechanism of a non-inferiority test is *when* the margin was
+    decided. A margin registered before the run constrains the person who set
+    it; one typed on the command line after seeing the interval constrains
+    nobody, and can be retyped until the answer is agreeable. Both produce the
+    same three words, so the provenance is reported beside the verdict rather
+    than left for a reader to assume.
+
+    A --tolerance that disagrees with a registered margin is refused rather than
+    preferred: silently honouring the flag would let the gate be walked around
+    by the one command that sits outside it.
+    """
+    registered: float | None = None
+    experiment_id = getattr(variant_run, "experiment_id", None)
+    if experiment_id:
+        try:
+            experiment = store.load(resolved.workspace, experiment_id)
+            if experiment.design.get("kind") == "non_inferiority":
+                registered = float(experiment.design.get("margin") or 0) or None
+        except Exception:  # noqa: BLE001 - a missing or unreadable design is not fatal here
+            registered = None
+
+    if registered is not None and tolerance is not None and abs(tolerance - registered) > 1e-9:
+        fail(
+            Exit.REFUSED,
+            f"--tolerance {tolerance:.1%} disagrees with the {registered:.1%} registered for "
+            f"experiment {experiment_id}. Choosing the margin after seeing the interval is "
+            "the thing a pre-registration exists to prevent. Amend and re-approve the design, "
+            "or drop the flag.",
+            registered=registered,
+            passed=tolerance,
+            experiment_id=experiment_id,
+        )
+
+    margin = registered if registered is not None else tolerance
+    if margin is None:
+        return None
+
+    verdict = design_mod.non_inferiority_verdict(result.interval, margin)
+    source = "pre-registration" if registered is not None else "command-line flag"
+    return {
+        "margin": margin,
+        "verdict": verdict,
+        "source": source,
+        # A margin decided after the fact is not the same evidence, and saying so
+        # in the payload is the only way an agent reading stdout can tell.
+        "declared_before_the_run": registered is not None,
+        # The interval is two-sided at `level`, so its lower bound is a one-sided
+        # bound at (1 + level) / 2. Reporting the two-sided level beside a
+        # one-sided test would overstate how sharp the test is; this is the
+        # conservative direction, and naming it is cheaper than explaining it later.
+        "level": level,
+        "one_sided_level": (1 + level) / 2,
+        "mde": result.mde,
+    }
+
+
 @baseline_app.command("show")
 def baseline_show(
     suite: Annotated[str | None, typer.Option("--suite", help="Suite name.")] = None,
@@ -96,6 +163,14 @@ def compare(
     baseline: Annotated[str | None, typer.Option("--baseline", help="Baseline run id.")] = None,
     variant: Annotated[str | None, typer.Option("--variant", help="Variant run id.")] = None,
     suite: Annotated[str | None, typer.Option("--suite", help="Suite name.")] = None,
+    tolerance: Annotated[
+        float | None,
+        typer.Option(
+            "--tolerance",
+            help="Quality you will accept losing, e.g. 0.03. "
+            "Asks 'did it hold?' rather than 'is it better?'",
+        ),
+    ] = None,
 ) -> None:
     """Baseline against variant on the goldens they share."""
     resolved = common.settings()
@@ -162,9 +237,14 @@ def compare(
         level=resolved.level,
     )
     attribution = by_criterion(before, after, level=resolved.level)
+
+    tolerance_block = _non_inferiority(
+        resolved, variant_run, tolerance, result, level=resolved.level
+    )
     payload = {
         **result.to_dict(),
         "by_criterion": attribution.to_dict(),
+        "non_inferiority": tolerance_block,
         "suite": name,
         "baseline_run": baseline_run.run_id,
         "variant_run": variant_run.run_id,
@@ -195,6 +275,23 @@ def compare(
     say(f"  {result.verdict.upper()}")
     if result.inconclusive:
         say(f"  (smallest effect this run could have seen: {result.mde:.1%})")
+    if tolerance_block:
+        margin = tolerance_block["margin"]
+        verdict = tolerance_block["verdict"]
+        say(f"  against a {margin:.1%} tolerance: QUALITY {verdict.upper()}")
+        if not tolerance_block["declared_before_the_run"]:
+            # Said every time rather than once, because the weakness is in the
+            # timing and nothing in the number itself shows it.
+            say(
+                "    margin came from the command line, not a pre-registration, "
+                "so it constrains nobody: it could have been chosen after seeing "
+                "the interval above."
+            )
+        if verdict == "unresolved":
+            say(
+                f"    unresolved is not held. This run could not resolve "
+                f"{margin:.1%}; it needed to see {result.mde:.1%} or larger."
+            )
     if attribution.criteria:
         say(
             f"  attribution over {attribution.family} criterion(s), "

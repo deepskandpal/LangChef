@@ -314,3 +314,117 @@ def test_compare_says_which_criterion_the_regression_landed_on(workspace, run_cl
     )
     assert written["by_criterion"] == breakdown
     assert "Correctness" in err and "MOVED WORSE" in err
+
+
+# --- #29: a declared tolerance turns compare into a non-inferiority test -----
+
+
+def _baseline_and_variant(cli):
+    """A pinned baseline and one variant run, the minimum a comparison needs."""
+    assert cli("approve", "rubric").code == Exit.OK
+    assert cli("judge", "run", "--arm", "baseline", "--run-id", "base").code == Exit.OK
+    assert cli("baseline", "set", "--run", "base").code == Exit.OK
+    assert cli("judge", "run", "--arm", "variant", "--run-id", "var").code == Exit.OK
+
+
+def test_a_tolerance_asks_did_it_hold_rather_than_is_it_better(workspace, run_cli):
+    """The question most real changes ask.
+
+    A cheaper model, a dropped reranker, a fine-tune: none of these hope to be
+    better, they need to not be meaningfully worse. Read as a superiority test a
+    null result means nothing, and it routinely gets read as permission to ship.
+    """
+
+    def cli(*args):
+        return run_cli(*args, cwd=workspace)
+
+    _baseline_and_variant(cli)
+    result = cli("compare", "--variant", "var", "--tolerance", "0.03")
+
+    assert result.code == Exit.OK
+    block = result.payload["non_inferiority"]
+    assert block["verdict"] in ("held", "failed", "unresolved")
+    assert block["margin"] == pytest.approx(0.03)
+
+
+def test_unresolved_is_not_held_and_says_so(workspace, run_cli):
+    """The whole failure this flag exists to prevent.
+
+    An underpowered run reading as a pass is how a regression ships. So the
+    third verdict is named, distinct, and carries the detection limit that
+    explains why it could not decide.
+    """
+
+    def cli(*args):
+        return run_cli(*args, cwd=workspace)
+
+    _baseline_and_variant(cli)
+
+    # Find the margin band that this fixture's interval cannot resolve, rather
+    # than assuming one: the arms here genuinely differ, so too small a margin
+    # gives `failed` (a correct answer) and too large gives `held`.
+    seen = {}
+    for margin in ("0.001", "0.02", "0.05", "0.10", "0.30"):
+        block = cli("compare", "--variant", "var", "--tolerance", margin).payload["non_inferiority"]
+        seen[margin] = block["verdict"]
+
+    assert "unresolved" in seen.values(), seen
+    undecidable = next(m for m, v in seen.items() if v == "unresolved")
+    result = cli("compare", "--variant", "var", "--tolerance", undecidable)
+    block = result.payload["non_inferiority"]
+
+    assert block["verdict"] == "unresolved"
+    assert block["verdict"] != "held"
+    assert "unresolved is not held" in result.err
+    # And it carries the number that explains why it could not decide.
+    assert block["mde"] > 0
+
+
+def test_the_payload_records_where_the_margin_came_from(workspace, run_cli):
+    """A flag and a pre-registration produce the same three words.
+
+    They are not the same evidence: one was decided before the interval was
+    visible and one may not have been. Only the payload can carry that, because
+    the verdict string cannot.
+    """
+
+    def cli(*args):
+        return run_cli(*args, cwd=workspace)
+
+    _baseline_and_variant(cli)
+    result = cli("compare", "--variant", "var", "--tolerance", "0.03")
+
+    block = result.payload["non_inferiority"]
+    assert block["source"] == "command-line flag"
+    assert block["declared_before_the_run"] is False
+    assert "constrains nobody" in result.err
+
+
+def test_the_one_sided_level_is_stated_not_implied(workspace, run_cli):
+    """The interval is two-sided; a non-inferiority test reads one bound of it.
+
+    That makes the effective one-sided level (1+level)/2, which is the
+    conservative direction. Reporting the two-sided level beside a one-sided
+    test would misstate how sharp the test is, so both are named.
+    """
+
+    def cli(*args):
+        return run_cli(*args, cwd=workspace)
+
+    _baseline_and_variant(cli)
+    block = cli("compare", "--variant", "var", "--tolerance", "0.03").payload["non_inferiority"]
+
+    assert block["one_sided_level"] == pytest.approx((1 + block["level"]) / 2)
+
+
+def test_no_tolerance_means_no_non_inferiority_block(workspace, run_cli):
+    """Superiority stays the default. Nothing about the old output moves."""
+
+    def cli(*args):
+        return run_cli(*args, cwd=workspace)
+
+    _baseline_and_variant(cli)
+    result = cli("compare", "--variant", "var")
+
+    assert result.payload["non_inferiority"] is None
+    assert "QUALITY" not in result.err
