@@ -1,0 +1,37 @@
+[pack]
+name = "classification"
+version = "0.1.0"
+application_class = "classification"
+description = "Text classification against a labelled set: intent, routing, safety, triage."
+requires_langchef = ">=0.1.0"
+
+[contents]
+judges = []
+playbooks = []
+# Empty on purpose, and expected to stay empty: a hard target needs no judge, so
+# there is nothing for a rubric to say. rubrics/README.md is the long version,
+# and tests/test_packs.py holds the emptiness to the declaration below.
+rubrics = []
+
+# One class, and the case that made the pack boundary worth testing. DECISIONS.md
+# #12: the per-example outcome is `predicted == ideal`, which is binary natively.
+# It is not a reduction of a multi-class label — it is the comparison a team
+# actually wants — so McNemar over these pairs is exact and nothing is lost on
+# the way in.
+[task_classes.classification]
+outcome = "predicted == ideal — binary natively, so nothing is reduced on ingestion"
+# The only field of a task class the deterministic core ever sees. `compare` and
+# `design` size a binary outcome from the discordant rate; they are told the
+# shape, never the class (#68, and core/design.py says so in its own comment).
+outcome_shape = "binary"
+requires_judge = false
+metrics = ["accuracy", "precision", "recall", "support"]
+# Per-class precision and recall are pack-level reporting, not core statistics.
+# The core compares outcomes; what a multi-class label is worth reporting on is
+# this pack's expertise, and putting it here is what keeps
+# tests/test_boundaries.py green.
+reporting = "metrics.py:report"
+
+[task_classes.classification.schema]
+required = ["example_id", "input", "predicted", "ideal"]
+optional = ["slices"]

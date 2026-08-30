@@ -1,6 +1,6 @@
 [pack]
 name = "genai-rag"
-version = "0.1.0"
+version = "0.2.0"
 application_class = "genai-rag"
 description = "Retrieval-augmented generation and question answering."
 requires_langchef = ">=0.1.0"
@@ -10,3 +10,30 @@ requires_langchef = ">=0.1.0"
 [contents]
 judges = []
 playbooks = []
+# The rubric library. Empty because the shipped rubrics land with M1, not
+# because this class needs none — both of these classes are judged, and
+# rubrics/README.md says so.
+rubrics = []
+
+# The task classes this pack serves. DECISIONS.md #12: these are the two that
+# score free text, so these are the two that need a judge — and therefore the
+# only two where calibration means anything.
+[task_classes.qna]
+outcome = "the judge's verdict on one answer against the pinned rubric: pass or fail"
+outcome_shape = "binary"
+requires_judge = true
+metrics = ["pass_rate", "criterion_pass_rate", "agreement", "kappa"]
+
+[task_classes.qna.schema]
+required = ["example_id", "question", "answer"]
+optional = ["context", "expected", "slices"]
+
+[task_classes.generation]
+outcome = "the judge's verdict on one generated text against the pinned rubric: pass or fail"
+outcome_shape = "binary"
+requires_judge = true
+metrics = ["pass_rate", "criterion_pass_rate", "agreement", "kappa"]
+
+[task_classes.generation.schema]
+required = ["example_id", "question", "answer"]
+optional = ["expected", "slices"]

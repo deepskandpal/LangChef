@@ -34,11 +34,33 @@ def test_doctor_reports_green_here(run_cli):
     code, payload, err = run_cli("doctor")
     assert code == 0, err
     assert payload["ok"] is True
-    assert payload["packs"] == ["genai-rag@0.1.0"]
+    assert payload["packs"] == ["classification@0.1.0", "genai-rag@0.2.0"]
     required = [c for c in payload["checks"] if c["required"]]
     assert required and all(c["ok"] for c in required)
     # a soft check that is merely unmet must not shout FAIL at a green run
     assert "FAIL" not in err
+
+
+def test_packs_list_resolves_both_packs_and_the_classes_they_serve(run_cli):
+    """#20's first acceptance criterion, through the process an agent runs.
+
+    Two packs, and every task class the product knows about arriving from a
+    manifest rather than from anything under ``src/langchef/core/``.
+    """
+    code, payload, err = run_cli("packs", "list")
+    assert code == 0, err
+    packs = {p["name"]: p for p in payload["packs"]}
+    assert set(packs) == {"genai-rag", "classification"}
+
+    classes = {c["name"]: c for pack in payload["packs"] for c in pack["task_classes"]}
+    assert set(classes) == {"qna", "generation", "classification"}
+    assert classes["classification"]["requires_judge"] is False
+    # The one field of a task class the deterministic core acts on.
+    assert {c["outcome_shape"] for c in classes.values()} == {"binary"}
+    assert classes["qna"]["requires_judge"] is True
+    assert "example_id" in classes["classification"]["schema"]["required"]
+    assert packs["classification"]["rubrics"] == []  # empty on purpose, not empty by accident
+    assert "2 pack(s)" in err and "3 task class(es)" in err
 
 
 def test_json_output_is_readable_utf8(run_cli):

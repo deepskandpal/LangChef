@@ -23,7 +23,7 @@ from langchef.core import contract as contract_mod
 from langchef.core.credentials import present as credentials_present
 from langchef.core.emit import emit, say
 from langchef.core.exits import Exit
-from langchef.packs import discover, search_path
+from langchef.packs import TaskClass, discover, search_path
 from langchef.packs.loader import ENV_VAR as PACK_PATH_VAR
 from langchef.workspace.paths import WorkspaceError
 from langchef.workspace.paths import find as find_workspace
@@ -154,9 +154,25 @@ def doctor() -> None:
     raise typer.Exit(Exit.OK if ok else Exit.ERROR)
 
 
+def _task_class_payload(task_class: TaskClass) -> dict:
+    """One declared task class, as the agent reads it."""
+    return {
+        "name": task_class.name,
+        "outcome": task_class.outcome,
+        "outcome_shape": task_class.outcome_shape,
+        "requires_judge": task_class.requires_judge,
+        "metrics": list(task_class.metrics),
+        "schema": {
+            "required": list(task_class.required_fields),
+            "optional": list(task_class.optional_fields),
+        },
+        "reporting": task_class.reporting,
+    }
+
+
 @packs_app.command("list")
 def packs_list() -> None:
-    """List every pack resolvable on the search path."""
+    """List every pack resolvable on the search path, and the classes each serves."""
     packs = discover()
     emit(
         {
@@ -170,14 +186,23 @@ def packs_list() -> None:
                     "description": p.description,
                     "requires_langchef": p.requires_langchef,
                     "path": str(p.path),
+                    "rubrics": list(p.rubrics),
+                    "task_classes": [
+                        _task_class_payload(p.task_classes[name]) for name in sorted(p.task_classes)
+                    ],
                 }
                 for p in packs
             ],
         }
     )
-    say(f"{len(packs)} pack(s) on the search path")
+    classes = sum(len(p.task_classes) for p in packs)
+    say(f"{len(packs)} pack(s) on the search path, {classes} task class(es)")
     for p in packs:
-        say(f"  {p.ref:<20} {p.application_class:<12} {p.description}")
+        say(f"  {p.ref:<20} {p.application_class:<16} {p.description}")
+        for name in sorted(p.task_classes):
+            task_class = p.task_classes[name]
+            judge = "judged" if task_class.requires_judge else "no judge"
+            say(f"    {name:<18} {task_class.outcome_shape:<11} {judge:<10} {task_class.outcome}")
 
 
 if __name__ == "__main__":  # pragma: no cover - module entry point
