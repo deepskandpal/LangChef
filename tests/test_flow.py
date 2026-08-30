@@ -197,6 +197,86 @@ def test_every_command_writes_json_to_stdout_and_prose_to_stderr(workspace, run_
         assert result.err.strip(), f"{args} said nothing to a person on stderr"
 
 
+# --- #25: an ambiguous `compare` discloses which run it chose ----------------
+
+
+def _two_variant_runs(cli):
+    """A workspace with a pinned baseline and two runs on the variant arm."""
+    assert cli("approve", "rubric").code == Exit.OK
+    assert cli("judge", "run", "--arm", "baseline", "--run-id", "base").code == Exit.OK
+    assert cli("baseline", "set", "--run", "base").code == Exit.OK
+    assert cli("judge", "run", "--arm", "variant", "--run-id", "var-a").code == Exit.OK
+    assert cli("judge", "run", "--arm", "variant", "--run-id", "var-b").code == Exit.OK
+
+
+def test_ambiguous_compare_names_the_run_it_chose(workspace, run_cli):
+    """Two runs match and none was named, so say which one was used."""
+
+    def cli(*args):
+        return run_cli(*args, cwd=workspace)
+
+    _two_variant_runs(cli)
+
+    result = cli("compare")
+
+    assert result.code == Exit.OK, result.payload
+    # Newest first: ids sort chronologically, so var-b wins.
+    assert result.payload["variant_run"] == "var-b"
+    assert "var-b" in result.err
+    assert "2 runs" in result.err
+    assert "--variant" in result.err
+
+
+def test_ambiguous_compare_keeps_stdout_pure_json(workspace, run_cli):
+    """The contract has no --format flag, and this must not become one."""
+
+    def cli(*args):
+        return run_cli(*args, cwd=workspace)
+
+    _two_variant_runs(cli)
+
+    result = cli("compare")
+
+    assert result.code == Exit.OK
+    # Parses whole, and nothing but the document is on stdout.
+    assert json.loads(result.out)["variant_run"] == "var-b"
+    assert "Pass --variant" not in result.out
+
+
+def test_unambiguous_compare_stays_silent(workspace, run_cli):
+    """One matching run is not ambiguous, so there is nothing to disclose."""
+
+    def cli(*args):
+        return run_cli(*args, cwd=workspace)
+
+    assert cli("approve", "rubric").code == Exit.OK
+    assert cli("judge", "run", "--arm", "baseline", "--run-id", "base").code == Exit.OK
+    assert cli("baseline", "set", "--run", "base").code == Exit.OK
+    assert cli("judge", "run", "--arm", "variant", "--run-id", "var").code == Exit.OK
+
+    result = cli("compare")
+
+    assert result.code == Exit.OK
+    assert result.payload["variant_run"] == "var"
+    assert "not compared" not in result.err
+    assert "Pass --variant" not in result.err
+
+
+def test_named_variant_is_never_ambiguous(workspace, run_cli):
+    """Naming the run is the remedy the warning suggests; it must silence it."""
+
+    def cli(*args):
+        return run_cli(*args, cwd=workspace)
+
+    _two_variant_runs(cli)
+
+    result = cli("compare", "--variant", "var-a")
+
+    assert result.code == Exit.OK
+    assert result.payload["variant_run"] == "var-a"
+    assert "not compared" not in result.err
+
+
 def test_compare_says_which_criterion_the_regression_landed_on(workspace, run_cli):
     """One verdict is a fact; the criterion it landed on is the actionable half.
 

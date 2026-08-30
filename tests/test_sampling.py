@@ -76,3 +76,79 @@ def test_summary_reports_the_design_it_used():
     assert payload["selected"] == 20
     assert payload["available"] == 100
     assert "stratified" in payload["design"]
+
+
+def test_the_reported_weight_is_the_weight_the_rows_carry():
+    """The two must agree, or the figure a person reads is not the plan's.
+
+    `summarise` used to compute `len(rows) / count` -- the whole suite over one
+    stratum's count -- which is a suite-level numerator over a stratum-level
+    denominator.
+    """
+    rows = scores(n_fail=15, n_pass=75)
+    chosen = plan(rows, budget=40)
+    reported = summarise(chosen, rows)["weights"]
+
+    carried = {s.stratum: round(s.weight, 3) for s in chosen}
+    assert reported == carried
+
+
+def test_the_reported_weight_is_stratum_size_over_the_number_taken():
+    """The issue's worked example, in full.
+
+    A 90-example suite with 15 judge-fails and a budget of 40 takes all 15
+    fails and 25 passes, so the weights are 15/15 and 75/25. The old formula
+    reported 6.0 and 3.6.
+    """
+    rows = scores(n_fail=15, n_pass=75)
+    chosen = plan(rows, budget=40)
+    payload = summarise(chosen, rows)
+
+    assert payload["by_stratum"] == {"fail": 15, "pass": 25}
+    assert payload["weights"] == {"fail": 1.0, "pass": 3.0}
+
+
+def test_a_weight_is_never_the_suite_size_over_a_stratum_count():
+    """Guard against the old formula being reintroduced as an optimisation."""
+    rows = scores(n_fail=15, n_pass=75)
+    chosen = plan(rows, budget=40)
+    payload = summarise(chosen, rows)
+
+    wrong = {name: round(len(rows) / count, 3) for name, count in payload["by_stratum"].items()}
+    assert payload["weights"] != wrong
+
+
+def test_a_fully_sampled_stratum_weighs_one():
+    """Taking every example in a stratum means no correction is owed for it."""
+    rows = scores(n_fail=5, n_pass=95)
+    chosen = plan(rows, budget=40)
+    payload = summarise(chosen, rows)
+
+    assert payload["by_stratum"]["fail"] == 5
+    assert payload["weights"]["fail"] == 1.0
+
+
+def test_weights_reconstruct_the_stratum_sizes():
+    """The property that makes a weight usable: count x weight is the stratum."""
+    rows = scores(n_fail=15, n_pass=75)
+    payload = summarise(plan(rows, budget=40), rows)
+
+    for name, count in payload["by_stratum"].items():
+        assert count * payload["weights"][name] == len([r for r in rows if r["verdict"] == name])
+
+
+def test_a_stratum_that_contributed_nothing_is_absent_from_the_weights():
+    rows = scores(n_fail=0, n_pass=50)
+    payload = summarise(plan(rows, budget=10), rows)
+
+    assert "fail" not in payload["weights"]
+    assert payload["weights"] == {"pass": 5.0}
+
+
+def test_summarising_an_empty_plan_reports_no_weights():
+    rows = scores(n_fail=5, n_pass=5)
+    payload = summarise([], rows)
+
+    assert payload["weights"] == {}
+    assert payload["selected"] == 0
+    assert payload["available"] == 10

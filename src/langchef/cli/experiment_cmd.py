@@ -112,9 +112,28 @@ def compare(
     if variant:
         variant_run = _load(resolved, variant, "variant")
     else:
-        variant_run = runs.latest(resolved.workspace, suite=name, arm="variant")
+        # for_experiment() rather than latest(): latest() is a thin wrapper over
+        # it that discards the count, and the count is the whole disclosure.
+        # #12 -- one resolution path, so the next version of this bug cannot be
+        # written into a second one.
+        candidates = runs.for_experiment(resolved.workspace, suite=name, arm="variant")
+        variant_run = candidates[0] if candidates else None
         if variant_run is None or variant_run.run_id == baseline_run.run_id:
             fail(Exit.ERROR, "no variant run to compare — pass --variant")
+        if len(candidates) > 1:
+            # A disclosure, not a refusal. `readout` refuses here (#13) because
+            # it is gate two; `compare` is the exploratory command, where
+            # re-running an arm is exactly what you should be doing. Inside a
+            # gate ambiguity is a refusal; outside one it is a disclosure.
+            # Silence is neither -- and with a warm cache each re-run is free,
+            # so an arm accumulates runs faster than anyone tracks.
+            others = len(candidates) - 1
+            say(
+                f"langchef: compared {variant_run.run_id}, the newest of "
+                f"{len(candidates)} runs for arm 'variant' in suite {name!r} "
+                f"({others} other{'' if others == 1 else 's'} not compared). "
+                "Pass --variant to choose.",
+            )
 
     try:
         check_pin(Pin.from_dict(baseline_run.pin or {}), Pin.from_dict(variant_run.pin or {}))
