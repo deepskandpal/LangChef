@@ -18,35 +18,53 @@
   <div class="shell">
     <a class="wordmark" href="index.html"><span class="dot"></span>LangChef</a>
     <nav class="topnav">
-      <a href="index.html">Overview</a>
-      <a href="start.html" class="here">Start here</a>
-      <a href="numbers.html">Reading the output</a>
-      <a href="cli.html">Commands</a>
-      <a href="integrations.html">Integrations</a>
+      <a href="index.html" class="here">Guide</a>
+      <a href="concepts.html">Reference</a>
+      <a href="cli.html">Project</a>
       <a href="https://github.com/deepskandpal/LangChef">GitHub</a>
     </nav>
   </div>
 </header>
 
 <div class="shell layout">
-
 <nav class="sidebar" aria-label="Documentation">
-  <h4>Documentation</h4>
+  <form class="search" role="search" onsubmit="return false">
+    <input id="q" type="search" placeholder="Search docs" aria-label="Search documentation" autocomplete="off" spellcheck="false">
+    <kbd>/</kbd>
+  </form>
+  <div id="results" hidden></div>
+  <div id="nav">
+  <h4>Guide</h4>
   <ul>
     <li><a href="index.html">Overview</a></li>
-    <li><a href="start.html">Your first evaluation</a></li>
+    <li><a href="start.html" aria-current="page">Start here</a></li>
     <li><a href="numbers.html">Reading the output</a></li>
-    <li><a href="cli.html">Command reference</a></li>
+  </ul>
+  <h4>Reference</h4>
+  <ul>
+    <li><a href="concepts.html">Concepts</a></li>
+    <li><a href="ref-agreement.html">Agreement and kappa</a></li>
+    <li><a href="ref-taxonomy.html">Disagreement taxonomy</a></li>
+    <li><a href="ref-sampling.html">Label planning</a></li>
+    <li><a href="ref-judging.html">Judging and pins</a></li>
+    <li><a href="ref-design.html">Designing a run</a></li>
+    <li><a href="ref-compare.html">Comparing two arms</a></li>
+  </ul>
+  <h4>Project</h4>
+  <ul>
+    <li><a href="cli.html">Commands</a></li>
     <li><a href="integrations.html">Integrations</a></li>
   </ul>
   <h4>In the repository</h4>
   <ul>
     <li><a href="https://github.com/deepskandpal/LangChef/blob/main/docs/AGENT-CONTRACT.md">Agent contract</a></li>
     <li><a href="https://github.com/deepskandpal/LangChef/blob/main/DECISIONS.md">Decisions</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/AGENTS.md">Working agreement</a></li>
     <li><a href="https://github.com/deepskandpal/LangChef/blob/main/dogfood/README.md">Dogfood</a></li>
-    <li><a href="https://github.com/deepskandpal/LangChef/blob/main/TRACKER.md">Work tracker</a></li>
+    <li><a href="https://github.com/deepskandpal/LangChef/issues">Issues</a></li>
     <li><a href="https://github.com/deepskandpal/LangChef">Source on GitHub</a></li>
   </ul>
+  </div>
 </nav>
 
 <main>
@@ -66,7 +84,23 @@ it spent labelling. Ten minutes per change after that.</p>
   compare against changes.</p>
 </div>
 
-<h2>Install — 2 minutes</h2>
+<div class="callout warn">
+  <span class="k">Check this walkthrough is for you</span>
+  <p>This page follows a <strong>free-text</strong> task: the assistant writes prose, there is no
+  single correct answer, and so a judge has to read it. Steps 2, 3, 5 and 6 exist entirely to check
+  that judge before you trust it.</p>
+  <p>If your task has a <strong>hard target</strong>, meaning you already know which document should
+  have been retrieved, which label is correct, or which ordering is right, then
+  <strong>none of those four steps apply to you</strong>. There is nothing to calibrate, because
+  comparing against a known answer is arithmetic rather than judgement. Your version of this
+  walkthrough is steps 1, 7, 8 and 9: collect examples, have the experiment designed, run it, read
+  it out. That path is designed and not yet shipped
+  (<a href="https://github.com/deepskandpal/LangChef/issues/14">#14</a>); the comparison, the detection limit and the
+  pre-registration it depends on all exist today.</p>
+  <p><a href="index.html#which-of-these-are-you">Which one am I?</a></p>
+</div>
+
+<h2 id="install-2-minutes">Install — 2 minutes</h2>
 
 <p><a href="https://docs.astral.sh/uv/">uv</a> is the only prerequisite. It fetches its own Python,
 so nothing is installed globally and no system package is touched.</p>
@@ -84,7 +118,7 @@ search app with faults deliberately planted in it, so you can watch the tool fin
 <pre><code>uv run python -m dogfood.build
 uv run pytest tests/test_dogfood.py -v</code></pre>
 
-<h2>Words used on this page</h2>
+<h2 id="words-used-on-this-page">Words used on this page</h2>
 
 <div class="scroller"><table>
 <thead><tr><th>Word</th><th>What it means here</th></tr></thead>
@@ -97,7 +131,7 @@ uv run pytest tests/test_dogfood.py -v</code></pre>
 <tr><td><strong>Arm</strong></td><td>One version of your app — usually <code>baseline</code> against the thing you changed.</td></tr>
 </tbody></table></div>
 
-<h2>Step 1 — Collect examples · 10 minutes</h2>
+<h2 id="step-1-collect-examples-10-minutes">Step 1 — Collect examples · 10 minutes</h2>
 
 <p>An example is one question, the answer your app gave, and the context it retrieved. Pull 50–100
 from your logs. Real questions, not invented ones — invented questions are always easier than the
@@ -120,7 +154,7 @@ langchef init</code></pre>
 picked the question. <code>slices</code> are optional tags; they are how the tool later tells you
 "this only breaks on billing questions".</p>
 
-<h2>Step 2 — Say what "good" means · 10 minutes</h2>
+<h2 id="step-2-say-what-good-means-10-minutes">Step 2 — Say what "good" means · 10 minutes</h2>
 
 <p><code>langchef init</code> wrote a starter rubric at
 <code>evals/rubrics/answer-quality.md</code>. Open it and make it yours. It is Markdown, each
@@ -155,7 +189,7 @@ or being handed bad context.</p>
 <p>This is the highest-leverage twenty minutes in the whole process. A vague rubric produces a vague
 judge, and no amount of statistics downstream repairs that.</p>
 
-<h2>Step 3 — Sign it off · 10 seconds</h2>
+<h2 id="step-3-sign-it-off-10-seconds">Step 3 — Sign it off · 10 seconds</h2>
 
 <p>Nothing will run until a person has read the rubric and approved it:</p>
 
@@ -172,7 +206,7 @@ approved answer-quality@290335165c70
 automatically, and the next run stops until you re-read it. This is what prevents trap three — the
 ruler moving without anyone noticing.</p>
 
-<h2>Step 4 — Score them · 30 seconds</h2>
+<h2 id="step-4-score-them-30-seconds">Step 4 — Score them · 30 seconds</h2>
 
 <pre><code>$ langchef judge run --arm baseline
 judge: n=90  provider_calls=90  pass=75  fail=15</code></pre>
@@ -194,7 +228,7 @@ strong_model = "anthropic/claude-sonnet-5"   <span class="c"># re-scores only th
 itself.</strong> If you are migrating to a model, grading its answers with that same model measures
 its self-consistency, not its quality — which is another reason step 6 exists.</p>
 
-<h2>Step 5 — Label forty yourself · 20 minutes</h2>
+<h2 id="step-5-label-forty-yourself-20-minutes">Step 5 — Label forty yourself · 20 minutes</h2>
 
 <p>This is the only manual work, and it is not optional. It is the <em>only</em> way to find out
 whether the judge is worth anything.</p>
@@ -213,7 +247,7 @@ attention confirming things that were already fine.</p>
 
 <pre><code>langchef label import evals/labels/answer-quality.todo.jsonl</code></pre>
 
-<h2>Step 6 — Find out if your judge is any good · 5 seconds</h2>
+<h2 id="step-6-find-out-if-your-judge-is-any-good-5-seconds">Step 6 — Find out if your judge is any good · 5 seconds</h2>
 
 <pre><code>$ langchef calibrate report
 calibration for base on 40 labelled example(s)
@@ -230,7 +264,7 @@ properly, including what to do when the number is bad.</p>
 <p>If agreement had come back below 0.4, the correct move is to stop, fix the rubric, and try again
 — not to carry on and report pass rates from a judge that disagrees with you.</p>
 
-<h2>Step 7 — Have the experiment designed · 1 minute</h2>
+<h2 id="step-7-have-the-experiment-designed-1-minute">Step 7 — Have the experiment designed · 1 minute</h2>
 
 <p>You do not have to work out how many examples you need, or what size of change counts as real.
 Describe what you are doing and let the tool cost it:</p>
@@ -259,7 +293,7 @@ null result quietly becomes a green light.</p>
 any part of it afterwards and the approval lapses by itself, which is what stops an experiment being
 reshaped around the result it produced.</p>
 
-<h2>Step 8 — Run it and read out · 1 minute</h2>
+<h2 id="step-8-run-it-and-read-out-1-minute">Step 8 — Run it and read out · 1 minute</h2>
 
 <pre><code>langchef baseline set                       <span class="c"># pin the model you're on today</span>
 
@@ -292,7 +326,7 @@ examples could never have detected anything smaller than a six-point swing, so i
 things by three points, this run was always going to shrug. Add examples, or accept that you are not
 going to resolve a change this small.</p>
 
-<h2>Step 9 — Write it up · 5 seconds</h2>
+<h2 id="step-9-write-it-up-5-seconds">Step 9 — Write it up · 5 seconds</h2>
 
 <pre><code>langchef memo render</code></pre>
 
@@ -300,7 +334,7 @@ going to resolve a change this small.</p>
 trusted, because a confident result from an unchecked judge is worse than no result. Then the
 finding, then what the run could not rule out. Commit it next to the change it justifies.</p>
 
-<h2>After the first time</h2>
+<h2 id="after-the-first-time">After the first time</h2>
 
 <p>Steps 1–6 are setup. From then on, each change costs you two commands and about a minute:</p>
 
@@ -312,7 +346,7 @@ judge's trustworthiness drifts as your traffic changes, and the tool will keep q
 calibration until you refresh it. If you are migrating the judge model itself, re-calibrate first:
 you are changing the instrument, not the thing being measured.</p>
 
-<h2>Handing it to an agent</h2>
+<h2 id="handing-it-to-an-agent">Handing it to an agent</h2>
 
 <p>If you use Claude Code, the adapter ships the whole playbook above as a skill, so the agent runs
 the loop and reads the results the way this page describes:</p>
@@ -321,6 +355,7 @@ the loop and reads the results the way this page describes:</p>
 
 <p>The approval gate stays in the CLI rather than in the prompt, so it holds whether or not the
 agent cooperates.</p>
+
 
 </main>
 </div>
@@ -333,5 +368,6 @@ agent cooperates.</p>
     <span>&copy; 2026 Deepak Kandpal</span>
   </div>
 </footer>
+<script src="search.js" defer></script>
 </body>
 </html>

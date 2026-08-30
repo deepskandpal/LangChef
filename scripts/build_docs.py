@@ -18,6 +18,7 @@ what calibration is, it has failed.
 
 import argparse
 import html
+import json
 import re
 import sys
 from datetime import UTC, datetime
@@ -34,13 +35,40 @@ from langchef.core.exits import REASON, Exit  # noqa: E402
 REPO = "https://github.com/deepskandpal/LangChef"
 BLOB = f"{REPO}/blob/main"
 
-PAGES = (
-    ("index.html", "Overview"),
-    ("start.html", "Start here"),
-    ("numbers.html", "Reading the output"),
-    ("cli.html", "Commands"),
-    ("integrations.html", "Integrations"),
+# Three groups, because they answer three different questions. Guide is "how do
+# I use this", Reference is "how does it work and what may I change", Project is
+# "what is here". A flat list stopped working at eight entries.
+NAV = (
+    (
+        "Guide",
+        (
+            ("index.html", "Overview"),
+            ("start.html", "Start here"),
+            ("numbers.html", "Reading the output"),
+        ),
+    ),
+    (
+        "Reference",
+        (
+            ("concepts.html", "Concepts"),
+            ("ref-agreement.html", "Agreement and kappa"),
+            ("ref-taxonomy.html", "Disagreement taxonomy"),
+            ("ref-sampling.html", "Label planning"),
+            ("ref-judging.html", "Judging and pins"),
+            ("ref-design.html", "Designing a run"),
+            ("ref-compare.html", "Comparing two arms"),
+        ),
+    ),
+    (
+        "Project",
+        (
+            ("cli.html", "Commands"),
+            ("integrations.html", "Integrations"),
+        ),
+    ),
 )
+
+PAGES = tuple(entry for _, entries in NAV for entry in entries)
 
 FONTS = (
     '<link rel="preconnect" href="https://fonts.googleapis.com">\n'
@@ -51,33 +79,86 @@ FONTS = (
     'family=Spectral:ital,wght@0,600;1,400&display=swap">'
 )
 
-SIDEBAR = f"""
-<nav class="sidebar" aria-label="Documentation">
-  <h4>Documentation</h4>
-  <ul>
-    <li><a href="index.html">Overview</a></li>
-    <li><a href="start.html">Your first evaluation</a></li>
-    <li><a href="numbers.html">Reading the output</a></li>
-    <li><a href="cli.html">Command reference</a></li>
-    <li><a href="integrations.html">Integrations</a></li>
-  </ul>
-  <h4>In the repository</h4>
-  <ul>
-    <li><a href="{BLOB}/docs/AGENT-CONTRACT.md">Agent contract</a></li>
-    <li><a href="{BLOB}/DECISIONS.md">Decisions</a></li>
-    <li><a href="{BLOB}/dogfood/README.md">Dogfood</a></li>
-    <li><a href="{BLOB}/TRACKER.md">Work tracker</a></li>
-    <li><a href="{REPO}">Source on GitHub</a></li>
-  </ul>
-</nav>
-"""
+
+REF_ORDER = (
+    ("concepts.html", "Concepts"),
+    ("ref-agreement.html", "Agreement and kappa"),
+    ("ref-taxonomy.html", "Disagreement taxonomy"),
+    ("ref-sampling.html", "Label planning"),
+    ("ref-judging.html", "Judging and pins"),
+    ("ref-design.html", "Designing a run"),
+    ("ref-compare.html", "Comparing two arms"),
+)
+
+
+def onward(page: str) -> str:
+    """Previous and next within the reference sequence.
+
+    The pages are deep on their own subject and say nothing about where they sit.
+    A reader who lands on one from search has no way to tell what came before it,
+    which is how a reference section reads as seven disconnected essays.
+    """
+    names = [href for href, _ in REF_ORDER]
+    if page not in names:
+        return ""
+    i = names.index(page)
+    parts = []
+    if i > 0:
+        href, label = REF_ORDER[i - 1]
+        parts.append(f'<a class="prev" href="{href}"><span>Previous</span>{label}</a>')
+    if i < len(REF_ORDER) - 1:
+        href, label = REF_ORDER[i + 1]
+        parts.append(f'<a class="next" href="{href}"><span>Next</span>{label}</a>')
+    if not parts:
+        return ""
+    return '<nav class="onward" aria-label="Reference sequence">' + "".join(parts) + "</nav>\n"
+
+
+def sidebar(page: str) -> str:
+    """The grouped nav, with the current page marked and a search box on top."""
+    groups = []
+    for title, entries in NAV:
+        items = "\n".join(
+            f'    <li><a href="{href}"'
+            + (' aria-current="page"' if href == page else "")
+            + f">{label}</a></li>"
+            for href, label in entries
+        )
+        groups.append(f"  <h4>{title}</h4>\n  <ul>\n{items}\n  </ul>")
+    repo_links = "\n".join(
+        f'    <li><a href="{href}">{label}</a></li>'
+        for href, label in (
+            (f"{BLOB}/docs/AGENT-CONTRACT.md", "Agent contract"),
+            (f"{BLOB}/DECISIONS.md", "Decisions"),
+            (f"{BLOB}/AGENTS.md", "Working agreement"),
+            (f"{BLOB}/dogfood/README.md", "Dogfood"),
+            (f"{REPO}/issues", "Issues"),
+            (REPO, "Source on GitHub"),
+        )
+    )
+    return (
+        '<nav class="sidebar" aria-label="Documentation">\n'
+        '  <form class="search" role="search" onsubmit="return false">\n'
+        '    <input id="q" type="search" placeholder="Search docs" '
+        'aria-label="Search documentation" autocomplete="off" spellcheck="false">\n'
+        "    <kbd>/</kbd>\n"
+        "  </form>\n"
+        '  <div id="results" hidden></div>\n'
+        '  <div id="nav">\n'
+        + "\n".join(groups)
+        + f"\n  <h4>In the repository</h4>\n  <ul>\n{repo_links}\n  </ul>\n"
+        + "  </div>\n</nav>\n"
+    )
 
 
 def shell(page: str, title: str, body: str, description: str) -> str:
     """One page, wrapped in the site frame."""
+    # One entry per group. Eight top-level links is a list, not a navigation.
+    heads = [(entries[0][0], title) for title, entries in NAV]
+    here = next((title for title, entries in NAV if page in [h for h, _ in entries]), None)
     nav = "\n".join(
-        f'      <a href="{href}"{' class="here"' if href == page else ""}>{label}</a>'
-        for href, label in PAGES
+        f'      <a href="{href}"{' class="here"' if title == here else ""}>{title}</a>'
+        for href, title in heads
     )
     year = datetime.now(UTC).strftime("%Y")
     return f"""<!doctype html>
@@ -105,9 +186,10 @@ def shell(page: str, title: str, body: str, description: str) -> str:
 </header>
 
 <div class="shell layout">
-{SIDEBAR}
+{sidebar(page)}
 <main>
-{body}
+{anchored(body)}
+{onward(page)}
 </main>
 </div>
 
@@ -119,6 +201,7 @@ def shell(page: str, title: str, body: str, description: str) -> str:
     <span>&copy; {year} Deepak Kandpal</span>
   </div>
 </footer>
+<script src="search.js" defer></script>
 </body>
 </html>
 """
@@ -213,6 +296,56 @@ why only about a third of teams running AI in production evaluate it on live tra
 <p>This is not a tooling problem. Half a dozen capable eval platforms exist and several are free.
 What is missing is the <em>person</em> who knows whether your grader can be trusted and how many
 examples a number needs before it means anything. LangChef stands in for them.</p>
+
+<h2>Which of these are you</h2>
+
+<p>The answer changes what this tool does for you, so it is worth settling before anything else.
+The difference is not what your app is built from. It is <strong>whether you already know the right
+answer</strong>.</p>
+
+<div class="grid2">
+  <div class="panel">
+    <h3>You do not have the answer</h3>
+    <p><strong>Q&amp;A, summarisation, generation, agent output.</strong> There is no single correct
+    string, so something has to <em>read</em> the answer and judge it. That something is usually a
+    model, and a model nobody has checked is not a measuring instrument.</p>
+    <p><strong>Calibration comes first here</strong>, and it is the part almost nobody sells. If
+    your judge disagrees with your own people three times in ten, every number computed downstream
+    inherits that error and none of them will tell you.</p>
+  </div>
+  <div class="panel">
+    <h3>You already have the answer</h3>
+    <p><strong>Retrieval, classification, reranking.</strong> You know which document should have
+    come back, which label is correct, which ordering is right. Comparing to it is arithmetic, not
+    judgement.</p>
+    <p><strong>There is nothing to calibrate</strong>, and we will not pretend otherwise. Skip
+    straight to the experiment. recall@k, MRR, nDCG, accuracy and F1 are computed from your targets,
+    and no rubric, no judge and no forty labels are involved.</p>
+  </div>
+</div>
+
+<p>Neither is the lesser path. If you have hard targets you have <em>solved</em> the hardest
+problem in evaluation already, and you get an answer sooner. What you still need is the part that
+has nothing to do with judging:</p>
+
+<ul>
+  <li><strong>Paired statistics.</strong> Both arms answer the same questions, so only the examples
+  that changed carry information. Treating them as two independent samples is how a real regression
+  comes back as noise.</li>
+  <li><strong>The detection limit.</strong> "recall@5 went from 0.71 to 0.69" means nothing without
+  knowing the smallest move your set could have seen.</li>
+  <li><strong>The discipline.</strong> The margin decided before the run, the design approved before
+  traffic, the refusal to read out whichever run happens to look best.</li>
+</ul>
+
+<div class="callout warn">
+  <span class="k">Being straight about what is built</span>
+  <p>Today the tool runs the free-text path end to end. The hard-target path is designed and not
+  yet shipped: bringing your own rows of input and target is
+  <a href="@@repo@@/issues/14">#14</a>, and it is blocked on one decision that has to be made before
+  any statistics are written. The paired comparison, the detection limit and the pre-registration
+  all exist now and are task-agnostic. What is missing is the loader and the per-task metrics.</p>
+</div>
 
 <h2>Four ways this goes wrong</h2>
 
@@ -340,6 +473,22 @@ it spent labelling. Ten minutes per change after that.</p>
   <p>The same loop covers every other change in the stack — a new embedding model, different
   chunking, a reranker, a fine-tuned small model swapped in to cut the bill. Only the arm you
   compare against changes.</p>
+</div>
+
+<div class="callout warn">
+  <span class="k">Check this walkthrough is for you</span>
+  <p>This page follows a <strong>free-text</strong> task: the assistant writes prose, there is no
+  single correct answer, and so a judge has to read it. Steps 2, 3, 5 and 6 exist entirely to check
+  that judge before you trust it.</p>
+  <p>If your task has a <strong>hard target</strong>, meaning you already know which document should
+  have been retrieved, which label is correct, or which ordering is right, then
+  <strong>none of those four steps apply to you</strong>. There is nothing to calibrate, because
+  comparing against a known answer is arithmetic rather than judgement. Your version of this
+  walkthrough is steps 1, 7, 8 and 9: collect examples, have the experiment designed, run it, read
+  it out. That path is designed and not yet shipped
+  (<a href="@@repo@@/issues/14">#14</a>); the comparison, the detection limit and the
+  pre-registration it depends on all exist today.</p>
+  <p><a href="index.html#which-of-these-are-you">Which one am I?</a></p>
 </div>
 
 <h2>Install — 2 minutes</h2>
@@ -788,6 +937,33 @@ comparison. Re-run the older arm under the current pin.</code></pre>
 The tool stops rather than drawing the chart. Re-score the older version under the current rubric
 and compare again — the cache makes that cheap.</p>
 
+<h2>If your task has a hard target</h2>
+
+<p>Retrieval, classification and reranking come with the right answer already known, so the
+calibration half of this page does not apply to you. There is no rubric, no judge and no kappa,
+because nothing is being judged. <strong>Skip every number above that describes agreement.</strong></p>
+
+<p>What still applies, and is most of why this tool exists:</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Number</th><th>Why it still matters</th></tr></thead>
+<tbody>
+<tr><td><strong>The paired difference and its interval</strong></td><td>Both arms answer the same
+queries, so only the ones whose outcome changed carry information. This is true whether the outcome
+came from a judge or from an exact match against your target.</td></tr>
+<tr><td><strong>The detection limit</strong></td><td>The one people most need and least often have.
+"recall@5 moved from 0.71 to 0.69" is not a finding until you know the smallest move your set could
+have resolved.</td></tr>
+<tr><td><strong>The verdict</strong></td><td>Regression, improvement or inconclusive, on the same
+rule: a direction only counts when the whole interval agrees with it.</td></tr>
+<tr><td><strong>The non-inferiority margin</strong></td><td>Swapping a cheaper embedding model is
+still a "did quality hold" question, and still wants its tolerance fixed before the run.</td></tr>
+</tbody></table></div>
+
+<p>The per-task metrics themselves, recall@k, MRR, nDCG for retrieval and accuracy, precision,
+recall and F1 for classification, are computed from your targets rather than judged. They are
+designed and not yet shipped: see <a href="@@repo@@/issues/14">#14</a>.</p>
+
 <h2>When the tool refuses</h2>
 
 <p>Refusals are exit codes, so a script or an agent cannot talk its way past them.</p>
@@ -871,6 +1047,1375 @@ a team that has already aligned a judge in MLflow should be able to bring it, no
 missing or sitting in "considering", say so on the
 <a href="@@repo@@/issues">issue tracker</a> — what teams actually run beats what looks strategic
 from here.</p>
+"""
+
+
+CONCEPTS = """
+<div class="eyebrow">Reference</div>
+<h1>Concepts</h1>
+<p class="lede">Every idea LangChef uses, in a few lines each, with a link to the page that explains
+it properly. Start here if a word in the output is unfamiliar, or if you are about to change the
+code and want to know what you are changing.</p>
+
+<div class="callout">
+  <span class="k">You do not need statistics to use this</span>
+  <p>The tool computes all of it. This section exists so that the numbers are not a black box, and
+  so that anyone who wants to change how they are computed can find the ground they rest on.
+  Every page opens with a worked example from the project's own test data before it explains
+  anything.</p>
+</div>
+
+<h2>The things you supply</h2>
+
+<h3>Example</h3>
+<p>One question your app was asked, the answer it gave, and the context it retrieved. Also called a
+<em>golden</em>. Fifty to a hundred is a normal starting set, taken from real traffic rather than
+invented, because invented questions are always easier than the ones users actually ask.</p>
+
+<h3>Rubric</h3>
+<p>What "a good answer" means, written down as Markdown. Each <code>###</code> heading is one
+criterion and the judge must name the one it failed on. Roughly what you would tell a new teammate
+on their first day. It is hashed, so editing it revokes its approval.
+<a href="ref-agreement.html#what-the-rubric-has-to-do">Why the headings matter</a>.</p>
+
+<h3>Label</h3>
+<p>Your own verdict on an example, pass or fail, recorded by hand. This is the ground truth
+everything else is measured against. It is the only part nobody can automate for you, and roughly
+forty of them is the usual ask.</p>
+
+<h2>Judging</h2>
+
+<h3>Judge</h3>
+<p>The thing that reads an answer and says pass or fail. Usually a model with your rubric in the
+prompt; sometimes, as in the default here, plain token matching. A judge is a measuring instrument,
+not a metric, which is the single idea the rest of the product is built on.</p>
+
+<h3>Pin</h3>
+<p>The rubric hash, the provider and the models that produced a set of verdicts, recorded on every
+run. Two runs are only comparable if their pins match. When they do not, <code>compare</code> exits
+5 rather than drawing a chart of two different measurements.</p>
+
+<h3>Two-tier judging</h3>
+<p>A cheap model scores everything; a strong model re-scores only the cases the cheap one was
+unsure about. Built in from the start rather than added later, because the model is part of the
+cache key and retrofitting it would invalidate every cached verdict in every workspace. <a href="ref-judging.html#two-tiers">More</a>.</p>
+
+<h2>Calibration: is the judge any good</h2>
+
+<h3>Calibration</h3>
+<p>Comparing the judge's verdicts against your labels on the same examples, to find out how far it
+can be trusted. It comes before everything else because an eval suite built on an unchecked judge
+produces confident nonsense, and no downstream statistic repairs that.
+<a href="ref-agreement.html">Full page</a>.</p>
+
+<h3>Agreement, or Cohen's kappa</h3>
+<p>How much you and the judge agree, after subtracting the agreement two coins would produce by
+luck. Runs 0 to 1. It exists because raw accuracy flatters any judge on a lopsided suite: where 95%
+of answers are fine, a judge that says "fine" to everything is 95% accurate and worthless.
+<a href="ref-agreement.html#kappa-subtract-the-luck">How it is computed</a>.</p>
+
+<h3>Catch rate and false alarm rate</h3>
+<p>Of the problems you found, how many the judge also flagged (catch rate, or TPR). Of the answers
+that were fine, how many it flagged anyway (false alarm rate, or FPR). These two say <em>how</em> a
+judge fails, which is what actually changes a rubric.
+<a href="ref-agreement.html#the-two-numbers-you-act-on">More</a>.</p>
+
+<h3>Confidence interval</h3>
+<p>The range the true value probably sits in. Printed beside every rate, because "80%" measured on
+fifteen examples and "80%" measured on fifteen hundred are different claims. A wide interval means
+label more examples, not that the judge is erratic.
+<a href="ref-agreement.html#the-interval-and-why-wilson">Why Wilson and not the textbook one</a>.</p>
+
+<h3>Disagreement taxonomy</h3>
+<p>Six disagreements is a count, not a finding. The taxonomy groups them by which rubric criterion
+the judge cited and which slice of traffic they fell in, and refuses to report a slice whose
+interval does not clear the base rate.
+<a href="ref-taxonomy.html">Full page</a>.</p>
+
+<h3>Label planning</h3>
+<p>Choosing which examples are worth a person's ten minutes. Sampling at random on a suite where the
+judge flags 15% wastes most of the budget confirming passes, so the plan takes every flagged example
+plus a sample of the rest, and prefers cases the judge was unsure about.
+<a href="ref-sampling.html">Full page</a>.</p>
+
+<h2>Experiments: did the change help</h2>
+
+<h3>Arm, run, baseline</h3>
+<p>An <strong>arm</strong> is one version of your app. A <strong>run</strong> is one scoring pass
+over one arm. The <strong>baseline</strong> is the run you pinned as the reference. Both arms answer
+the same questions with the same example ids; that pairing is what lets a small set say anything.</p>
+
+<h3>Paired comparison</h3>
+<p>Because both arms answer identical questions, only the examples that <em>changed verdict</em>
+carry information. If 200 pass under both and 3 flip, the evidence is in the 3. Treating the arms as
+independent samples throws that away and real regressions come back as noise.
+<a href="ref-compare.html#why-paired-and-not-two-samples">Full page</a>.</p>
+
+<h3>Minimum detectable effect</h3>
+<p>The smallest change your run could have caught. Quoted on every inconclusive result, because "no
+significant difference" on ninety examples usually means "this set could never have seen it". It
+turns a shrug into a plan: collect more, or accept the limit knowingly.
+<a href="ref-compare.html#the-smallest-change-you-could-have-seen">More</a>, and how a run is <a href="ref-design.html">designed around it</a>.</p>
+
+<h3>Non-inferiority and the margin</h3>
+<p>Swapping in a cheaper model is not a hunt for an improvement, it is a check that the drop stays
+inside a tolerance you set <em>before</em> the run. You read the bottom of the interval against that
+margin, not the middle. Deciding the margin afterwards is how a null result becomes a green light.
+<a href="ref-compare.html#did-quality-hold">More</a>.</p>
+
+<h2>Discipline</h2>
+
+<h3>Pre-registration</h3>
+<p>The experiment design, written to <code>evals/experiments/</code> and approved by a person before
+any traffic. It carries a content hash, so editing it afterwards revokes the approval on its own.
+Reading out without one exits 2; reading out a run that departed from one marks the result
+exploratory and recommends no decision. <a href="ref-design.html#editing-it-afterwards-revokes-it-with-nobody-watching">Full page</a>.</p>
+
+<h3>Gates as exit codes</h3>
+<p>A rule in a prompt is a suggestion. These are exit codes: <code>2</code> refused because an
+approval is missing, <code>5</code> refused because the two runs were measured differently,
+<code>4</code> stopped because the agreed budget ran out. An agent cannot argue with a non-zero
+exit. <a href="numbers.html#when-the-tool-refuses">The full table</a>.</p>
+
+<h3>The quality ledger</h3>
+<p>An append-only record of every run, calibration and decision. Entries are never edited; a
+correction is a new entry, so what was believed at the time survives. It answers the question a
+leaderboard cannot: has quality moved this quarter, and what did we do about it.</p>
+"""
+
+
+REF_AGREEMENT = """
+<div class="eyebrow">Reference</div>
+<h1>Agreement and kappa</h1>
+<p class="lede">How LangChef decides whether your judge can be trusted, worked from real numbers,
+with the code and the papers behind each step. No statistics background assumed.</p>
+
+<div class="worked">
+  <span class="k">The worked example used throughout this page</span>
+  <p>From the project's own dogfood run. You labelled 40 examples by hand; the judge had already
+  scored the same 40. Every number on this page comes from these four counts.</p>
+<pre><code>                judge fail   judge pass
+  you fail         12 (tp)       3 (fn)    = 15
+  you pass          3 (fp)      22 (tn)    = 25
+                  = 15         = 25         40</code></pre>
+  <p>Twelve times you both said bad. Twenty-two times you both said fine. Six times you disagreed:
+  three the judge missed, three it cried wolf on.</p>
+</div>
+
+<h2>Why accuracy is not the answer</h2>
+
+<p>You agreed on 34 of 40, so the judge is <strong>85% accurate</strong>. That sounds usable.</p>
+
+<p>Now take a judge that does nothing but say "pass" to everything. On this same set it scores
+<strong>62.5%</strong>. On a realistic production suite where only 5% of answers are bad, that same
+do-nothing judge scores <strong>95%</strong>.</p>
+
+<p>Accuracy rewards guessing the common answer. It cannot separate a judge that works from one that
+has noticed most things are fine. That is the whole reason this page exists.</p>
+
+<h2>Kappa: subtract the luck</h2>
+
+<p>You flagged 37.5% of examples. The judge flagged 37.5%. If both of you were flipping weighted
+coins at those rates and never reading the answers, <strong>you would still agree 53.1% of the
+time</strong>.</p>
+
+<p>So the question is not how often you agreed, but how much of the room above luck you closed.</p>
+
+<pre><code>  room above chance:   100%  -  53.1%   =  46.9%
+  you actually closed:  85%  -  53.1%   =  31.9%
+
+  kappa = 31.9 / 46.9 = 0.68</code></pre>
+
+<p>In one line: <strong>kappa = (agreement observed − agreement by luck) / (1 − agreement by
+luck)</strong>. One is perfect, zero is no better than coin-flipping. The do-nothing judge above
+scores exactly <strong>0.00</strong>, which is the point.</p>
+
+<div class="incode">
+  <div>Computed in <b>src/langchef/core/agreement.py</b></div>
+  <div><b>confusion()</b> counts the four cells from paired verdicts</div>
+  <div><b>cohen_kappa()</b> the formula above</div>
+  <div><b>kappa_interval()</b> its uncertainty, see below</div>
+</div>
+
+<h3>How we read it, and where the thresholds came from</h3>
+
+<div class="scroller"><table>
+<thead><tr><th>Kappa</th><th>We say</th><th>What to do</th><th>Landis &amp; Koch call it</th></tr></thead>
+<tbody>
+<tr><td class="num">0.8 and up</td><td>strong</td><td>trust the numbers downstream</td><td>almost perfect</td></tr>
+<tr><td class="num">0.6 to 0.8</td><td>usable</td><td>act on it, quote the interval too</td><td>substantial</td></tr>
+<tr><td class="num">0.4 to 0.6</td><td>weak</td><td>fix the rubric before experimenting</td><td>moderate</td></tr>
+<tr><td class="num">below 0.4</td><td>not usable</td><td>stop; do not report pass rates</td><td>fair or worse</td></tr>
+</tbody></table></div>
+
+<p><strong>These bands are a convention, not a law.</strong> They descend from Landis and Koch
+(1977), who proposed them for observer agreement in medical data and said plainly that the divisions
+were arbitrary. We kept the shape because it is the one most readers already know, and collapsed the
+lower three into "not usable" because for our purpose the difference between fair and slight does
+not change what you do. If your domain has its own convention, use that instead.</p>
+
+<h2>The two numbers you act on</h2>
+
+<p>Kappa says whether the judge is worth anything overall. These say <em>how it fails</em>, which is
+what changes a rubric.</p>
+
+<div class="scroller"><table>
+<thead><tr><th></th><th>Here</th><th>Means</th></tr></thead>
+<tbody>
+<tr><td><strong>Catch rate</strong> (TPR, recall, sensitivity)</td><td class="num">12/15 = 80%</td><td>Of the problems you found, the judge caught 12. Three shipped past it.</td></tr>
+<tr><td><strong>False alarm rate</strong> (FPR)</td><td class="num">3/25 = 12%</td><td>Of the answers that were fine, it flagged three anyway.</td></tr>
+</tbody></table></div>
+
+<p>They trade off. Push a judge to catch more and it cries wolf more. A judge with a respectable
+kappa can still be unusable in the direction you happen to care about, which is why the report gives
+you all three rather than a single score.</p>
+
+<p>The report also carries <strong>PPV</strong> (when it flags something, how often it is right) and
+<strong>NPV</strong> (when it passes something, how often it is right). Those are the ones to read if
+you are deciding how much to trust an individual verdict rather than the judge as a whole.</p>
+
+<h2>The interval, and why Wilson</h2>
+
+<p><code>12/15</code> is not "80%". It is <em>80%, measured on fifteen examples</em>, and those are
+different claims. So every rate is printed with the range the true value probably sits in.</p>
+
+<p>The textbook interval, the one most people are taught, would say:</p>
+
+<pre><code>  0.8 ± 1.96 × √(0.8 × 0.2 / 15)   =   [59.8%, <span class="r">100.2%</span>]</code></pre>
+
+<p><strong>100.2%.</strong> It runs off the end of the scale, because that formula assumes a bell
+curve and a proportion near a boundary is not one. At 15/15 it collapses to <code>[100%, 100%]</code>,
+claiming certainty from fifteen examples. At 1/15 it goes negative.</p>
+
+<p>The Wilson interval does not do that. It stays inside 0 to 1, goes asymmetric near the edges, and
+holds its coverage down to single-digit counts. Your actual catch-rate interval is
+<strong>[54.8%, 93.0%]</strong>.</p>
+
+<p>That width is the honest content of the measurement. The judge's true catch rate could be 55%,
+and forty labels cannot rule it out.</p>
+
+<div class="worked">
+  <span class="k">Read the kappa interval too</span>
+  <p>Kappa here is <strong>0.68, interval [0.44, 0.92]</strong>. By the table above, 0.44 is "weak,
+  fix the rubric" and 0.92 is "strong, trust it". Forty labels cannot tell those apart. The point
+  estimate reads usable; the interval says you do not actually know yet. That is not a flaw in the
+  measurement, it is the measurement.</p>
+</div>
+
+<div class="incode">
+  <div><b>wilson()</b> the score interval for every rate</div>
+  <div><b>kappa_interval()</b> Fleiss, Cohen and Everitt's asymptotic variance</div>
+  <div>Checked against scipy's own Wilson implementation and, for kappa, against a bootstrap that
+  knows nothing about the formula. See <b>tests/test_agreement.py</b>.</div>
+</div>
+
+<h2>Matthews correlation, in one line</h2>
+
+<p><strong>0.68 here.</strong> A single correlation between the two raters' verdicts, from −1 to +1,
+which unlike accuracy degrades honestly when one class dominates. It is there for when someone wants
+one number, and it is a better one number than accuracy.</p>
+
+<h2>Where you disagreed</h2>
+
+<p>Six disagreements is a count. It does not tell you what to fix, so the taxonomy groups them by
+which rubric criterion the judge cited and which slice of your traffic they fell in, then refuses to
+report a slice whose interval does not clear the base rate.</p>
+
+<p>In this run <code>topic=returns</code> disagreed <strong>33% of the time against a 15% base rate,
+a 2.2x lift</strong>, on nine examples, with an interval of [12.1%, 64.6%]. The bottom of that
+interval sits below the base rate, so it is not reported. That guard is the most important thing in
+the codebase and it has its own page: <a href="ref-taxonomy.html">disagreement taxonomy</a>.</p>
+
+<h2>What the rubric has to do</h2>
+
+<p>Each <code>###</code> heading in your rubric is one criterion, and the judge must name the one it
+failed on. That is what makes the taxonomy possible at all: without an attributed failure there is
+nothing to group by, and a regression in a retrieval app cannot be told apart from a regression in
+the generator.</p>
+
+<p>It is also why editing a rubric revokes its approval. The criteria are the axis the taxonomy is
+reported along, so renaming one silently changes what every past number meant.</p>
+
+<h2>What we deliberately do not do</h2>
+
+<ul>
+  <li><strong>No weighted kappa.</strong> Verdicts here are pass or fail, so there is no notion of a
+  near-miss to weight. If task classes with ordered labels arrive, this is where it changes.</li>
+  <li><strong>No multi-class kappa yet.</strong> The variance formula is written for a 2×2 table.
+  Classification datasets with more than two labels need an N×N version, tracked as part of the
+  bring-your-own-dataset work.</li>
+  <li><strong>No inter-annotator agreement.</strong> We compare one judge against one set of human
+  labels. Multiple human labellers disagreeing with each other is a real and harder problem, and
+  Krippendorff's alpha is the usual tool. Out of scope for now.</li>
+  <li><strong>The stratified label weights are recorded and are not valid weights.</strong> This
+  is the sharpest limitation on this page, and it is stronger than "not yet applied". The label plan
+  sorts each stratum by the judge's confidence and takes the lowest, so a row's inclusion
+  probability is 0 or 1 rather than <code>n/N</code>. Post-stratification cannot repair that,
+  because selection inside a stratum tracks the very thing being estimated. A seeded coverage
+  simulation put a nominal 95% interval at <strong>43% actual coverage for the catch rate</strong>.
+  So read every rate on this page as describing <em>the labelled set</em>, not as an estimate of
+  your whole suite. The underlying question, whether one label budget buys estimation or diagnosis,
+  is open.</li>
+  <li><strong>scikit-learn is a test dependency, never a runtime one.</strong> Every statistic is
+  hand-rolled and checked against an independent implementation. If the product and its check came
+  from the same library, the check would only prove the library agrees with itself.</li>
+</ul>
+
+<h2>Further reading</h2>
+
+<p>Ordered by how useful they are if you are actually changing this code.</p>
+
+<ul class="reading">
+  <li><strong>Brown, Cai and DasGupta (2001), "Interval Estimation for a Binomial Proportion",
+  <em>Statistical Science</em> 16(2), 101–133.</strong> The paper that settles why not to use the
+  textbook interval: it shows the Wald interval's coverage is chaotic and that the usual
+  reassurances about when it is safe are "misleading and defective". It recommends Wilson for small
+  n, which is what we use. Start at §1.1 and Figure 1; the picture makes the argument on its own.
+  <span class="where">Open PDF: www-stat.wharton.upenn.edu/~lbrown/Papers/2001a Interval estimation for a binomial proportion.pdf</span></li>
+
+  <li><strong>Cohen (1960), "A Coefficient of Agreement for Nominal Scales",
+  <em>Educational and Psychological Measurement</em> 20(1), 37–46.</strong> The original kappa. Short,
+  and the motivating argument in the opening pages is the same one this page makes about accuracy.</li>
+
+  <li><strong>Fleiss, Cohen and Everitt (1969), "Large sample standard errors of kappa and weighted
+  kappa", <em>Psychological Bulletin</em> 72, 323–327.</strong> The asymptotic variance
+  <code>kappa_interval()</code> implements. Read this one if you touch that function; the index
+  gymnastics in the published form is where implementations go wrong, which is why our test checks
+  it against a bootstrap.
+  <span class="where">doi:10.1037/h0028106</span></li>
+
+  <li><strong>Landis and Koch (1977), "The Measurement of Observer Agreement for Categorical Data",
+  <em>Biometrics</em> 33(1), 159–174.</strong> Where the slight / fair / moderate / substantial /
+  almost perfect bands come from. Worth reading precisely because they present the divisions as
+  arbitrary, which is not how they are usually cited.</li>
+
+  <li><strong>Chicco and Jurman (2020), "The advantages of the Matthews correlation coefficient (MCC)
+  over F1 score and accuracy in binary classification evaluation", <em>BMC Genomics</em> 21:6.</strong>
+  Open access and the most readable thing on this list. Worked examples of accuracy and F1 flattering
+  a bad classifier, which is the same failure this page opens with.</li>
+
+  <li><strong>Zheng et al. (2023), "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena",
+  arXiv:2306.05685.</strong> Not about kappa, but about the instrument. §3.1 catalogues position bias,
+  verbosity bias and self-enhancement bias in model judges. Read it before you trust a judge you have
+  not calibrated, and before you let a model grade its own family's output.</li>
+</ul>
+
+<p class="dim">Citations verified against the publishers' records rather than quoted from memory.
+Where only a section could be confirmed, a section is what is cited.</p>
+"""
+
+
+REF_COMPARE = """
+<div class="eyebrow">Reference</div>
+<h1>Comparing two arms</h1>
+<p class="lede">How LangChef decides whether a change helped, hurt, or cannot be told apart, and why
+"cannot be told apart" is a result rather than a shrug.</p>
+
+<div class="worked">
+  <span class="k">The worked example</span>
+  <p>From the dogfood: the baseline against an arm with documents deliberately dropped from the
+  retrieval index. Both arms answered the same 90 questions.</p>
+<pre><code>  baseline 83.3%   variant 63.3%
+  difference -20.0% [-27.8%, -12.2%]  p=0.0000
+  <span class="r">REGRESSION</span>
+
+  of 90 goldens, 18 changed verdict: 18 broke, 0 fixed</code></pre>
+  <p>The planted effect was −20 points. The measurement recovered it to the decimal.</p>
+</div>
+
+<h2>Why paired, and not two samples</h2>
+
+<p>Both arms answer <em>the same questions</em>, with the same example ids. That is not a
+convenience, it is the whole reason a set of 90 can say anything.</p>
+
+<p>Think about what actually carries information. If 72 goldens pass under both arms, they tell you
+nothing about the difference between them: they are the same question, answered acceptably twice.
+The evidence lives entirely in the <strong>18 that changed verdict</strong>.</p>
+
+<pre><code>                variant pass   variant fail
+  baseline pass       72             18      <- broke
+  baseline fail        0              0      <- fixed</code></pre>
+
+<p>The test asks one question about those 18: <em>given that a verdict flipped, was it equally
+likely to flip either way?</em> Eighteen broke and none were fixed. If the two arms were really
+equivalent, that is a coin landing heads eighteen times.</p>
+
+<p>Treating the arms as two independent samples instead throws the pairing away, inflates the
+variance, and real regressions come back as "not significant". That failure is quiet and it is
+common.</p>
+
+<div class="incode">
+  <div>Computed in <b>src/langchef/core/compare.py</b></div>
+  <div><b>discordance()</b> the paired 2×2; only the off-diagonal moves the estimate</div>
+  <div><b>mcnemar_p()</b> exact binomial on the discordant pairs</div>
+  <div><b>compare()</b> the verdict, the interval, and the detection limit</div>
+</div>
+
+<h3>Exact, not the chi-square approximation</h3>
+
+<p>The classical McNemar statistic uses a chi-square approximation. We use the exact binomial test
+instead, because the discordant counts that decide real cases are small, and the approximation is
+least reliable exactly when the decision is closest. With 18 flips the two agree; with 4 they do
+not, and 4 is a number you will see.</p>
+
+<h2>The verdict comes from the interval, not the p-value</h2>
+
+<p>Three outcomes, and the middle one is the one people misread.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Verdict</th><th>Condition</th><th>Means</th></tr></thead>
+<tbody>
+<tr><td><strong>REGRESSION</strong></td><td>whole interval below zero</td><td>worse, and the evidence supports acting</td></tr>
+<tr><td><strong>IMPROVEMENT</strong></td><td>whole interval above zero</td><td>better, same standard</td></tr>
+<tr><td><strong>INCONCLUSIVE</strong></td><td>interval spans zero</td><td>this set cannot tell them apart. <strong>Not "no difference"</strong></td></tr>
+</tbody></table></div>
+
+<p>A direction only counts when the entire range agrees with it. The p-value is reported because
+people ask for it, but it does not decide anything here: a p-value answers "how surprising is this
+if nothing changed", which is not the question you came with.</p>
+
+<p>The interval itself is a percentile bootstrap over the pairs, resampled together so the pairing
+survives. It is seeded, because the contract calls <code>compare</code> deterministic and a
+comparison that moves between identical runs is not one.</p>
+
+<h2>The smallest change you could have seen</h2>
+
+<p>This is the most useful number in the tool, and the one no dashboard gives you.</p>
+
+<pre><code>  difference +0.0% [+0.0%, +0.0%]  p=1.0000
+  <span class="o">INCONCLUSIVE</span>
+  (smallest effect this run could have seen: 6.0%)</code></pre>
+
+<p>That run came from an arm with a <strong>real, deliberately planted −3.3 point regression</strong>.
+The judge saw nothing. The honest report is not "no regression found", it is "nothing we could have
+seen", and the second half of that sentence is the actionable part: ninety goldens could never have
+resolved three points.</p>
+
+<p>It is computed from the <strong>discordant rate</strong>, not the pass rate, because under a
+paired test that is what carries the information. Two hundred goldens where four flip carry far less
+than two hundred where forty do, and a formula built on the pass rate cannot see that difference.</p>
+
+<p>When nothing flipped at all, the rate is not taken as zero. Zero discordant pairs is not evidence
+that any effect was detectable; it is an unknown rate that this many goldens bound from above, so
+the upper end of its interval is used. That is why a completely quiet run still reports a finite
+limit rather than claiming infinite sensitivity.</p>
+
+<p>Rule of thumb: <strong>halving the effect you want to detect needs roughly four times the
+goldens.</strong></p>
+
+<h2>Did quality hold</h2>
+
+<p>Swapping in a cheaper or smaller model is a different question and reading it the same way will
+mislead you. You are not hunting an improvement; you are checking the drop stays inside a tolerance.</p>
+
+<p><strong>Set the margin before the run.</strong> Then read the bottom of the interval against it,
+not the middle:</p>
+
+<pre><code>  difference -1.2% [-4.1%, +1.7%]
+  <span class="o">INCONCLUSIVE</span></code></pre>
+
+<p>The middle looks fine, barely down. But the range reaches −4.1%, past a three-point tolerance.
+<strong>This run has not shown quality held.</strong> It has shown that a drop big enough to matter
+is still consistent with what was measured.</p>
+
+<p>Three outcomes: <code>held</code> when the whole interval clears the margin, <code>failed</code>
+when it is entirely past it, <code>unresolved</code> when it straddles. Unresolved is not permission
+to ship.</p>
+
+<div class="callout warn">
+  <span class="k">Why the margin must be pre-registered</span>
+  <p>A margin chosen after seeing the interval is not a tolerance, it is a rationalisation. This is
+  why the design is written to <code>evals/experiments/</code>, hashed, and approved by a person
+  before any traffic, and why editing it afterwards revokes the approval. The discipline is the
+  feature; the arithmetic is easy.</p>
+</div>
+
+<h2>What we deliberately do not do</h2>
+
+<ul>
+  <li><strong>No interim looks, no sequential testing.</strong> The stopping rule in every design is
+  "score them all, then read out once". Peeking at a running experiment and stopping when it looks
+  good inflates the false-positive rate badly. Always-valid sequential bounds are a real answer to
+  this and are not built yet.</li>
+  <li><strong>No multiple-comparison correction.</strong> Compare two arms at a time. Sweeping ten
+  variants and reporting the best without correction is a known way to find an effect that is not
+  there.</li>
+  <li><strong>No per-criterion breakdown yet.</strong> The comparison is one verdict over the whole
+  suite. For a retrieval app the useful version is "groundedness fell 9 points while correctness
+  held", which tells you which half broke. Tracked, not built.</li>
+  <li><strong>No continuous or graded outcomes.</strong> Everything here is pass or fail. Retrieval
+  metrics like recall@k are continuous and classification is multi-class; both need different tests,
+  and that choice is deliberately being made before any code depends on it.</li>
+  <li><strong>No bandits over judge scores.</strong> Allocating traffic by a judge's own score
+  rewards whatever the judge is biased toward, including verbosity and position. If it is ever done
+  here, quality non-inferiority is established first and the bandit runs on cost and latency only.</li>
+</ul>
+
+<h2>Further reading</h2>
+
+<ul class="reading">
+  <li><strong>Dietterich (1998), "Approximate Statistical Tests for Comparing Supervised
+  Classification Learning Algorithms", <em>Neural Computation</em> 10(7), 1895–1923.</strong> The
+  closest thing to a direct precedent for what <code>compare</code> does: five candidate tests for
+  deciding whether one system beats another on the same data, evaluated for how often they claim a
+  difference that is not there. Read it before changing the test.
+  <span class="where">doi:10.1162/089976698300017197</span></li>
+
+  <li><strong>McNemar (1947), "Note on the sampling error of the difference between correlated
+  proportions or percentages", <em>Psychometrika</em> 12(2), 153–157.</strong> The original, and
+  short. The phrase that matters is "correlated proportions": that correlation is the pairing, and
+  it is the thing an unpaired test discards.</li>
+
+  <li><strong>Kohavi, Tang and Xu (2020), <em>Trustworthy Online Controlled Experiments</em>,
+  Cambridge University Press.</strong> The practitioner's book on running experiments honestly.
+  Chapter 17 covers power and sample size; the early chapters on trustworthiness are the reason the
+  gates in this tool exist at all. Not open access, but several of the authors' underlying papers are
+  free at exp-platform.com.</li>
+
+  <li><strong>Cohen (1988), <em>Statistical Power Analysis for the Behavioral Sciences</em>,
+  2nd ed.</strong> Chapter 1 for what power actually means, chapter 6 for proportions. This is the
+  ground under the minimum detectable effect, and it is worth reading chapter 1 once even if you
+  never touch the formula.</li>
+
+  <li><strong>Piaggio et al. (2012), "Reporting of noninferiority and equivalence randomized trials:
+  extension of the CONSORT 2010 statement", <em>JAMA</em> 308(24), 2594–2604.</strong> Open. Written
+  for clinical trials, but it is the clearest published treatment of the one thing people get wrong
+  about non-inferiority: the margin has to be justified in advance, and a null result is not
+  equivalence.</li>
+</ul>
+
+<p class="dim">Volumes, issues and page ranges verified against publisher records. Where a claim
+could only be confirmed at paper level rather than section level, it is cited at paper level.</p>
+"""
+
+
+REF_TAXONOMY = """
+<div class="eyebrow">Reference</div>
+<h1>Disagreement taxonomy</h1>
+<p class="lede">Six disagreements is a count. This is the part that turns it into something you can
+act on, and the part that refuses to when the evidence will not carry it.</p>
+
+<div class="worked">
+  <span class="k">The worked example</span>
+  <p>The same 40 labelled examples as the <a href="ref-agreement.html">agreement page</a>: your
+  judge and you disagreed six times, three misses and three false alarms, a base rate of
+  <strong>15%</strong>. Knowing that number tells you nothing about what to change.</p>
+</div>
+
+<h2>Two shapes, and they do not cost the same</h2>
+
+<p>Every disagreement is one of two things, named from the judge's point of view.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Shape</th><th>What happened</th><th>What it costs</th></tr></thead>
+<tbody>
+<tr><td><strong>false alarm</strong></td><td>judge said fail, you said pass</td><td><strong>Trust.</strong> Every one is a person going to look at something that turned out to be fine. Enough of them and nobody reads the reports.</td></tr>
+<tr><td><strong>miss</strong></td><td>judge said pass, you said fail</td><td><strong>The whole suite.</strong> These are the regressions that ship. One miss can cost more than fifty false alarms.</td></tr>
+</tbody></table></div>
+
+<p>They are reported separately because the fix differs. False alarms usually mean a criterion is
+worded too strictly. Misses usually mean the rubric never mentioned the thing that went wrong.</p>
+
+<h2>Which criterion is at fault</h2>
+
+<p>Each <code>###</code> heading in your rubric is one criterion, and the judge names the one it
+failed on. Group the disagreements by that name and the six become a diagnosis:</p>
+
+<pre><code>  Directness     2/3 =  66.7%   [20.8%, 93.9%]   2 false alarms
+  Groundedness   1/8 =  12.5%   [ 2.2%, 47.1%]   1 false alarm
+  Correctness    0/4 =   0.0%   [ 0.0%, 49.0%]</code></pre>
+
+<p>Read the denominators: they are the examples where the judge <em>cited that criterion</em>, not
+your suite. So the middle column says <strong>when this judge invokes Directness, it is wrong two
+times in three.</strong> That is a rubric edit, and a specific one. Correctness is behaving.</p>
+
+<p>Now read the interval. Two of three rests on <strong>three examples</strong>, and the true rate
+is somewhere between 21% and 94%. The direction is worth acting on because the fix is cheap; the
+number is not worth quoting to anybody.</p>
+
+<div class="callout warn">
+  <span class="k">This axis cannot see misses</span>
+  <p>A miss is the judge saying pass. A judge that passed an example named no failing criterion, so
+  there is nothing to group by. <strong>Every disagreement in the table above is a false alarm, and
+  that is structural rather than a property of this data.</strong></p>
+  <p>Which is awkward, because misses are the expensive kind. Attributing them would need the judge
+  to report which criteria it considered and cleared, not only the one it failed. The provider shim
+  already computes coverage of that shape for a different purpose, so the path exists and is not
+  wired up. Until it is, read the criterion table as an account of <em>why your judge cries wolf</em>,
+  and nothing more.</p>
+</div>
+
+<h2>Which part of your traffic</h2>
+
+<p>The other axis is whatever slice metadata came with your examples. Same six disagreements, cut by
+topic:</p>
+
+<pre><code>  returns    3/9  = 33.3%   [12.1%, 64.6%]
+  accounts   2/16 = 12.5%   [ 3.5%, 36.0%]
+  shipping   1/15 =  6.7%   [ 1.2%, 29.8%]
+
+  base rate across all 40: 15.0%</code></pre>
+
+<p>There it is. <strong>Returns disagrees 33% of the time against a 15% base rate. A 2.2x lift.</strong>
+That is the line that sends somebody off to investigate for a day.</p>
+
+<h2>Why the tool will not report that</h2>
+
+<p>Look at the interval on the returns row: <strong>[12.1%, 64.6%]</strong>. The bottom of it,
+12.1%, sits <em>below</em> the 15% base rate. The evidence is consistent with returns being no worse
+than anything else.</p>
+
+<p>So <code>concentrations()</code> marks it <code>separated: false</code> and the memo leaves it
+out. The rule is one line:</p>
+
+<pre><code>  separated = worst.interval.lo &gt; base_rate</code></pre>
+
+<div class="callout warn">
+  <span class="k">The most important guard in this codebase</span>
+  <p>Every slice report has a worst row. That is arithmetic, not a finding. Sort three topics by
+  disagreement rate and one of them is 2.2x the average <em>whatever the data says</em>, because
+  something has to be first.</p>
+  <p>A tool that names the worst-looking slice every time is a random number generator with good
+  manners. It will be right occasionally, which is worse than being wrong reliably, because the
+  occasional hit is what convinces people to keep trusting it.</p>
+</div>
+
+<p>There is a second guard beside it. A slice with fewer than <code>min_bucket</code> examples,
+five by default, is not ranked at all. One disagreement out of two is a 50% rate and a 3.3x lift,
+and it is nothing.</p>
+
+<p>When a concentration <em>does</em> separate, it is reported with its interval attached, so you
+can see whether "twice as bad on long answers" rests on four examples or four hundred.</p>
+
+<h2>What to do with each finding</h2>
+
+<div class="scroller"><table>
+<thead><tr><th>What you see</th><th>What it means</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td>One criterion holds most of the false alarms</td><td>That criterion is worded too strictly</td><td>Edit its wording, re-approve, re-run. The rubric hash changes, so this is tracked</td></tr>
+<tr><td>Misses dominate and no criterion explains them</td><td>The rubric never mentioned the failure mode</td><td>Read the missed examples and add a criterion</td></tr>
+<tr><td>A separated concentration</td><td>One part of your traffic really is harder</td><td>Label more <em>there</em>, or split the suite and calibrate separately</td></tr>
+<tr><td>A concentration that did not separate</td><td>You have not learned anything yet</td><td>Nothing. This is the finding you were about to waste a day on</td></tr>
+</tbody></table></div>
+
+<div class="incode">
+  <div>Computed in <b>src/langchef/core/taxonomy.py</b></div>
+  <div><b>Judgement.kind</b> classifies each row as miss, false_alarm, or agreement</div>
+  <div><b>by_criterion()</b> groups by the rubric heading the judge cited</div>
+  <div><b>by_slice()</b> groups by one metadata dimension, worst rate first</div>
+  <div><b>concentrations()</b> ranks dimensions and applies the separation test</div>
+  <div><b>summarise()</b> the whole thing as plain data for the memo</div>
+</div>
+
+<h2>What we deliberately do not do</h2>
+
+<ul>
+  <li><strong>No correction for the number of slices examined.</strong> The separation test is a
+  per-slice filter, not a family-wise one. Cut your data forty ways and it is still doing forty
+  independent checks. The honest mitigation today is that slice dimensions come from metadata you
+  already had, rather than being searched for. If automatic slice discovery is ever added, a
+  correction has to arrive with it.</li>
+  <li><strong>No interaction terms.</strong> Returns-and-long-answer might be far worse than either
+  alone. Finding that reliably needs more labels than anyone is going to give us.</li>
+  <li><strong>No causal claim.</strong> A separated concentration says disagreement clusters there.
+  It does not say the topic caused it. Returns questions may simply be longer, and length may be
+  the real driver.</li>
+  <li><strong>No automatic rubric editing.</strong> The taxonomy points at a criterion. A person
+  writes the new wording and approves it. A tool that rewrites the definition of "good" in response
+  to its own error pattern is optimising for its own agreement.</li>
+  <li><strong>Misses are not attributed</strong>, as above. This is the largest gap on the page.</li>
+</ul>
+
+<h2>Further reading</h2>
+
+<ul class="reading">
+  <li><strong>ISIS-2 Collaborative Group (1988), <em>The Lancet</em> 332(8607), 349–360.</strong>
+  The single best argument for the separation test, and it is funny. Reporting subgroup results for
+  aspirin after heart attack, the authors listed <strong>astrological birth sign first</strong> in
+  the table, showing the drug to be useless for the roughly 3,000 patients born under Gemini or
+  Libra. That placement was deliberate and negotiated with the journal: the authors agreed to print
+  subgroup analyses only if the star signs came first, so readers could see for themselves what such
+  analyses are worth. Every slice table you will ever read has a worst row.
+  <span class="where">Context: annalsofoncology.org, "From astrology to prostate cancer: what is the role of subgroup analyses?"</span></li>
+
+  <li><strong>Gelman and Loken (2014), "The Statistical Crisis in Science", <em>American
+  Scientist</em> 102(6), 460.</strong> The garden of forking paths: you do not need to run forty
+  tests to get a false positive, you only need to have <em>chosen which one to run</em> after seeing
+  the data. Directly why <code>concentrations()</code> applies a fixed rule to every dimension
+  rather than letting anyone pick the interesting one.
+  <span class="where">Open PDF: sites.stat.columbia.edu/gelman/research/published/ForkingPaths.pdf</span></li>
+
+  <li><strong>"On Looking at Subgroups", <em>Circulation</em> (2008).</strong> A short practitioner
+  treatment of when a subgroup finding is worth believing: pre-specified, biologically plausible,
+  one of few, and large. Our slices meet the first and third by construction and rarely the fourth.
+  <span class="where">doi:10.1161/CIRCULATIONAHA.108.836601</span></li>
+
+  <li><strong>Wilson (1927) and Brown, Cai and DasGupta (2001).</strong> The interval behind the
+  separation test, covered on the <a href="ref-agreement.html#the-interval-and-why-wilson">agreement
+  page</a>. Worth reading if you intend to change the test, because the guard is only as good as the
+  lower bound it compares.</li>
+</ul>
+
+<p class="dim">Citations verified against publisher records. Where only a section could be
+confirmed, a section is what is cited.</p>
+"""
+
+
+REF_SAMPLING = """
+<div class="eyebrow">Reference</div>
+<h1>Label planning</h1>
+<p class="lede">Which forty examples a person should spend their ten minutes on, why it is not a
+random forty, and the open question about what those labels can then be used to claim.</p>
+
+<div class="worked">
+  <span class="k">The worked example</span>
+  <p>Ninety scored examples. The judge failed fifteen of them. You have time for forty labels.</p>
+<pre><code>  langchef label plan --budget 40
+
+  selected 40 of 90
+    fail stratum   15   (every one the judge flagged)
+    pass stratum   25
+  19 of the 40 chosen because the judge was unsure</code></pre>
+</div>
+
+<h2>Why not just take forty at random</h2>
+
+<p>Because of where the information is. Pick forty of these ninety at random and you would expect
+about <strong>6.7</strong> of them to be examples the judge flagged. Your entire catch rate would
+rest on six or seven labels, and its interval would be so wide the number could not support a
+decision.</p>
+
+<p>Stratifying by the judge's own verdict takes <strong>all fifteen</strong> instead. Same ten
+minutes, same forty labels, and the number you most need is measured on more than twice the
+evidence.</p>
+
+<p>That gap widens sharply as suites get more realistic. On a production suite where the judge flags
+<strong>2%</strong>, a random forty contains fewer than one flagged example on average. The catch
+rate is not merely imprecise, it does not exist.</p>
+
+<h2>Why the judge's uncertain cases come first</h2>
+
+<p>Within each stratum the plan sorts by the judge's own confidence and takes the least confident
+first. Nineteen of the forty above were chosen that way.</p>
+
+<p>The reasoning is that a label is worth what it changes. A case the judge scored 0.98 will almost
+certainly agree with you, and confirms what you already believed. A case it scored 0.51 is where two
+candidate rubrics give different answers, so labelling it settles something.</p>
+
+<p>This is uncertainty sampling, the oldest idea in active learning, and it is very good at the job
+it is built for: <strong>improving the instrument</strong>. Keep that phrase, because the rest of
+this page turns on it.</p>
+
+<h2>The same plan every time</h2>
+
+<p>Ties break on <code>sha256(seed + example_id)</code> rather than on list order or a random draw.
+So the same run and the same budget produce the same forty on any machine, in any order the scores
+arrived, and a plan can be regenerated without re-labelling anything. A labelling plan that
+shuffles when you re-run it is a plan nobody can pick up halfway.</p>
+
+<div class="callout warn">
+  <span class="k">The open question, and it is a real one</span>
+  <p>Each selected row carries a <code>weight</code>, the stratum size over the number taken. It
+  looks like an inclusion weight, the kind that lets you scale a sample back up to the population.
+  <strong>It is not one, and the rates on the calibration report are not population estimates.</strong></p>
+  <p>The reason is on this page. Selection inside a stratum is not random: it takes the lowest
+  confidence rows deterministically. So a row's chance of being picked is 0 or 1 given its
+  confidence rank, not <code>n/N</code>. Post-stratification cannot repair that, because the
+  selection tracks the very thing being estimated, and confidence tracks disagreement almost by
+  definition.</p>
+  <p>A seeded coverage simulation contributed on
+  <a href="@@repo@@/issues/30">#30</a> put a nominal 95% interval at <strong>43% actual coverage for
+  the catch rate</strong>, and at 100% for the true negative rate, which is the opposite failure and
+  just as useless.</p>
+  <p><strong>Read the calibration numbers as describing the forty examples you labelled</strong>,
+  not as an estimate of your whole suite. The underlying question is whether one label budget can
+  buy estimation and diagnosis at once, and it is open at
+  <a href="@@repo@@/issues/60">#60</a>. It probably cannot, in which case the plan splits into a
+  random part for measuring and an uncertainty-selected part for diagnosing.</p>
+</div>
+
+<h2>What the reasons mean</h2>
+
+<p>Every selected row says why it was picked, because a person labelling forty things deserves to
+know which ones are load-bearing.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Reason</th><th>Means</th></tr></thead>
+<tbody>
+<tr><td><code>judge was unsure</code></td><td>Low confidence, and in the first half of its stratum. These are the ones most likely to change a rubric</td></tr>
+<tr><td><code>stratum coverage (fail)</code></td><td>Here to keep the flagged stratum full, which is what holds the catch rate up</td></tr>
+<tr><td><code>stratum coverage (pass)</code></td><td>Here to keep the false alarm rate measurable</td></tr>
+</tbody></table></div>
+
+<div class="incode">
+  <div>Computed in <b>src/langchef/core/sampling.py</b></div>
+  <div><b>plan()</b> the split, the ordering, and the weight on each row</div>
+  <div><b>_tiebreak()</b> hashed ordering, so the plan is stable across machines</div>
+  <div><b>summarise()</b> what the plan did, for the person about to label</div>
+</div>
+
+<h2>What we deliberately do not do</h2>
+
+<ul>
+  <li><strong>No adaptive re-planning mid-budget.</strong> The plan is computed once from the scores.
+  Choosing the next example based on labels already given would be closer to real active learning
+  and would make the sample even harder to reason about statistically than it already is.</li>
+  <li><strong>No stratification on anything but the judge's verdict.</strong> Not topic, not length,
+  not customer. Those are the slice dimensions the <a href="ref-taxonomy.html">taxonomy</a> reports
+  along, and stratifying on the same axis you later test for concentration would bias the test.</li>
+  <li><strong>No more than two strata.</strong> Verdicts are pass or fail here. Task classes with
+  ordered or multi-class labels need a different design, which is part of the open work.</li>
+  <li><strong>No estimate of how many labels you need.</strong> The plan spends the budget you give
+  it. Whether forty is enough for the claim you want to make is exactly what
+  <a href="@@repo@@/issues/60">#60</a> is about, and the honest answer today is that we do not
+  know.</li>
+</ul>
+
+<h2>Further reading</h2>
+
+<ul class="reading">
+  <li><strong>Cochran (1977), <em>Sampling Techniques</em>, 3rd ed., chapter 5.</strong> Stratified
+  random sampling, including the arithmetic for why unequal allocation beats proportional allocation
+  when one stratum is both small and important, which is precisely the flagged stratum here. Chapter
+  5A covers the estimator that would apply if selection within strata were random. Read it alongside
+  <a href="@@repo@@/issues/60">#60</a>, because it is the design we may be moving toward.</li>
+
+  <li><strong>Settles (2009), "Active Learning Literature Survey", University of Wisconsin–Madison
+  Computer Sciences Technical Report 1648.</strong> The standard reference for why you would pick
+  uncertain cases at all. The uncertainty sampling section is the direct precedent for what
+  <code>plan()</code> does. Worth reading with the tension on this page in mind: that literature is
+  about training a better model, not about producing an unbiased estimate of how good one is, and
+  those goals pull in opposite directions.
+  <span class="where">Open PDF: minds.wisconsin.edu/bitstream/handle/1793/60660/TR1648.pdf</span></li>
+
+  <li><strong>Kish (1965), <em>Survey Sampling</em>.</strong> The origin of the design effect and the
+  effective sample size that a weighted sample carries. Relevant here mostly as a caution: the
+  Kish-effective interval was the first thing tried for this problem and it failed its coverage
+  check badly, which is documented on <a href="@@repo@@/issues/30">#30</a>.</li>
+
+  <li><strong>Brown, Cai and DasGupta (2001).</strong> The interval used on whatever sample you end
+  up with, covered on the
+  <a href="ref-agreement.html#the-interval-and-why-wilson">agreement page</a>.</li>
+</ul>
+
+<p class="dim">Citations verified against publisher records. Where only a section could be
+confirmed, a section is what is cited.</p>
+"""
+
+
+REF_JUDGING = """
+<div class="eyebrow">Reference</div>
+<h1>Judging and pins</h1>
+<p class="lede">The judge is a measuring instrument, not a metric. This page is how one is defined,
+how it is pinned so two runs can be compared, and how it is stopped from spending money you did not
+agree to.</p>
+
+<div class="worked">
+  <span class="k">The worked example</span>
+  <p>One example, scored against a two-criterion rubric by the judge that ships in the box.</p>
+<pre><code>  question   Do you ship to Canada?
+  answer     Yes, standard shipping to Canada takes 5-7 business days.
+  context    We ship to Canada. Standard delivery is 5-7 business days.
+
+  verdict     fail
+  confidence  0.6
+  criterion   Groundedness
+  rationale   40% of the answer's content words appear in the retrieved context</code></pre>
+  <p>Three things to notice. It named <strong>which criterion</strong> failed, which is what makes
+  the <a href="ref-taxonomy.html">taxonomy</a> possible. It gave a <strong>confidence</strong>,
+  which is what drives escalation and label planning. And it gave a <strong>rationale you can
+  argue with</strong>, which is what makes a wrong verdict findable.</p>
+</div>
+
+<h2>The rubric is the definition of good</h2>
+
+<p>A rubric is Markdown. Each <code>###</code> heading is one criterion, and the judge must name the
+one it failed on.</p>
+
+<pre><code>### Groundedness
+Every claim traceable to the context.
+
+### Correctness
+Answers the question asked.</code></pre>
+
+<pre><code>  criteria parsed:  ('Groundedness', 'Correctness')
+  rubric ref:       support@4f2f2ee68288</code></pre>
+
+<p>That <code>ref</code> is a name plus a content hash, and it is the pin for the rubric. Change
+three words in one criterion and it moves:</p>
+
+<pre><code>  support@4f2f2ee68288   ->   support@d7f133b168ab</code></pre>
+
+<p>Which is the point. Editing a rubric changes what "good" means, so it revokes its own approval
+and invalidates every cached verdict produced under the old wording. You cannot quietly loosen the
+definition and compare against last week.</p>
+
+<div class="callout warn">
+  <span class="k">A judge can only cite criteria you wrote</span>
+  <p>In the worked example the rubric has Groundedness and Correctness and no criterion about
+  hedging. Feed it <em>"I'm not able to say for certain whether we ship to Canada"</em> and it
+  returns <code>fail</code> against <strong>Correctness</strong>, because that is the closest thing
+  in your rubric to what went wrong.</p>
+  <p>The verdict is right and the attribution is misleading, and no amount of calibration will
+  surface it, because you and the judge agree on the verdict. If your taxonomy keeps blaming one
+  criterion for unrelated failures, the rubric is missing a criterion.</p>
+</div>
+
+<h2>Pins: what produced these numbers</h2>
+
+<p>Every run records the instrument that produced it.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Field</th><th>Why it is in the pin</th></tr></thead>
+<tbody>
+<tr><td><code>rubric</code></td><td>The name and content hash. A different definition of good is a different measurement</td></tr>
+<tr><td><code>provider</code></td><td>Which backend produced the verdicts</td></tr>
+<tr><td><code>cheap_model</code></td><td>The model that scored everything</td></tr>
+<tr><td><code>strong_model</code></td><td>The model that re-scored the unsure ones, if any</td></tr>
+</tbody></table></div>
+
+<p>Compare two runs whose pins differ and the tool <strong>exits 5 and refuses</strong>, naming what
+moved:</p>
+
+<pre><code>  pin moved — cheap_model: 'gpt-4o-mini' -> 'claude-haiku-4-5'</code></pre>
+
+<p>This is the difference between measuring a change in your app and measuring a change in your
+ruler. Both look like a moving number. Only one of them is a finding.</p>
+
+<h2>The cache, and what is in the key</h2>
+
+<p>Verdicts are content-addressed. The key covers everything that changes what a correct verdict
+<em>is</em>:</p>
+
+<pre><code>  example_id, question, answer, context, expected, rubric ref, model, tier</code></pre>
+
+<p><strong>Slices are deliberately not in the key.</strong> They are metadata for grouping, so
+adding a <code>topic</code> tag to your examples would otherwise invalidate every cached verdict
+and re-buy the whole run for nothing.</p>
+
+<p>Tier is in the key, so the same example judged cheaply and judged strongly are two entries rather
+than one overwriting the other:</p>
+
+<pre><code>  cheap tier   fd3da9b9f7259e30...
+  strong tier  47eb382ec2f5e922...</code></pre>
+
+<p>The practical effect is that re-running an arm after a change is nearly free, and only genuinely
+new work costs anything. It is also why the integrity gates exist: with a warm cache, re-running an
+arm until it reads out better costs nothing, which is exactly why <code>readout</code> refuses when
+more than one run matches.</p>
+
+<h2>Two tiers</h2>
+
+<p>A cheap model scores every example. Anything it scored <strong>below 0.6</strong> is re-scored by
+a strong model, and only those.</p>
+
+<p>The confidence in the worked example is exactly 0.6, so it would not escalate. The threshold is
+a floor, not a ceiling.</p>
+
+<p>This was built in from the start rather than added later, for a specific reason: <strong>the
+model is part of the cache key.</strong> Retrofitting a second tier would have invalidated every
+cached verdict in every workspace on the day it shipped.</p>
+
+<h2>Budgets, and stopping before the bill</h2>
+
+<p>A run can carry a ceiling on <em>provider calls</em>, not on examples. A cached example is free
+and does not count against it.</p>
+
+<p>When the ceiling is hit the run stops where it is, writes what was left unscored to
+<code>runs/&lt;id&gt;/undone.json</code>, and <strong>exits 4</strong>. It does not silently produce
+a partial result that looks whole.</p>
+
+<p>The reasoning is that a partial result whose shape you know is worth more than a bill you did not
+agree to. An agent handed exit 4 knows to stop and ask rather than to retry.</p>
+
+<h2>The judge in the box</h2>
+
+<p>The default provider is not a model. It is deterministic token containment: what fraction of the
+answer's content words appear in the retrieved context, and does the expected string appear. It
+needs <strong>no API key, no network, and no money</strong>.</p>
+
+<p>It is genuinely weak, and that is deliberate. It exists so the whole pipeline can be run,
+tested and dogfooded end to end before anyone spends anything, and so the test suite never depends
+on a provider being up. Its version string is part of the cache key, so changing its checks without
+bumping that version would leave every warm cache serving verdicts from the old logic.</p>
+
+<div class="incode">
+  <div><b>src/langchef/judge/rubric.py</b> — parse, criteria, digest, ref</div>
+  <div><b>src/langchef/judge/providers.py</b> — the single seam a backend plugs into</div>
+  <div><b>src/langchef/judge/cache.py</b> — <b>judgement_key()</b>, what is and is not in it</div>
+  <div><b>src/langchef/judge/runner.py</b> — <b>Pin</b>, escalation, the budget ceiling</div>
+</div>
+
+<h2>What we deliberately do not do</h2>
+
+<ul>
+  <li><strong>No position or verbosity mitigation.</strong> Model judges favour the first answer
+  shown and longer answers regardless of content. We do not swap positions or normalise length. The
+  defence here is different: calibration measures how far your judge disagrees with you, so a judge
+  with a verbosity bias shows up as a bad kappa rather than as a silent skew. That is a weaker
+  defence than fixing the bias, and it is honest about being one.</li>
+  <li><strong>No model grading its own family's output.</strong> Self-enhancement bias is real. If
+  the judge and the system under test share a model family, calibrate before believing anything.</li>
+  <li><strong>No scores, only verdicts.</strong> Pass or fail, with a confidence. A judge returning
+  7.4 out of 10 invites arithmetic that its own precision cannot support.</li>
+  <li><strong>No prompt tuning loop.</strong> Nothing here rewrites your rubric to improve
+  agreement. A tool that edits the definition of good in response to its own error rate is
+  optimising for its own agreement, and the number stops meaning anything.</li>
+  <li><strong>No retries on a disagreeing verdict.</strong> Asking again until it agrees is not
+  measurement.</li>
+</ul>
+
+<h2>Further reading</h2>
+
+<ul class="reading">
+  <li><strong>Zheng et al. (2023), "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena",
+  arXiv:2306.05685.</strong> Read <strong>§3.1, Limitations</strong>, before trusting any judge you
+  have not calibrated. It catalogues position bias, verbosity bias and self-enhancement bias, and
+  demonstrates the verbosity one with a repetitive-list attack that fools several judges. This is
+  the paper that makes the case for this whole product: the instrument has known, measurable,
+  reproducible faults.
+  <span class="where">Open PDF: arxiv.org/pdf/2306.05685</span></li>
+
+  <li><strong>Gu et al. (2024), "A Survey on LLM-as-a-Judge", arXiv:2411.16594.</strong> Broader and
+  more recent, for when you want the landscape rather than one careful study.</li>
+
+  <li><strong>The calibration statistics</strong> on the
+  <a href="ref-agreement.html">agreement page</a>. Every claim on this page about a judge being
+  trustworthy is settled there, not here.</li>
+</ul>
+
+<p class="dim">Citations verified against publisher records. Where only a section could be
+confirmed, a section is what is cited.</p>
+"""
+
+
+REF_DESIGN = """
+<div class="eyebrow">Reference</div>
+<h1>Designing a run</h1>
+<p class="lede">The experiment lifecycle in full: design, approve, check, read out. Every output on
+this page is real, captured from a workspace built from scratch, including the refusals.</p>
+
+<p><a href="start.html">Start here</a> walks the whole product in nine steps and spends about a
+minute on this part. This page is the other half: what each of these four commands actually writes,
+what it refuses and why, and what the file on disk looks like at every stage.</p>
+
+<h2>Where this sits in a whole run</h2>
+
+<p>Designing is step nine of thirteen, and the eight before it are what make it mean anything.</p>
+
+<div class="scroller"><table>
+<thead><tr><th></th><th>Command</th><th>What it is for</th></tr></thead>
+<tbody>
+<tr><td class="num">1</td><td><code>langchef init</code></td><td>Scaffold the workspace</td></tr>
+<tr><td class="num">2</td><td>collect examples</td><td>50–100 from real traffic</td></tr>
+<tr><td class="num">3</td><td>write the rubric</td><td><a href="ref-judging.html#the-rubric-is-the-definition-of-good">Judging and pins</a></td></tr>
+<tr><td class="num">4</td><td><code>langchef approve rubric</code></td><td><strong>Gate one.</strong> Judging refuses at exit 2 without it</td></tr>
+<tr><td class="num">5</td><td><code>langchef judge run</code></td><td><a href="ref-judging.html">Judging and pins</a></td></tr>
+<tr><td class="num">6</td><td><code>langchef label plan</code></td><td><a href="ref-sampling.html">Label planning</a></td></tr>
+<tr><td class="num">7</td><td>label them yourself</td><td>The only part nobody can automate</td></tr>
+<tr><td class="num">8</td><td><code>langchef calibrate report</code></td><td><a href="ref-agreement.html">Agreement</a>, <a href="ref-taxonomy.html">taxonomy</a></td></tr>
+<tr><td class="num"><strong>9</strong></td><td><strong><code>experiment design</code></strong></td><td><strong>From here down is this page</strong></td></tr>
+<tr><td class="num"><strong>10</strong></td><td><strong><code>experiment approve</code></strong></td><td>Gate two</td></tr>
+<tr><td class="num"><strong>11</strong></td><td><code>judge run --arm variant</code></td><td>The other arm, same pin</td></tr>
+<tr><td class="num"><strong>12</strong></td><td><strong><code>experiment readout</code></strong></td><td><a href="ref-compare.html">Comparing two arms</a></td></tr>
+<tr><td class="num">13</td><td><code>langchef memo write</code></td><td>One page a person can disagree with</td></tr>
+</tbody></table></div>
+
+<p><strong>If your task has a hard target</strong>, steps 3 to 8 do not apply and the run is 1, 2,
+then 9 to 13. <a href="index.html#which-of-these-are-you">Which one am I?</a></p>
+
+<h2>Step 9 — design</h2>
+
+<p>You have 90 goldens, a scored baseline, and you want to move to the replacement model. You care
+about a five point change.</p>
+
+<pre><code>langchef experiment design --suite support --variant-arm variant \
+  --intent "move to the replacement model" --target-effect 0.05 --id model-swap</code></pre>
+
+<p>Prose to stderr, for you:</p>
+
+<pre><code>2 candidate design(s) for support: move to the replacement model
+ -&gt; as-it-stands   n=90     detects &gt;=13.2%    0 judge call(s)
+      note: These goldens cannot resolve 5.0%. The smallest effect this
+            design could detect is 13.2%; a real change below that will
+            come back inconclusive.
+    powered        n=628    detects &gt;=5.0%   538 judge call(s)
+      note: Needs 538 more golden(s) than the suite has (90). Collect them
+            before running, or accept the detection limit of the design above.</code></pre>
+
+<p>The arrow marks the one recorded. <code>--accept powered</code> records the other. Neither is a
+refusal: choosing the 13.2% design knowingly is a fine decision, and choosing it <em>without
+knowing</em> is the thing this prevents.</p>
+
+<h3>What it writes</h3>
+
+<p>A TOML file in <code>evals/experiments/</code>, reviewed like code:</p>
+
+<pre><code># LangChef pre-registration.
+#
+# Written before the run and reviewed like code. Editing anything below
+# changes the digest and revokes the approval, which is the point: an
+# experiment whose design moved after the traffic is not an experiment.
+
+[experiment]
+baseline_arm = "baseline"
+variant_arm = "variant"
+hypothesis = "move to the replacement model"
+kind = "superiority"
+n = 90
+mde = 0.13206799371997818
+target_effect = 0.05
+power = 0.8
+level = 0.95
+discordance_assumed = 0.2
+discordance_source = "assumed default (20%) — no prior comparison here"
+rubric = "answer-quality@290335165c70"
+stopping_rule = "Score all 90 goldens in both arms, then read out once. No
+  interim looks: stopping early when a result looks good is the most common
+  way an experiment reports an effect that is not there."
+guardrails = [
+  "The rubric must still be answer-quality@290335165c70 at run time; a changed rubric revokes approval.",
+  "Both arms must be scored under the same pin, or compare exits 5.",
+  "Calibration must exist for this judge; a memo without it says so in full.",
+]
+
+[budget]
+judge_calls = 0
+source = "the design's own estimate"</code></pre>
+
+<p>There is no <code>[approval]</code> block yet. That is the next step and a separate one.</p>
+
+<div class="callout warn">
+  <span class="k">It will not overwrite one</span>
+  <p>Run the same command with the same <code>--id</code> again and it refuses:</p>
+  <pre><code>model-swap.toml already exists — pass a different --id, or delete it
+deliberately. Overwriting a pre-registration silently is how one stops
+meaning anything.</code></pre>
+</div>
+
+<h2>Step 10 — approve, which is gate two</h2>
+
+<p>Try to read out first and you get refused, at <strong>exit 2</strong>:</p>
+
+<pre><code>langchef experiment readout model-swap        # exit 2
+
+langchef: refused — an approval gate is unmet — experiment model-swap has not
+been approved — review the design, then run:
+  langchef experiment approve model-swap</code></pre>
+
+<p>Approving appends a block and nothing else:</p>
+
+<pre><code>[approval]
+digest = "3f1053d32846"
+at = "2026-08-28T17:16:21+00:00"
+by = "human"</code></pre>
+
+<p>That digest is a hash of the body <strong>excluding the <code>[approval]</code> block</strong>,
+which is what lets approval be recorded in the same file without changing what was approved.</p>
+
+<h3>Editing it afterwards revokes it, with nobody watching</h3>
+
+<p>Change one number in the design and leave the approval block alone:</p>
+
+<pre><code>-target_effect = 0.05
++target_effect = 0.15</code></pre>
+
+<pre><code>langchef experiment readout model-swap        # exit 2
+
+langchef: refused — an approval gate is unmet — the design for model-swap
+changed since it was approved (3f1053d32846 -&gt; 510086cece38). Re-read it,
+then run: langchef experiment approve model-swap</code></pre>
+
+<p><strong>It names both digests.</strong> You cannot widen a margin, drop a guardrail or move a
+target after seeing the numbers and still hold an approval. The whole mechanism is a hash over the
+body and about eight lines of code.</p>
+
+<h2>Step 11 — score the other arm</h2>
+
+<pre><code>langchef judge run --suite support --arm variant --run-id var-1 \
+  --experiment model-swap
+
+judge: n=90  provider_calls=24  cache_hits=66  cache_misses=24
+       fail=42  pass=48  fail_rate=0.467  budget_exhausted=False  unscored=0</code></pre>
+
+<p><strong>24 calls, 66 cache hits.</strong> Only the answers that actually changed needed judging,
+because verdicts are content-addressed on the example and the rubric.
+<a href="ref-judging.html#the-cache-and-what-is-in-the-key">How the key works</a>.</p>
+
+<p><code>--experiment</code> links the run to the pre-registration and applies its budget. Hit the
+ceiling and the run stops, writes what is left to <code>runs/&lt;id&gt;/undone.json</code>, and
+exits <strong>4</strong> rather than returning a partial result that looks whole.</p>
+
+<h2>Step 12 — read out</h2>
+
+<pre><code>langchef experiment readout model-swap        # exit 0
+
+readout for model-swap@3f1053d32846 on 90 shared golden(s)
+  difference -26.7% [-35.6%, -17.8%]
+  REGRESSION
+  -&gt; evals/runs/var-1/readout.json</code></pre>
+
+<p>The JSON an agent reads carries the working, not only the verdict:</p>
+
+<pre><code>{
+  "experiment_id": "model-swap",
+  "design_digest": "3f1053d32846",
+  "baseline_run": "base-1",
+  "baseline_rate": 0.8,
+  "difference": -0.2666666666666667,
+  "interval": {"lo": -0.3555, "hi": -0.1777, "level": 0.95},
+  "discordance": {"broke": 24, "fixed": 0, "both_pass": 48, "both_fail": 18},
+  "discordant": 24,
+  "exploratory": false,
+  "improvement": false,
+  "inconclusive": false
+}</code></pre>
+
+<p><code>design_digest</code> ties the result to the exact design that was approved. The
+<code>discordance</code> block is the evidence: 66 goldens agreed under both arms and carry no
+information, <strong>24 broke and none were fixed</strong>, and that is what the verdict rests on.
+<a href="ref-compare.html#why-paired-and-not-two-samples">Why only those 24 matter</a>.</p>
+
+<p><code>exploratory: true</code> appears when a run departed from its design. The result is still
+printed, and it recommends no decision.</p>
+
+<h2><code>experiment check</code> and <code>list</code></h2>
+
+<p><code>check</code> answers "does what I have match what was registered", and reports rather than
+decides:</p>
+
+<pre><code>langchef experiment check model-swap          # exit 0
+
+model-swap@3f1053d32846: approved
+  the run matches the pre-registration</code></pre>
+
+<pre><code>langchef experiment list
+
+1 pre-registration(s)
+  model-swap                   approved   n=90</code></pre>
+
+<div class="callout warn">
+  <span class="k">A known gap in <code>check</code></span>
+  <p>Run <code>check</code> against an experiment whose variant arm was <em>never scored at all</em>
+  and it still reports <code>the run matches the pre-registration</code> at exit 0, with
+  <code>variant_run: null</code> in the payload. It is verifying the approval, not the existence of
+  a run. Read <code>variant_run</code> rather than the sentence until this is fixed.</p>
+</div>
+
+<h2>Why two candidates and not one answer</h2>
+
+<p>The first uses the goldens you have and says what they can resolve. The second appears only when
+you named a target the first cannot reach, and it is usually the more useful, because <strong>"you
+need 628 examples and you have 90" is an answer, where a shrug is not.</strong></p>
+
+<p>The failure without it is running the underpowered version, getting "no significant difference",
+and reading that as "no difference". Those are not the same sentence.</p>
+
+<h2>The number that governs everything</h2>
+
+<pre><code>  detect 20.0%   ->  n =    40
+  detect 10.0%   ->  n =   157
+  detect  5.0%   ->  n =   628
+  detect  2.5%   ->  n =  2512</code></pre>
+
+<p><strong>Halving the effect you want to detect costs roughly four times the examples.</strong> That
+is the shape of the arithmetic rather than a property of this tool, and it is why "collect more
+goldens" stops being advice quite quickly.</p>
+
+<p>It is computed from the <em>discordant</em> rate, not the pass rate, because the comparison is
+paired. With no prior comparison, 20% is assumed and <code>discordance_source</code> says so. Run
+the arms once and the next design uses your real rate: the example above came back with 24
+discordant of 90, so the next design for this suite starts from 26.7% rather than the guess.</p>
+
+<h2>What a design fixes, and why each one</h2>
+
+<div class="scroller"><table>
+<thead><tr><th>Field</th><th>Why it is decided in advance</th></tr></thead>
+<tbody>
+<tr><td><code>n</code>, <code>mde</code></td><td>So "inconclusive" reads as "this could never have seen it" rather than "no effect"</td></tr>
+<tr><td><code>margin</code></td><td>A tolerance chosen after seeing the interval is not a tolerance, it is a rationalisation</td></tr>
+<tr><td><code>stopping_rule</code></td><td>Score everything, read out once. Stopping early when it looks good is the most common way an experiment reports an effect that is not there</td></tr>
+<tr><td><code>guardrails</code></td><td>What must not get worse while you chase the thing you are chasing</td></tr>
+<tr><td><code>rubric</code></td><td>Pinned by hash, so a changed definition of good revokes the approval</td></tr>
+<tr><td><code>cost</code></td><td>Calls always, money only if a price was configured. Inventing a price is worse than admitting the gap</td></tr>
+</tbody></table></div>
+
+<h2>Non-inferiority refuses without a margin</h2>
+
+<pre><code>a non-inferiority design needs --margin: how much quality you are
+willing to lose. Deciding it after the run is not a design.</code></pre>
+
+<p>With a three point margin on these 90 goldens you get the same two-candidate shape and a second
+caveat worth reading twice:</p>
+
+<pre><code>[as-it-stands]  n=90     detects 13.2%
+  ! Quality holds only if the whole interval clears −3.0%.
+    The point estimate is not the test.
+
+[powered]       n=1745   detects  3.0%</code></pre>
+
+<h2>The gates, as exit codes</h2>
+
+<p>A rule in a prompt is a suggestion, and an agent can talk itself past one. These are exit codes.</p>
+
+<div class="scroller"><table>
+<thead><tr><th>Code</th><th>When</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td class="num"><strong>2</strong></td><td>no approved design, the design moved since approval, or more than one run matches an arm</td><td>Refused. Reading out whichever run ran last is how an experiment gets repeated until it says something better</td></tr>
+<tr><td class="num"><strong>5</strong></td><td>the two runs were produced under different pins</td><td>Refused. You would be comparing two rulers, not two systems</td></tr>
+<tr><td class="num"><strong>4</strong></td><td>the agreed call budget ran out</td><td>Stopped. What is unscored goes to <code>undone.json</code></td></tr>
+</tbody></table></div>
+
+<div class="incode">
+  <div><b>src/langchef/core/design.py</b> — <b>propose()</b>, <b>required_n()</b>, <b>estimate_cost()</b></div>
+  <div><b>src/langchef/workspace/experiments.py</b> — the TOML, and <b>digest()</b> over the body without the approval</div>
+  <div><b>src/langchef/cli/design_cmd.py</b> — design, approve, check, readout, list</div>
+  <div><b>src/langchef/core/gates.py</b> — gate one on the rubric, gate two on the experiment</div>
+</div>
+
+<h2>What we deliberately do not do</h2>
+
+<ul>
+  <li><strong>No sequential or always-valid designs.</strong> Score everything, read out once.
+  Peeking and stopping when it looks good inflates the false positive rate badly. Always-valid
+  confidence sequences are the real answer and are not built.</li>
+  <li><strong>No multi-arm designs.</strong> Two arms at a time. Sweeping five variants and
+  reporting the winner without correction finds effects that are not there.</li>
+  <li><strong>No automatic approval.</strong> An agent can design and check. It cannot approve.
+  That step is where a person accepts a cost and a claim, and automating it would remove the only
+  human in the loop.</li>
+  <li><strong>No cost model beyond calls times a price you supply.</strong> No token estimation, no
+  provider price list to go stale. <code>usd</code> stays <code>null</code> until you configure a
+  price.</li>
+  <li><strong>No boolean for "is this design sensible".</strong> <code>runnable_now</code> says
+  whether it can be executed with the goldens that exist and <code>shortfall</code> says how many
+  more are needed. Whether 538 more goldens are worth collecting is a judgement, and the tool
+  declines to encode one.</li>
+</ul>
+
+<h2>Further reading</h2>
+
+<ul class="reading">
+  <li><strong>Nosek, Ebersole, DeHaven and Mellor (2018), "The preregistration revolution",
+  <em>PNAS</em> 115(11), 2600–2606.</strong> Why the approval step exists at all: the distinction
+  between generating a hypothesis from observations and testing one with new observations is not
+  respected in practice, and the cost is credibility. Open access, and short.
+  <span class="where">doi:10.1073/pnas.1708274114</span></li>
+
+  <li><strong>Kohavi, Tang and Xu (2020), <em>Trustworthy Online Controlled Experiments</em>,
+  chapter 17.</strong> Power and sample size as practitioners meet them. The earlier chapters on
+  trustworthiness are why the gates here are exit codes rather than advice.</li>
+
+  <li><strong>Cohen (1988), <em>Statistical Power Analysis for the Behavioral Sciences</em>,
+  chapters 1 and 6.</strong> The ground under <code>required_n()</code>.</li>
+
+  <li><strong>The arithmetic</strong> lives on the
+  <a href="ref-compare.html#the-smallest-change-you-could-have-seen">comparison page</a>. This page
+  is the process around it.</li>
+</ul>
+
+<p class="dim">Every command output on this page was captured from a real workspace built from
+scratch, refusals included. Citations verified against publisher records.</p>
 """
 
 
@@ -1032,7 +2577,11 @@ REDIRECTS = {
     # click these for a while yet, and anyone who bookmarked or linked one
     # should land on the replacement rather than a dead end.
     "quickstart.html": ("start.html", "Your first evaluation"),
-    "concepts.html": ("numbers.html", "Reading the output"),
+    # concepts.html is NOT redirected any more. It briefly pointed at
+    # numbers.html after the August rewrite, and now names a real page again:
+    # the concept scaffolding. An old bookmark for "concepts" landing on
+    # Concepts is the right outcome, so the URL is reclaimed rather than
+    # forwarded. Anything added here must not collide with a page in NAV.
 }
 
 
@@ -1078,6 +2627,126 @@ def fill(template: str, values: dict) -> str:
     return text
 
 
+SEARCH_JS = """// Sidebar search. No dependency and no build step: the index is generated by
+// scripts/build_docs.py from the rendered pages, so it cannot drift from them.
+(function () {
+  var box = document.getElementById("q");
+  var out = document.getElementById("results");
+  var nav = document.getElementById("nav");
+  if (!box || !out || !nav) return;
+  var index = null;
+
+  fetch("search-index.json")
+    .then(function (r) { return r.json(); })
+    .then(function (d) { index = d; })
+    .catch(function () { box.placeholder = "Search unavailable"; box.disabled = true; });
+
+  function render(hits, query) {
+    if (!query) { out.hidden = true; nav.hidden = false; return; }
+    nav.hidden = true;
+    out.hidden = false;
+    if (!hits.length) { out.innerHTML = '<p class="none">No match for \u201c' + query + '\u201d.</p>'; return; }
+    var html = "", page = null;
+    hits.slice(0, 24).forEach(function (h) {
+      if (h.page !== page) { page = h.page; html += "<h5>" + h.page + "</h5>"; }
+      html += '<a href="' + h.href + '">' + h.title + "</a>";
+    });
+    out.innerHTML = html;
+  }
+
+  function search(query) {
+    if (!index) return [];
+    var terms = query.toLowerCase().split(/\\s+/).filter(Boolean);
+    var scored = [];
+    for (var i = 0; i < index.length; i++) {
+      var e = index[i];
+      var hay = (e.title + " " + e.page + " " + e.text).toLowerCase();
+      var score = 0, ok = true;
+      for (var t = 0; t < terms.length; t++) {
+        if (hay.indexOf(terms[t]) === -1) { ok = false; break; }
+        score += e.title.toLowerCase().indexOf(terms[t]) !== -1 ? 4 : 1;
+      }
+      if (ok) scored.push({ e: e, score: score });
+    }
+    scored.sort(function (a, b) { return b.score - a.score; });
+    return scored.map(function (r) { return r.e; });
+  }
+
+  var timer;
+  box.addEventListener("input", function () {
+    clearTimeout(timer);
+    var q = box.value.trim();
+    timer = setTimeout(function () { render(search(q), q); }, 80);
+  });
+
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "/" && document.activeElement !== box) { ev.preventDefault(); box.focus(); }
+    if (ev.key === "Escape" && document.activeElement === box) {
+      box.value = ""; render([], ""); box.blur();
+    }
+  });
+})();
+"""
+
+
+def anchored(markup: str) -> str:
+    """Give every h2 and h3 an id, so a search result can land on the heading."""
+
+    def add(match):
+        level, attrs, inner = match.group(1), match.group(2), match.group(3)
+        if "id=" in attrs:
+            return match.group(0)
+        text = html.unescape(re.sub(r"<[^>]+>", "", inner)).strip()
+        slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+        return f'<h{level}{attrs} id="{slug}">{inner}</h{level}>'
+
+    return re.sub(r"<h([23])([^>]*)>(.*?)</h\1>", add, markup, flags=re.S)
+
+
+def search_index(pages: dict[str, str]) -> str:
+    """Every heading on every page, as one flat searchable list.
+
+    Generated from the rendered HTML rather than maintained by hand, for the same
+    reason the command table is: an index that can disagree with the pages it
+    indexes is worse than no index.
+    """
+    entries = []
+    for name, markup in sorted(pages.items()):
+        if not name.endswith(".html"):
+            continue
+        found = re.search(r"<title>(.*?)</title>", markup)
+        page_title = html.unescape(found.group(1)) if found else name
+        page_title = page_title.replace(" — LangChef", "").strip() or "LangChef"
+        body = markup.split("<main>", 1)[-1].split("</main>", 1)[0]
+
+        lede = re.search(r'<p class="lede">(.*?)</p>', body, re.S)
+        entries.append(
+            {
+                "page": page_title,
+                "title": page_title,
+                "href": name,
+                "text": re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", lede.group(1))))
+                if lede
+                else "",
+            }
+        )
+        for match in re.finditer(r"<h([23])[^>]*>(.*?)</h\1>(.*?)(?=<h[23]|\Z)", body, re.S):
+            title = html.unescape(re.sub(r"<[^>]+>", "", match.group(2))).strip()
+            if not title:
+                continue
+            text = html.unescape(re.sub(r"<[^>]+>", " ", match.group(3)))
+            slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+            entries.append(
+                {
+                    "page": page_title,
+                    "title": title,
+                    "href": f"{name}#{slug}",
+                    "text": re.sub(r"\s+", " ", text).strip()[:400],
+                }
+            )
+    return json.dumps(entries, indent=0, ensure_ascii=False)
+
+
 def build() -> dict[str, str]:
     live = sum(1 for c in COMMANDS if c.implemented)
     total = len(COMMANDS)
@@ -1112,6 +2781,55 @@ def build() -> dict[str, str]:
             "What LangChef reads from and writes to — MLflow first, then tracing tools and CI. "
             "Status is marked honestly: shipped means it works today.",
         ),
+        "concepts.html": shell(
+            "concepts.html",
+            "Concepts — LangChef",
+            fill(CONCEPTS, common),
+            "Every idea LangChef uses, in a few lines each, with a link to the page that explains "
+            "it properly. No statistics background assumed.",
+        ),
+        "ref-agreement.html": shell(
+            "ref-agreement.html",
+            "Agreement and kappa — LangChef",
+            fill(REF_AGREEMENT, common),
+            "How LangChef decides whether your judge can be trusted: kappa, catch rate, false "
+            "alarms and Wilson intervals, worked from real numbers with the papers behind them.",
+        ),
+        "ref-taxonomy.html": shell(
+            "ref-taxonomy.html",
+            "Disagreement taxonomy — LangChef",
+            fill(REF_TAXONOMY, common),
+            "Where a judge disagrees rather than how often: misses against false alarms, which "
+            "criterion is at fault, and why the tool refuses to name the worst-looking slice.",
+        ),
+        "ref-sampling.html": shell(
+            "ref-sampling.html",
+            "Label planning — LangChef",
+            fill(REF_SAMPLING, common),
+            "Which forty examples are worth a person's ten minutes, why it is not a random forty, "
+            "and the open question about what those labels can be used to claim.",
+        ),
+        "ref-judging.html": shell(
+            "ref-judging.html",
+            "Judging and pins — LangChef",
+            fill(REF_JUDGING, common),
+            "How a judge is defined, how it is pinned so two runs can be compared, and how it is "
+            "stopped from spending money you did not agree to.",
+        ),
+        "ref-design.html": shell(
+            "ref-design.html",
+            "Designing a run — LangChef",
+            fill(REF_DESIGN, common),
+            "How the experiment is worked out before you run it: how many goldens, what it can "
+            "and cannot see, what it costs, and why editing an approved design revokes it.",
+        ),
+        "ref-compare.html": shell(
+            "ref-compare.html",
+            "Comparing two arms — LangChef",
+            fill(REF_COMPARE, common),
+            "Paired comparison, exact McNemar, the minimum detectable effect, and why "
+            "inconclusive is a result rather than a shrug.",
+        ),
         "cli.html": shell(
             "cli.html",
             "Commands — LangChef",
@@ -1127,6 +2845,14 @@ def main() -> int:
     args = parser.parse_args()
 
     pages = build()
+    clash = set(REDIRECTS) & set(pages)
+    if clash:
+        raise SystemExit(
+            f"redirect(s) {sorted(clash)} would overwrite a real page. "
+            "A URL cannot both forward and hold content."
+        )
+    pages["search-index.json"] = search_index(pages)
+    pages["search.js"] = SEARCH_JS
     pages[".nojekyll"] = ""
     for old, (target, label) in REDIRECTS.items():
         pages[old] = redirect(target, label)

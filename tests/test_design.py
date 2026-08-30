@@ -150,3 +150,65 @@ def test_unknown_kinds_are_refused():
         propose(
             suite="s", intent="x", n_available=10, baseline_arm="b", variant_arm="v", kind="vibes"
         )
+
+
+# --- #63: runnable_now answers "can I execute this", feasible did not ----------
+
+
+def test_powered_design_is_not_runnable_and_names_the_shortfall():
+    """The case in docs/ref-design.html: 90 goldens, five points wanted.
+
+    `feasible` used to report True here, because it meant "required n is under
+    100,000". An agent reading stdout saw a plan it could not execute, while the
+    binding constraint sat in prose. stdout is the interface, so the number an
+    agent needs belongs in the payload.
+    """
+    designs = propose(
+        suite="support",
+        intent="move to the replacement model",
+        n_available=90,
+        baseline_arm="baseline",
+        variant_arm="variant",
+        target_effect=0.05,
+    )
+    powered = next(d for d in designs if d.name == "powered")
+
+    assert powered.required_n == 628
+    assert powered.runnable_now is False
+    assert powered.shortfall == 538
+    assert powered.shortfall == powered.required_n - powered.n_available
+    assert not hasattr(powered, "feasible")
+
+
+def test_as_it_stands_is_always_runnable_with_no_shortfall():
+    """It is built from the goldens that exist, so it cannot fall short."""
+    designs = propose(
+        suite="support",
+        intent="anything",
+        n_available=17,
+        baseline_arm="baseline",
+        variant_arm="variant",
+        target_effect=0.01,
+    )
+    at_hand = next(d for d in designs if d.name == "as-it-stands")
+
+    assert at_hand.runnable_now is True
+    assert at_hand.shortfall == 0
+    assert at_hand.n == at_hand.n_available
+
+
+def test_an_absurd_requirement_is_argued_in_words_not_flagged():
+    """Past the ceiling the number is the argument, so say it rather than flag it."""
+    designs = propose(
+        suite="support",
+        intent="detect a hair",
+        n_available=50,
+        baseline_arm="baseline",
+        variant_arm="variant",
+        target_effect=0.0005,
+    )
+    powered = next(d for d in designs if d.name == "powered")
+
+    assert powered.required_n > 100_000
+    assert powered.runnable_now is False
+    assert any("beyond any realistic collection effort" in c for c in powered.caveats)

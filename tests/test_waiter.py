@@ -388,3 +388,51 @@ def test_runs_can_be_filtered_by_experiment(project, run_cli):
     linked = runs_mod.for_experiment(workspace, experiment_id="e1")
     assert [r.run_id for r in linked] == ["linked"]
     assert len(runs_mod.for_experiment(workspace, arm="variant")) == 2
+
+
+def test_check_reports_absence_of_runs_as_violations(project, run_cli):
+    run_cli(
+        "experiment",
+        "design",
+        "--intent",
+        "is the variant better",
+        "--variant-arm",
+        "variant",
+        "--id",
+        "e1",
+        cwd=project,
+    )
+    run_cli("experiment", "approve", "e1", cwd=project)
+
+    res = run_cli("experiment", "check", "e1", cwd=project)
+    assert res.code == Exit.OK
+    assert not res.payload["ok"]
+    assert "the arm was never scored" in res.payload["violations"]
+    assert "the run matches the pre-registration" not in res.err
+
+
+def test_check_says_matches_when_both_runs_exist_and_match(project, run_cli):
+    run_cli(
+        "experiment",
+        "design",
+        "--intent",
+        "is the variant better",
+        "--variant-arm",
+        "variant",
+        "--id",
+        "e1",
+        cwd=project,
+    )
+    run_cli("experiment", "approve", "e1", cwd=project)
+    assert (
+        run_cli(
+            "judge", "run", "--arm", "variant", "--run-id", "var", "--experiment", "e1", cwd=project
+        ).code
+        == 0
+    )
+
+    res = run_cli("experiment", "check", "e1", cwd=project)
+    assert res.code == Exit.OK
+    assert res.payload["ok"]
+    assert not res.payload["violations"]
+    assert "the run matches the pre-registration" in res.err

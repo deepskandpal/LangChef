@@ -13,6 +13,11 @@ if ! command -v uv >/dev/null 2>&1; then
   exit 1
 fi
 
+# CI runs this once per version in the matrix via UV_PYTHON; locally it is
+# whatever .python-version pins. Either way the label reports what actually ran,
+# because a step that says 3.12 while running 3.13 is worse than no label.
+PYVER="${UV_PYTHON:-$(cat .python-version 2>/dev/null || echo unknown)}"
+
 pass=0
 fail=0
 
@@ -42,7 +47,7 @@ smoke_wheel () {
 }
 
 step "1. no provider credentials present"  python3 scripts/assert_no_credentials.py
-step "2. pinned interpreter (3.12)"        uv python install
+step "2. interpreter ${PYVER}"$(printf '%*s' $((21 - ${#PYVER})) "")  uv python install
 step "3. dependencies match the lock"      uv sync --locked
 step "4. lint"                             uv run ruff check .
 step "5. format"                           uv run ruff format --check .
