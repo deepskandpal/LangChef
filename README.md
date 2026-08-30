@@ -173,7 +173,8 @@ $ langchef doctor 2>/dev/null     # stdout — written for the agent (abridged)
     "/home/dk/code/github/langchef/packs"
   ],
   "packs": [
-    "genai-rag@0.1.0"
+    "classification@0.1.0",
+    "genai-rag@0.2.0"
   ],
   "python": "3.12.14",
   "version": "0.1.0"
@@ -230,7 +231,8 @@ src/langchef/
   workspace/    paths, formats, config, runs, ledger, scaffold
   render/       decision memos
   packs/        loader + manifest schema — the boundary
-packs/genai-rag/       the first expertise pack
+packs/genai-rag/       expertise pack: qna and generation, both judged
+packs/classification/  expertise pack: a hard target, no judge, no rubrics
 adapters/claude-code/  skill + commands — disposable packaging
 dogfood/               RAG app with three planted regressions
 ```
@@ -245,6 +247,21 @@ it goes bad.
 The other marked directory is `packs/`. It stays separable because the core is
 Apache-2.0 and the expertise packs are not; if pack logic leaks into the core,
 that split becomes impossible. See [`DECISIONS.md`](DECISIONS.md) #5.
+
+A pack is where a **task class** is defined — the fields an example carries, what
+one example's outcome is, the metrics reported for it, and whether it needs a
+judge at all. `qna` and `generation` score free text and are judged;
+`classification` has a hard target, so its outcome is `predicted == ideal`, it
+ships no rubric, and there is nothing to calibrate
+([`DECISIONS.md`](DECISIONS.md) #12).
+
+What crosses into `core/` is the *shape* of the outcome and nothing else:
+`binary` or `continuous`, which is what `compare` and `design` size an experiment
+from. The class is named in the manifest, the shape is declared beside it, and
+none of those three class names appears anywhere in `core/`.
+`tests/test_boundaries.py` plants a leak into `core/` to prove that rule is
+checked rather than merely written down. Adding a fourth class is a directory on
+the pack search path, not a patch.
 
 ---
 
