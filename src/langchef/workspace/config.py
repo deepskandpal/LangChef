@@ -10,6 +10,7 @@ change.
 from dataclasses import dataclass
 from pathlib import Path
 
+from langchef.workspace.dataset import DatasetSpec, spec_from_config
 from langchef.workspace.formats import read_toml
 from langchef.workspace.paths import Workspace
 
@@ -40,6 +41,9 @@ class Settings:
     judge: JudgeSettings
     approved_rubric: str | None
     level: float
+    # The [dataset] declaration, when the workspace points at a file somebody
+    # already owns. None for the trace-collection path, which is unaffected.
+    dataset: DatasetSpec | None = None
 
     @property
     def rubric_path(self) -> Path:
@@ -59,6 +63,7 @@ def load(workspace: Workspace) -> Settings:
     judge = raw.get("judge") or {}
     approvals = raw.get("approvals") or {}
     compare = raw.get("compare") or {}
+    dataset = spec_from_config(raw, workspace.root)
 
     return Settings(
         workspace=workspace,
@@ -80,6 +85,7 @@ def load(workspace: Workspace) -> Settings:
         ),
         approved_rubric=approvals.get("rubric"),
         level=float(compare.get("level", 0.95)),
+        dataset=dataset,
     )
 
 
