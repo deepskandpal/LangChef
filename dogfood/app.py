@@ -51,6 +51,13 @@ SYNONYMS: tuple[tuple[str, str], ...] = (
 
 HEDGE = "I don't know — the retrieved documents do not contain that information."
 
+# A clause the app adds that is in no document and in no expected answer. Every
+# content word here is absent from the corpus, which is what a groundedness
+# check is looking for: text the model produced rather than retrieved. The claim
+# is plausible, specific and completely invented, which is what makes
+# hallucination hard to catch by reading and easy to catch by overlap.
+FABRICATION = " This was updated following the Q3 policy review board ruling."
+
 # The retriever the baseline ships with. Any other name is a different vector
 # space, and `_noise` reads it as one.
 BASE_EMBEDDER = "e5-base"
@@ -72,6 +79,7 @@ class Config:
     embedder: str = BASE_EMBEDDER  # which vector space the retriever ranks in
     tail_noise: float = RETRIEVER_NOISE  # that space's error on rare vocabulary
     temperature: float = 0.2  # how often a call departs from the modal wording
+    embellish_every: int = 0  # 0 = never; n = every nth answer gains an invented clause
 
     def describe(self) -> str:
         return (
@@ -79,7 +87,7 @@ class Config:
             f"hedge_below={self.hedge_below} paraphrase_every={self.paraphrase_every} "
             f"drop_every={self.drop_every} docs_per_chunk={self.docs_per_chunk} "
             f"embedder={self.embedder} tail_noise={self.tail_noise} "
-            f"temperature={self.temperature}"
+            f"temperature={self.temperature} embellish_every={self.embellish_every}"
         )
 
 
@@ -119,6 +127,10 @@ VARIANTS: dict[str, Config] = {
         BASELINE, name="embedding-swap", embedder="minilm-small", tail_noise=1.10
     ),
     "temperature-0.9": replace(BASELINE, name="temperature-0.9", temperature=0.9),
+    # The only arm that moves Groundedness. Every other knob answers out of a
+    # document, so whatever else is wrong with the answer it is still grounded
+    # in what was retrieved. This one invents.
+    "hallucinated-detail": replace(BASELINE, name="hallucinated-detail", embellish_every=6),
 }
 
 # What the knobs are known to do to the true pass rate, for the self-test.
@@ -129,6 +141,17 @@ PLANTED_EFFECT: dict[str, float] = {
     "chunk-size-doubled": -0.078,
     "embedding-swap": -0.122,
     "temperature-0.9": 0.000,
+    "hallucinated-detail": -0.144,
+}
+
+# `hallucinated-detail` is the one whose finding is a *criterion*. It is the only
+# arm that moves Groundedness, because every other knob answers out of a
+# retrieved document and is therefore grounded whatever else is wrong with it.
+# The planted truth is that Groundedness carries all of the loss and Correctness
+# carries exactly none: the requested fact is still in the answer, sitting next
+# to a sentence the app invented.
+PLANTED_CRITERION_EFFECT: dict[str, dict[str, float]] = {
+    "hallucinated-detail": {"Groundedness": -0.1333, "Correctness": 0.000},
 }
 
 # `chunk-size-doubled` is the one whose damage is mostly upstream of the pass
@@ -358,6 +381,7 @@ def answer(
         "hedged": True,
         "paraphrased": False,
         "fact_present": False,
+        "fabricated": False,
     }
     if not retrieved:
         return HEDGE, context, provenance
@@ -374,6 +398,9 @@ def answer(
 
     paraphrased = rewords(question, config, trial)
     text = paraphrase(best_text) if paraphrased else best_text
+    fabricated = bool(config.embellish_every) and _index(question) % config.embellish_every == 0
+    if fabricated:
+        text = text + FABRICATION
     provenance = {
         "source_doc": best_doc.doc_id,
         # Every document the answer text came from. At the baseline that is the
@@ -388,6 +415,7 @@ def answer(
         # Checked against the chunk before paraphrasing: a reader follows the
         # rewording, so a paraphrase does not make an answer wrong.
         "fact_present": _words(question.expected) <= _words(best_text),
+        "fabricated": fabricated,
     }
     return text, context, provenance
 
@@ -403,6 +431,11 @@ def truth(question: Question, provenance: dict) -> str:
     if provenance["hedged"]:
         return "fail"
     if question.gold_doc not in provenance["source_docs"]:
+        return "fail"
+    # An invented claim fails even when the requested fact is also present. A
+    # person does not read past a fabricated sentence because the rest was
+    # right, and an answer they cannot trust is not an answer.
+    if provenance["fabricated"]:
         return "fail"
     return "pass" if provenance["fact_present"] else "fail"
 

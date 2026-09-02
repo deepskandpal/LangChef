@@ -18,6 +18,7 @@ usefully, find out where it does not.
 | `chunk-size-doubled` | `docs_per_chunk=2 chunk_chars=480 top_k=2` | **-7.8 pp**, and **-14.4 pp** of retrieval recall | the chunk vector is diluted and the gold document stops reaching the prompt |
 | `embedding-swap` | `embedder=minilm-small tail_noise=1.10` | **-12.2 pp** overall — **-33.3 pp** on tail queries, **0.0 pp** on head | a different vector space, worse on rare vocabulary |
 | `temperature-0.9` | `temperature=0.9` | **0.0 pp**, and **16x** the between-call variance | the wording will not sit still between calls |
+| `hallucinated-detail` | `embellish_every=6` | **-14.4 pp**, all of it on **Groundedness** | the app invents a clause that is in no document |
 
 The effect sizes are spread on purpose, and so are the *shapes*. A dogfood where
 every planted regression is a large drop in a single mean proves only that the
@@ -235,3 +236,36 @@ one, which is the whole reason the arm exists.
   the between-call variance still rises by more than an order of magnitude
 - calibration finds the paraphrase blind spot as false alarms
 - the same inputs produce the same verdicts on any machine
+
+### `hallucinated-detail` — the answer says something no document said
+
+The only arm that moves **Groundedness**, and the reason it exists is that
+nothing else did.
+
+Every other knob here answers out of a retrieved document. Whatever is wrong
+with the answer after that — it came from the wrong document, it was cut off, it
+declined — the answer is still grounded in what the retriever handed over. So
+across the whole rig the attribution only ever named `Correctness` and
+`Directness`, and the sentence the product leads with was arithmetic nobody had
+run end to end:
+
+> not "quality dropped 4 points" but **"groundedness dropped 9 points while
+> correctness held"**
+
+Every sixth answer now gains an invented clause whose content words appear in no
+document and in no expected answer. That is exactly what the groundedness check
+looks for: text the app produced rather than retrieved. The requested fact stays
+where it was, so `Correctness` is untouched — by construction, and to the
+decimal.
+
+| | Effect | Attribution |
+|---|---:|---|
+| overall | -13.3 pp | regression |
+| **`Groundedness`** | **-13.3 pp** | **moved worse** |
+| `Correctness` | 0.0 pp | inconclusive |
+
+Ground truth falls 14.4 points rather than 13.3, and the gap is not an error. A
+fabricated answer fails ground truth even when the requested fact is also
+present, because a person does not read past an invented sentence on the grounds
+that the rest was right. The judge catches most of that and not all of it, which
+is the sort of thing calibration is for.
