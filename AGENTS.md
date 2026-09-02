@@ -215,6 +215,15 @@ independent implementation or a closed form. scikit-learn is available for this
 and is a *test-only* dependency — importing it from `core/` breaks the boundary
 test, which is deliberate. *(#7)*
 
+**Recording a cassette needs a person, and one command.** `LiteLLMProvider` is
+the backend every real user runs and the one CI can never run, because
+`scripts/assert_no_credentials.py` asserts a key is absent before anything else.
+`scripts/record_cassette.py` is the single place that inverts that: it refuses
+without a credential, states the cost and waits, scrubs what it captured, and
+**audits the finished bytes against the live secret values before writing**. It
+refuses to write a file the audit flags. Nothing else in this repository should
+ever read a key.
+
 **Bump `VERSION` in `providers.py` when a scoring check changes.** The model pin
 is part of the judgement cache key, so editing a check without bumping it
 silently serves stale judgements. Nothing catches this yet — that is
