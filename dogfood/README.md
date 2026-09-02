@@ -18,6 +18,7 @@ usefully, find out where it does not.
 | `chunk-size-doubled` | `docs_per_chunk=2 chunk_chars=480 top_k=2` | **-7.8 pp**, and **-14.4 pp** of retrieval recall | the chunk vector is diluted and the gold document stops reaching the prompt |
 | `embedding-swap` | `embedder=minilm-small tail_noise=1.10` | **-12.2 pp** overall — **-33.3 pp** on tail queries, **0.0 pp** on head | a different vector space, worse on rare vocabulary |
 | `temperature-0.9` | `temperature=0.9` | **0.0 pp**, and **16x** the between-call variance | the wording will not sit still between calls |
+| `covariate-shift` | `shift_topic=security shift_phrasing=terse` | **-6.7 pp** aggregate, **-33.3 pp** on the `security` topic | the input distribution moved under a classifier; the model is untouched |
 
 The effect sizes are spread on purpose, and so are the *shapes*. A dogfood where
 every planted regression is a large drop in a single mean proves only that the
@@ -235,3 +236,48 @@ one, which is the whole reason the arm exists.
   the between-call variance still rises by more than an order of magnitude
 - calibration finds the paraphrase blind spot as false alarms
 - the same inputs produce the same verdicts on any machine
+
+### `covariate-shift` — the questions changed, the classifier did not
+
+The only knob here that is not a retrieval-augmented answer. It degrades a
+**classifier**, because the failure it plants has no analogue in a pass rate.
+
+Six of ninety questions arrive rephrased: the `security` topic asked tersely, with
+three of its discriminative terms replaced by generic ones. Somebody rolled out a
+help-centre form with a topic dropdown, so people stopped naming the thing they
+were asking about in the free-text box. The model is byte-for-byte the same, the
+ideal labels are the same, and `P(y|x)` is unchanged. Only the inputs moved,
+which is what makes it covariate shift rather than concept drift.
+
+The classifier is nearest-centroid over term overlap, built from the corpus
+documents rather than hand-written. That matters: a hand-written keyword list
+would make the shift a tautology, because the same hand would choose which words
+to take away. Baseline accuracy is exactly 1.000, because five topics with
+disjoint vocabulary are separable and this corpus is small. That is deliberate —
+it makes every planted number below an exact truth rather than an estimate.
+
+**What it is for.** The expected signature in the build order was that slice
+accuracy falls before aggregate accuracy does, meaning the aggregate would go
+quiet. It does not. All six discordant pairs move the same way, so exact McNemar
+returns a regression at p=0.031 on a 6.7 point aggregate effect, even though the
+pre-hoc detection limit for ninety goldens is 11.0 points. The MDE is what a
+typical draw of this size could resolve; it is not a floor under what this draw
+did resolve.
+
+So the aggregate is not silent here. It is **misleading**, which is worse and is
+the more useful test. It reports a small decline spread over everything. The
+truth is that one topic lost a third of its accuracy and four lost nothing at
+all:
+
+| Topic | Baseline | Shifted | Effect |
+|---|---:|---:|---:|
+| `account` | 1.000 | 1.000 | 0.0 pp |
+| `billing` | 1.000 | 1.000 | 0.0 pp |
+| `returns` | 1.000 | 1.000 | 0.0 pp |
+| **`security`** | 1.000 | 0.667 | **-33.3 pp** |
+| `shipping` | 1.000 | 1.000 | 0.0 pp |
+
+Both numbers are correct arithmetic. A team reading the aggregate goes and looks
+at the model, and finds nothing wrong with it, because nothing is. A team reading
+the slice goes and looks at what changed about the questions. The slice effect is
+five times the aggregate, and that ratio is the finding.
