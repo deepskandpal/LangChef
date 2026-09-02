@@ -104,6 +104,7 @@ def label_plan(
 ) -> None:
     """Choose the examples worth a person's attention, balanced across verdicts."""
     resolved = common.settings()
+    common.require_judge(resolved, "label against")
     run = _run_or_latest(resolved, run_id)
     rows = _scores(run)
 
@@ -196,6 +197,7 @@ def calibrate_report(
 ) -> None:
     """Judge against human: agreement, intervals, and where they parted."""
     resolved = common.settings()
+    common.require_judge(resolved, "calibrate, and no criterion for a taxonomy to group by")
     run = _run_or_latest(resolved, run_id)
     rows = _scores(run)
 
@@ -288,6 +290,7 @@ def calibrate_diff(
     candidate for a signed-off instrument.
     """
     resolved = common.settings()
+    common.require_judge(resolved, "calibrate, so a rubric delta has nothing to measure")
     run = _run_or_latest(resolved, run_id)
     by_id = {row["example_id"]: row for row in _scores(run)}
     labels = _labels(resolved)

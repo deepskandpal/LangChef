@@ -123,10 +123,25 @@ answer, and produce numbers that mean nothing.</p>
   <p>What you get instead is the other half, and it is a real offer: the paired comparison, the
   detection limit, the refusal to call an underpowered result a pass, and the experiment discipline.
   Those are worth having. They are not the same pitch, and saying they were would be dishonest.</p>
-  <p>So on those three classes, <code>calibrate</code>, <code>taxonomy</code> and
-  <code>label plan</code> <strong>refuse</strong> rather than returning a number nobody can
-  interpret.</p>
+  <p>So on those three classes the calibration commands <strong>refuse at exit 2</strong> rather
+  than returning a number nobody can interpret. The refusal names the class, says why in the same
+  sentence, and lists what does apply.</p>
 </div>
+
+<div class="scroller"><table>
+<thead><tr><th>Command</th><th>Free-text target<br><code>qna</code>, <code>generation</code></th><th>Hard target<br><code>classification</code>, <code>retrieval</code>, <code>reranking</code></th></tr></thead>
+<tbody>
+<tr><td><code>label plan</code></td><td>yes</td><td><strong>exit 2</strong></td></tr>
+<tr><td><code>calibrate report</code></td><td>yes</td><td><strong>exit 2</strong></td></tr>
+<tr><td><code>calibrate diff</code></td><td>yes</td><td><strong>exit 2</strong></td></tr>
+<tr><td>the disagreement taxonomy</td><td>yes, inside <code>calibrate report</code> and <code>calibrate diff</code></td><td><strong>exit 2</strong>, with them</td></tr>
+<tr><td><code>compare</code></td><td>yes</td><td><strong>yes</strong></td></tr>
+<tr><td><code>experiment design</code> / <code>approve</code> / <code>readout</code></td><td>yes</td><td><strong>yes</strong></td></tr>
+</tbody></table></div>
+
+<p>The taxonomy has no command of its own. It groups disagreements by the criterion the judge cited,
+so it exists only where a judge does, and it is reported inside the two <code>calibrate</code>
+commands that refuse with it.</p>
 
 <h2 id="what-gets-compared">What gets compared</h2>
 
