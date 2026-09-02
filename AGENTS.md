@@ -20,6 +20,29 @@ If you find yourself computing a statistic in prose, stop: it belongs in
 
 ---
 
+## Nothing reaches `main` without a pull request
+
+**Every piece of work goes on a branch and through a pull request that at least
+one maintainer reviews. There are no direct commits to `main`, and that includes
+the maintainer's own.** *(DECISIONS #14)*
+
+```sh
+git switch -c 28-per-criterion-compare   # <issue-number>-short-slug
+./scripts/verify.sh                      # all 10 steps, green
+git push -u origin 28-per-criterion-compare
+gh pr create --fill                      # then fill the template honestly
+```
+
+The failure mode this repository exists to prevent is a plausible wrong number.
+It does not crash and it does not fail a test nobody wrote. Every defect caught
+late here was caught by somebody reading the change, not by CI, so review is the
+control that actually works and it applies to everyone.
+
+This matters more, not less, when several agents are working at once. Volume is
+exactly the condition under which a number that looks right gets waved through.
+
+---
+
 ## Picking up work
 
 [The board](https://github.com/users/deepskandpal/projects/5) carries the same information as sortable fields —
@@ -46,6 +69,12 @@ An issue labelled `lifecycle:spec` is **not ready**. It needs a decision or a
 design first, and the decision is usually named in the body. Doing the code
 first and the decision afterwards is how a threshold ends up hidden in a
 function instead of declared in a pre-registration.
+
+Work is prioritised on weekdays across the three lifecycle states that carry it:
+`lifecycle:spec` for what needs deciding, `lifecycle:ready` for what can start
+cold, and `lifecycle:blocked` for what is waiting and on what. The ready set is
+then dispatched to several agents at once. One issue per agent, no two agents on
+the same `area:` label, and every one of them opens a pull request.
 
 ## Claiming it
 
@@ -241,7 +270,8 @@ ignore.
 - **`src/` without `tests/`.** Most issues name the tests they expect. If the
   change is genuinely untestable, say so in the description.
 
-`main` requires both CI legs to pass before anything merges.
+`main` requires both CI legs to pass before anything merges, and it takes no
+direct commits from anyone. Branch, push, open a pull request.
 
 ## Before opening a pull request
 

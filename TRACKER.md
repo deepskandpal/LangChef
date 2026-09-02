@@ -15,6 +15,10 @@
 >
 > [`AGENTS.md`](AGENTS.md) is the working agreement — how work is claimed, which
 > areas collide, and what cannot be changed in a pull request.
+>
+> **Nothing lands on `main` directly.** Every change is a branch, a pull request
+> and at least one maintainer review, the maintainer's own work included
+> ([`DECISIONS.md`](DECISIONS.md) #14).
 
 ---
 

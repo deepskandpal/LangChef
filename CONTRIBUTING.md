@@ -48,8 +48,14 @@ first change.
 with its reasoning and its date. If a change of yours contradicts one, that is a
 conversation on an issue first, and a new dated entry second.
 
+**Everything goes through a pull request, reviewed by at least one maintainer.**
+`main` takes no direct commits from anyone, the maintainer included. The failure
+mode here is a number that looks right, and review is the only control that has
+reliably caught one. *(DECISIONS #14)*
+
 ## The short version
 
+- Branch, push, open a pull request. Nothing lands on `main` directly.
 - `./scripts/verify.sh` passes before you open a pull request.
 - A new statistic ships with a known-answer test against an independent
   implementation, or it does not ship.

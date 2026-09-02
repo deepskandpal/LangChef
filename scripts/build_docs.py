@@ -1519,7 +1519,11 @@ reported along, so renaming one silently changes what every past number meant.</
   simulation put a nominal 95% interval at <strong>43% actual coverage for the catch rate</strong>.
   So read every rate on this page as describing <em>the labelled set</em>, not as an estimate of
   your whole suite. The underlying question, whether one label budget buys estimation or diagnosis,
-  is open.</li>
+  was settled on 2 September 2026: it buys diagnosis. These rates are screening statistics measured
+  on the cases the judge was least sure about, which biases agreement downward and makes them
+  conservative for the question you are actually asking, which is whether the judge can be trusted
+  at all. Estimating a population rate is a separate opt-in mode that refuses when the label budget
+  cannot support the width you asked for.</li>
   <li><strong>scikit-learn is a test dependency, never a runtime one.</strong> Every statistic is
   hand-rolled and checked against an independent implementation. If the product and its check came
   from the same library, the check would only prove the library agrees with itself.</li>
