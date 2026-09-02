@@ -53,6 +53,39 @@ def require_approved_rubric(resolved: config_mod.Settings, pinned: Rubric) -> No
         )
 
 
+def require_judge(resolved: config_mod.Settings, verb: str) -> None:
+    """Refuse the calibration commands on a task class that has no judge.
+
+    Three of the four task classes have a hard target, so nothing judges them and
+    there is nothing to calibrate: kappa between a hard label and itself is a
+    number, and somebody will quote it. A number with no meaning is worse than a
+    refusal, because a refusal is read once and a number is repeated
+    (DECISIONS.md #12).
+
+    Whether a class needs a judge is **pack knowledge**, declared per class in a
+    ``pack.toml`` and carried here on the resolved ``DatasetSpec``. No list of
+    class names lives in this function or anywhere under ``core/``; adding a
+    fifth class is a new directory, not a patch to this refusal.
+
+    The trace-collection path has no ``[dataset]`` table at all. It is judged by
+    construction, so an absent spec passes.
+    """
+    spec = resolved.dataset
+    if spec is None or spec.requires_judge:
+        return
+    fail(
+        Exit.REFUSED,
+        f"{spec.task_class} has a hard target, so there is no judge to {verb}. "
+        "What this class does support: the paired comparison between two arms, "
+        "the detection limit that says what the labels could have resolved, and "
+        "the pre-registration and readout discipline around both.",
+        task_class=spec.task_class,
+        outcome_shape=spec.outcome_shape,
+        requires_judge=False,
+        available=["compare", "experiment design", "experiment approve", "experiment readout"],
+    )
+
+
 def provider(resolved: config_mod.Settings) -> providers.Provider:
     try:
         return providers.resolve(resolved.judge.provider, cassettes=resolved.cassette_path)
