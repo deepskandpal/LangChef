@@ -25,9 +25,14 @@ recorded bytes through it.
 
 The bytes live in ``tests/cassettes/openai-chat-completions.json``. They are
 shaped exactly as the API returns them but were written by hand, not captured
-from a live model — issue #31's "record one session against a real model" still
-wants a person with a key and a dollar. What is settled here is that the path
-works at all.
+from a live model: issue #31's "record one session against a real model" still
+wants a person with a key. What is settled here is that the path works at all.
+
+The error scenarios have to stay hand-written, because no provider will issue a
+429 on request. The success shapes do not, and they are the ones that can go
+quietly stale, so ``scripts/record_cassette.py`` writes
+``openai-chat-completions.recorded.json`` and the tests at the bottom of this
+module compare the two. They skip until somebody records one.
 
 litellm is an optional extra, so this whole module skips when it is absent.
 """
@@ -42,6 +47,7 @@ litellm = pytest.importorskip("litellm", reason="the providers extra is not inst
 httpx = pytest.importorskip("httpx", reason="the providers extra is not installed")
 
 from langchef.core.credentials import present  # noqa: E402
+from langchef.judge import scrub  # noqa: E402
 from langchef.judge.cache import Cache, prompt_key  # noqa: E402
 from langchef.judge.example import Example  # noqa: E402
 from langchef.judge.providers import (  # noqa: E402
@@ -49,6 +55,7 @@ from langchef.judge.providers import (  # noqa: E402
     ProviderError,
     ReplayProvider,
     build_prompt,
+    parse_reply,
     reply_text,
     resolve,
 )
@@ -123,7 +130,16 @@ class Wire:
         if name is None:
             raise AssertionError(f"the shim made an unqueued call to {request.url}")
         recorded = INTERACTIONS[name]
-        return httpx.Response(recorded["status"], json=recorded["body"])
+        response = httpx.Response(recorded["status"], json=recorded["body"])
+        # A recorded cassette carries allowlisted response headers; the
+        # hand-written one carries none, so this loop is usually empty.
+        # Transport headers are dropped: httpx has already computed them for
+        # the body it is about to send, and a recorded ``content-length``
+        # describes bytes that are not the ones here.
+        for key, value in (recorded.get("headers") or {}).items():
+            if key.lower() not in scrub.TRANSPORT_HEADERS:
+                response.headers[key] = value
+        return response
 
 
 _WIRE = Wire()
@@ -346,6 +362,172 @@ def test_the_committed_cassette_carries_no_credential():
         assert "sk-" not in text, f"{path.name} looks like it carries an API key"
         assert "Authorization" not in text
         assert "api_key" not in text
+
+
+# --- the live recording, once a person has made one --------------------------
+#
+# Everything above runs against bytes written by hand. Hand-written bytes prove
+# the path executes, and they cannot prove the one thing the fixture is really
+# for: that the shape they claim is the shape the provider still sends. Only a
+# recording can, and a recording needs a key and a person (issue #31).
+#
+# A live run can only supply the *success* shapes. There is no way to ask a
+# provider for a 429, a 500 or a response with no choices on purpose, so those
+# stay hand-written, and these tests check only what a recording can settle.
+
+RECORDED_WIRE = CASSETTES / "openai-chat-completions.recorded.json"
+_RECORDED = (
+    json.loads(RECORDED_WIRE.read_text(encoding="utf-8")) if RECORDED_WIRE.is_file() else None
+)
+needs_a_recording = pytest.mark.skipif(
+    _RECORDED is None,
+    reason=(
+        "no live recording is committed. Run scripts/record_cassette.py with a "
+        "provider key to make these run; see issue #31."
+    ),
+)
+
+
+def _successes(wire: dict) -> list[dict]:
+    return [i for i in wire["interactions"].values() if i["status"] == 200 and i["body"]]
+
+
+@needs_a_recording
+def test_every_recorded_reply_is_read_by_the_code_that_reads_the_live_one():
+    """The recorded bytes go through ``reply_text`` and ``parse_reply`` for real.
+
+    If the provider moves a field, this is where it surfaces, because these are
+    the provider's own bytes rather than our idea of them.
+    """
+    successes = _successes(_RECORDED)
+    assert successes, f"{RECORDED_WIRE.name} captured no successful call"
+
+    for name, interaction in _RECORDED["interactions"].items():
+        if interaction["status"] != 200 or not interaction["body"]:
+            continue
+        text = reply_text(interaction["body"], _RECORDED["model"])
+        judgement = parse_reply(text, f"recorded-{name}", _RECORDED["model"])
+        assert judgement.verdict in {"pass", "fail"}, (
+            f"{name} in {RECORDED_WIRE.name} did not grade to a verdict. The model "
+            "replied with something the rubric did not ask for; re-record."
+        )
+
+
+@needs_a_recording
+def test_the_hand_written_success_shape_matches_what_the_provider_sends():
+    """Why the recording is worth the dollar.
+
+    ``openai-chat-completions.json`` is hand-written, and every error scenario in
+    it has to stay that way. What it must not be is *wrong* about the success
+    shape, because a fixture that agrees with our assumptions rather than with
+    the API tests nothing. This compares the two, field by field, and fails
+    naming what the hand-written body claims that the real one does not have.
+    """
+    hand = INTERACTIONS["grades-pass"]["body"]
+    live = _successes(_RECORDED)[0]["body"]
+
+    def absent(expected: dict, actual: dict, where: str) -> None:
+        missing = sorted(set(expected) - set(actual))
+        assert not missing, (
+            f"{where}: openai-chat-completions.json claims {missing}, which the "
+            f"live {_RECORDED['model']} response does not carry. The hand-written "
+            "fixture is describing an API that has moved."
+        )
+
+    absent(hand, live, "response body")
+    absent(hand["choices"][0], live["choices"][0], "choices[0]")
+    absent(hand["choices"][0]["message"], live["choices"][0]["message"], "choices[0].message")
+
+
+# --- the recorder's own capture, executed without a key ----------------------
+
+
+def _recorder():
+    """``scripts/record_cassette.py`` as a module. It is a script, not a package."""
+    import importlib.util
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "record_cassette.py"
+    spec = importlib.util.spec_from_file_location("record_cassette", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_tee_captures_the_exchange_it_passes_through():
+    """The recorder's capture, run offline.
+
+    This is the piece that would otherwise only ever execute on a machine with
+    a key, which is exactly the hole issue #31 exists to close. So the inner
+    transport is injected and the whole capture runs against recorded bytes,
+    the same trick the rest of this module uses on the provider.
+    """
+    recorded = INTERACTIONS["grades-pass"]
+    seen = []
+
+    def respond(request):
+        seen.append(request)
+        return httpx.Response(
+            recorded["status"],
+            json=recorded["body"],
+            headers={
+                "x-request-id": "req-abc123",
+                "openai-organization": "org-SHOULDNOTSURVIVE",
+                "set-cookie": "session=nope",
+            },
+        )
+
+    tee = _recorder()._tee(httpx, scrub, inner=httpx.MockTransport(respond))
+    client = httpx.Client(transport=tee)
+
+    response = client.post("https://api.example.invalid/v1/chat/completions", json={"a": 1})
+
+    # The caller gets the real thing back, unchanged. A tee that consumed the
+    # body would break the provider it is wrapped around.
+    assert response.status_code == 200
+    assert response.json() == recorded["body"]
+    assert len(seen) == 1
+
+    assert len(tee.captured) == 1
+    captured = tee.captured[0]
+    assert captured["status"] == 200
+    assert captured["body"] == recorded["body"]
+    assert captured["headers"]["x-request-id"] == "req-abc123"
+    assert "openai-organization" not in captured["headers"], (
+        "an account id survived the allowlist and would have been committed"
+    )
+    assert "set-cookie" not in captured["headers"]
+    assert set(captured["headers"]) <= scrub.SAFE_HEADERS
+
+
+def test_the_tee_records_a_status_even_when_the_body_is_not_json():
+    """An HTML error page from a proxy is not a fixture, but it is evidence."""
+    tee = _recorder()._tee(
+        httpx,
+        scrub,
+        inner=httpx.MockTransport(lambda request: httpx.Response(502, text="<html>nope</html>")),
+    )
+    client = httpx.Client(transport=tee)
+
+    assert client.post("https://api.example.invalid/v1/chat/completions").status_code == 502
+    assert len(tee.captured) == 1
+    assert tee.captured[0]["status"] == 502
+    assert tee.captured[0]["body"] is None, "HTML is no use as a fixture and is not kept"
+    assert set(tee.captured[0]["headers"]) <= scrub.SAFE_HEADERS
+
+
+@needs_a_recording
+def test_the_recording_kept_no_account_identifying_header():
+    """``openai-organization`` is an account id, and #31 forbids one in here.
+
+    The scrubber's allowlist is what drops it. This asserts the allowlist did
+    its job on the bytes that actually got committed, rather than on a fixture
+    written to please it.
+    """
+    for interaction in _RECORDED["interactions"].values():
+        for key in interaction.get("headers") or {}:
+            assert key.lower() in scrub.SAFE_HEADERS, (
+                f"{key} survived into {RECORDED_WIRE.name}; it is not on the allowlist"
+            )
 
 
 # --- and the same path, driven by the runner ---------------------------------
