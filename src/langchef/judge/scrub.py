@@ -26,12 +26,17 @@ from typing import Any
 SAFE_HEADERS: frozenset[str] = frozenset(
     {
         "content-type",
-        "content-length",
         "x-request-id",
         "openai-processing-ms",
         "openai-version",
     }
 )
+#: Headers that describe the transport rather than the exchange. A recorded
+#: ``content-length`` cannot match a body that has been re-serialised on the way
+#: into a fixture, so replaying one would describe bytes that are not there.
+#: ``content-type`` is kept because it is worth seeing in a diff, and dropped
+#: again at serve time by the test harness for the same reason.
+TRANSPORT_HEADERS: frozenset[str] = frozenset({"content-type", "content-length"})
 
 #: What a redacted value is replaced with. Recognisable on sight in a diff.
 REDACTED = "<redacted>"
@@ -39,8 +44,11 @@ REDACTED = "<redacted>"
 #: Shapes that are credentials regardless of the field they arrive in. These are
 #: prefixes real providers use, matched against any string in the payload.
 KEY_SHAPES: tuple[re.Pattern[str], ...] = (
-    re.compile(r"sk-[A-Za-z0-9_\-]{16,}"),
+    # Most specific first. ``sk-[...]`` subsumes ``sk-ant-[...]`` because the
+    # hyphen and the letters of ``ant`` are both inside its character class, so
+    # ordered the other way the Anthropic pattern can never fire.
     re.compile(r"sk-ant-[A-Za-z0-9_\-]{16,}"),
+    re.compile(r"sk-[A-Za-z0-9_\-]{16,}"),
     re.compile(r"AIza[A-Za-z0-9_\-]{30,}"),
     re.compile(r"AKIA[A-Z0-9]{16}"),
     re.compile(r"Bearer\s+[A-Za-z0-9._\-]{16,}"),

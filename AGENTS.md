@@ -222,7 +222,10 @@ the backend every real user runs and the one CI can never run, because
 without a credential, states the cost and waits, scrubs what it captured, and
 **audits the finished bytes against the live secret values before writing**. It
 refuses to write a file the audit flags. Nothing else in this repository should
-ever read a key.
+ever read a key. It writes two cassettes: the reply text that `ReplayProvider`
+needs, and the whole HTTP responses that `tests/test_litellm_path.py` serves.
+The second is the one worth the money, because a hand-written body cannot notice
+that the provider's response shape moved.
 
 **Bump `VERSION` in `providers.py` when a scoring check changes.** The model pin
 is part of the judgement cache key, so editing a check without bumping it
