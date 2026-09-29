@@ -15,11 +15,11 @@ You label about forty examples once, and from then on it tells you whether your
 judge can be trusted, and whether each change was a real regression, a real
 improvement, or noise.
 
-**Documentation: <https://deepskandpal.github.io/LangChef/>** — start with
-[your first evaluation](https://deepskandpal.github.io/LangChef/start.html).
+**Documentation: <https://langchef.dev/>** — start with
+[your first evaluation](https://langchef.dev/start.html).
 
 **Already have a labelled test set in a spreadsheet?** Point at it instead:
-[bring your own data](https://deepskandpal.github.io/LangChef/byod.html). Name
+[bring your own data](https://langchef.dev/byod.html). Name
 the columns in `evals/config.toml` and start. For classification, retrieval and
 reranking there is no rubric to write and nothing to label, because those have a
 hard target — so setup is minutes rather than an afternoon. The trade is honest
@@ -407,7 +407,7 @@ and no amount of downstream statistics repairs it.
 
 ## Background
 
-Documentation: **<https://deepskandpal.github.io/LangChef/>** — overview,
+Documentation: **<https://langchef.dev/>** — overview,
 quickstart, concepts, and a command reference generated from the contract.
 
 - [Issues](https://github.com/deepskandpal/LangChef/issues) — where the work is, including
