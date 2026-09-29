@@ -30,7 +30,8 @@ dependencies = [
 providers = ["litellm>=1.55,<2"]
 
 [project.urls]
-Homepage = "https://github.com/deepskandpal/langchef"
+Homepage = "https://langchef.dev"
+Documentation = "https://langchef.dev"
 Source = "https://github.com/deepskandpal/langchef"
 
 [project.scripts]
