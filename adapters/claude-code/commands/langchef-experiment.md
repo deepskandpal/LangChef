@@ -1,7 +1,7 @@
 ---
 description: Compare a variant against the pinned baseline and write the decision memo.
 argument-hint: "<variant-run-id>"
-allowed-tools: Bash(langchef:*), Read, Glob
+allowed-tools: Bash(langchef compare:*), Bash(langchef ledger query:*), Bash(langchef memo render:*), Read(evals/**), Glob
 ---
 
 Run the experiment readout for variant `$1`.

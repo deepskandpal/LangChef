@@ -1,7 +1,7 @@
 ---
 description: Calibrate the judge against human labels and report whether it can be trusted.
 argument-hint: "[run-id]"
-allowed-tools: Bash(langchef:*), Read, Glob
+allowed-tools: Bash(langchef doctor:*), Bash(langchef calibrate report:*), Bash(langchef calibrate diff:*), Bash(langchef label plan:*), Read(evals/**), Glob
 ---
 
 Calibrate the judge in this workspace.
