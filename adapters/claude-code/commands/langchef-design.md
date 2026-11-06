@@ -1,7 +1,7 @@
 ---
 description: Turn a described change into one or two experiment designs for a human to approve.
 argument-hint: "<what changed, in plain language>"
-allowed-tools: Bash(langchef:*), Read, Glob
+allowed-tools: Bash(langchef experiment design:*), Read(evals/**), Glob
 ---
 
 Design an experiment for: $1

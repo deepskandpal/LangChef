@@ -30,8 +30,13 @@ langchef init
 
 The gates are in the CLI, not in the prompt, which is the point. The skill tells
 the agent that exit 2 means stop; the CLI makes it true whether the agent reads
-the skill or not. An agent cannot approve a rubric on a human's behalf, because
-approving is a command a human runs, and running the eval without one exits 2.
+the skill or not. An agent cannot approve a rubric on a human's behalf: each
+command's `allowed-tools` grants only the read-and-report subcommands it runs
+(`calibrate report`, `compare`, `memo render` and the like), so `langchef
+approve rubric` and `langchef experiment approve` are not pre-authorised. If the
+agent runs one anyway, the harness asks the human first, which is the human
+running it. Approving is a command a human runs, and running the eval without one
+exits 2.
 
 Writes are limited to the eval workspace. Anything touching the application
 under test goes through a pull request a person opens.
